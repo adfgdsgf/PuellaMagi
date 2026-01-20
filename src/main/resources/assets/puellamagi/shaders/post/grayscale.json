@@ -1,0 +1,18 @@
+
+{
+  "targets": [
+    "swap"
+  ],
+  "passes": [
+    {
+      "name": "puellamagi:grayscale",
+      "intarget": "minecraft:main",
+      "outtarget": "swap"
+    },
+    {
+      "name": "blit",
+      "intarget": "swap",
+      "outtarget": "minecraft:main"
+    }
+  ]
+}

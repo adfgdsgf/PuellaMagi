@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Specification-Title: lotmmod
+Specification-Vendor: ????
+Specification-Version: 1
+Implementation-Title: LOTM-1.20.1
+Implementation-Version: 1.0.0
+Implementation-Vendor: ????
+Implementation-Timestamp: 2025-05-25T20:08:52+0800
+MixinConfigs: mixins.lotmmod.json
+

@@ -1,0 +1,18 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal() // 标准Gradle插件仓库
+        mavenCentral()
+        maven {
+            name = 'ForgeFS' // Forge的仓库，通常需要
+            url = 'https://maven.minecraftforge.net/'
+        }
+        maven { // SpongePowered的仓库，尝试稳定版
+            name = 'SpongePowered'
+            url = 'https://repo.spongepowered.org/repository/maven-public/'
+        }
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.7.0'
+}

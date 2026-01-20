@@ -1,0 +1,35 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.v2t.puellamagi.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "access.AccessLivingEntityMixin",
+    "access.EntityAndDataMixin",
+    "timestop.TimestopLevelMixin",
+    "timestop.TimestopServerLevelMixin",
+    "timestop.TimestopLivingEntityMixin",
+    "timestop.TimestopMobMixin",
+    "timestop.TimestopProjectileMixin",
+    "timestop.TimestopAbstractArrowMixin",
+    "timestop.TimestopThrowableProjectileMixin",
+    "timestop.TimestopItemEntityMixin",
+    "timestop.TimestopSlimeMixin",
+    "timestop.WalkAnimationStateAccessor"
+  ],
+  "client": [
+    "access.AccessParticleMixin",
+    "access.ParticleDataMixin",
+    "timestop.TimestopClientLevelMixin",
+    "timestop.TimestopClientLevelParticleMixin",
+    "timestop.TimestopMinecraftMixin",
+    "timestop.TimestopGameRendererMixin",
+    "timestop.TimestopEntityRenderDispatcherMixin",
+    "timestop.TimestopLivingEntityRendererMixin",
+    "timestop.TimestopProjectileRendererMixin",
+    "timestop.TimestopParticleEngineMixin",
+    "timestop.TimestopTextureManagerMixin"
+  ],
+  "server": [],
+  "refmap": "mixins.puellamagi.refmap.json"
+}
