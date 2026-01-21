@@ -16,9 +16,6 @@ import java.io.IOException;
 
 /**
  * 时停灰度效果管理器
- *
- * 当玩家处于时停中（作为时停者或有时停能力的被冻结者）时，
- * 应用灰度后处理效果
  */
 @OnlyIn(Dist.CLIENT)
 public class 时停灰度效果 {
@@ -28,9 +25,6 @@ public class 时停灰度效果 {
     private static PostChain grayscaleEffect = null;
     private static boolean effectActive = false;
 
-    /**
-     * 每帧调用，检查是否需要应用灰度效果
-     */
     public static void onRenderTick() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) {
@@ -38,17 +32,22 @@ public class 时停灰度效果 {
             return;
         }
 
+        // 如果处于冻结状态，不需要灰度（冻结帧已经是静态画面）
+        if (时停冻结帧.isFrozen() && 时停冻结帧.hasFrozenFrame()) {
+            disableEffect();
+            return;
+        }
+
         TimeStop timeStop = (TimeStop) mc.level;
 
-        // 判断是否应该显示灰度
         boolean shouldGray = false;
 
         if (timeStop.puellamagi$hasActiveTimeStop()) {
-            // 方案1：玩家是时停者
             if (timeStop.puellamagi$isTimeStopper(mc.player)) {
                 shouldGray = true;
-            }// 方案2：玩家有时停能力但被冻结（后续实现能力检查）
-            // else if (玩家有时停能力) { shouldGray = true; }
+            } else if (timeStop.puellamagi$inTimeStopRange(mc.player)) {
+                shouldGray = true;
+            }
         }
 
         if (shouldGray) {
@@ -58,9 +57,6 @@ public class 时停灰度效果 {
         }
     }
 
-    /**
-     * 渲染灰度效果
-     */
     public static void renderEffect(float partialTicks) {
         if (!effectActive || grayscaleEffect == null) {
             return;
@@ -70,7 +66,8 @@ public class 时停灰度效果 {
         RenderTarget framebuffer = mc.getMainRenderTarget();
 
         grayscaleEffect.resize(framebuffer.width, framebuffer.height);
-        grayscaleEffect.process(partialTicks);framebuffer.bindWrite(false);}
+        grayscaleEffect.process(partialTicks);
+        framebuffer.bindWrite(false);}
 
     private static void enableEffect() {
         if (effectActive) {
@@ -81,7 +78,8 @@ public class 时停灰度效果 {
 
         try {
             if (grayscaleEffect == null) {
-                grayscaleEffect = new PostChain(mc.getTextureManager(),
+                grayscaleEffect = new PostChain(
+                        mc.getTextureManager(),
                         mc.getResourceManager(),
                         mc.getMainRenderTarget(),
                         GRAYSCALE_SHADER
@@ -89,7 +87,6 @@ public class 时停灰度效果 {
                 grayscaleEffect.resize(mc.getWindow().getWidth(), mc.getWindow().getHeight());
             }
             effectActive = true;
-            PuellaMagi.LOGGER.debug("时停灰度效果已启用");
         } catch (IOException e) {
             PuellaMagi.LOGGER.error("无法加载时停灰度shader", e);
             grayscaleEffect = null;
@@ -100,14 +97,9 @@ public class 时停灰度效果 {
         if (!effectActive) {
             return;
         }
-
         effectActive = false;
-        PuellaMagi.LOGGER.debug("时停灰度效果已禁用");
     }
 
-    /**
-     * 资源重载时调用
-     */
     public static void onResourceReload() {
         if (grayscaleEffect != null) {
             grayscaleEffect.close();
@@ -116,9 +108,6 @@ public class 时停灰度效果 {
         effectActive = false;
     }
 
-    /**
-     * 窗口大小改变时调用
-     */
     public static void onResize(int width, int height) {
         if (grayscaleEffect != null) {
             grayscaleEffect.resize(width, height);

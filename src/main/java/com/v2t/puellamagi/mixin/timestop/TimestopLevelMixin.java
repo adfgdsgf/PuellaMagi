@@ -9,6 +9,7 @@ import com.v2t.puellamagi.api.timestop.TimeStop;
 import com.v2t.puellamagi.api.timestop.时停实例;
 import com.v2t.puellamagi.core.network.ModNetwork;
 import com.v2t.puellamagi.core.network.packets.s2c.时停状态同步包;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -16,23 +17,24 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraftforge.network.PacketDistributor;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.List;
 import java.util.UUID;
 
 /**
  * Level Mixin - 实现 TimeStop 接口
- *
- * 存储时停者列表，提供基础判断方法
- * 参考Roundabout 的TimeStopWorld
  */
 @Mixin(Level.class)
 public abstract class TimestopLevelMixin implements TimeStop {
 
-    //==================== 服务端数据 ====================
+    // ==================== 服务端数据 ====================
 
     @Unique
     private ImmutableList<LivingEntity> puellamagi$timeStoppers;
@@ -75,7 +77,6 @@ public abstract class TimestopLevelMixin implements TimeStop {
 
             PuellaMagi.LOGGER.info("[服务端] 添加时停者: {}", entity.getName().getString());
 
-            // 立即同步给所有客户端
             puellamagi$syncToClients();
         }
     }
@@ -93,7 +94,6 @@ public abstract class TimestopLevelMixin implements TimeStop {
 
             PuellaMagi.LOGGER.info("[服务端] 移除时停者: {}", entity.getName().getString());
 
-            // 发送移除同步包
             puellamagi$syncRemovalToClients(entity);
         }
     }
@@ -154,15 +154,13 @@ public abstract class TimestopLevelMixin implements TimeStop {
             return false;
         }
 
-        //========== 新增：时停者发射的投射物不被冻结 ==========
         if (entity instanceof net.minecraft.world.entity.projectile.Projectile) {
             com.v2t.puellamagi.api.access.IProjectileAccess access =
                     (com.v2t.puellamagi.api.access.IProjectileAccess) entity;
             if (access.puellamagi$isTimeStopCreated()) {
-                return false;  // 有惯性标记的投射物不冻结，让它自己处理
+                return false;
             }
         }
-        // =====================================================
 
         return puellamagi$inTimeStopRange(entity);
     }
@@ -174,7 +172,6 @@ public abstract class TimestopLevelMixin implements TimeStop {
         if (!self.isClientSide) {
             ImmutableList<LivingEntity> stoppers = puellamagi$getTimeStoppersList();
             if (!stoppers.isEmpty()) {
-                // 目前使用无限范围，后续可配置
                 return true;
             }
         } else {
@@ -189,7 +186,8 @@ public abstract class TimestopLevelMixin implements TimeStop {
 
     @Override
     public boolean puellamagi$inTimeStopRange(Entity entity) {
-        return puellamagi$inTimeStopRange(new Vec3i((int) entity.getX(),
+        return puellamagi$inTimeStopRange(new Vec3i(
+                (int) entity.getX(),
                 (int) entity.getY(),
                 (int) entity.getZ()
         ));
@@ -205,6 +203,24 @@ public abstract class TimestopLevelMixin implements TimeStop {
             return !puellamagi$getTimeStoppersList().isEmpty();
         } else {
             return !puellamagi$getTimeStoppersClientList().isEmpty();
+        }
+    }
+
+    // ==================== 方块实体冻结 ====================
+
+    /**
+     * 阻止时停范围内的方块实体 tick（熔炉、炼药台等）
+     *对标Roundabout 的 roundabout$TickBlocksAt
+     */
+    @Inject(method = "shouldTickBlocksAt(Lnet/minecraft/core/BlockPos;)Z", at = @At("HEAD"), cancellable = true)
+    private void puellamagi$onShouldTickBlocksAt(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
+        if (puellamagi$inTimeStopRange(pos)) {
+            // 活塞例外，否则会卡住
+            Level self = (Level) (Object) this;
+            if (self.getBlockState(pos).is(Blocks.MOVING_PISTON)) {
+                return;
+            }
+            cir.setReturnValue(false);
         }
     }
 
@@ -226,11 +242,10 @@ public abstract class TimestopLevelMixin implements TimeStop {
                 for (LivingEntity entity : toRemove) {
                     puellamagi$removeTimeStopper(entity);
                 }
-            }
-        }
+            }}
     }
 
-    // ==================== 客户端同步（核心修复！）====================
+    // ==================== 客户端同步 ====================
 
     @Override
     public void puellamagi$addTimeStopperClient(int entityId, double x, double y, double z, double range) {
@@ -238,9 +253,7 @@ public abstract class TimestopLevelMixin implements TimeStop {
         if (!self.isClientSide) return;
 
         List<时停实例> list = Lists.newArrayList(puellamagi$getTimeStoppersClientList());
-        // 移除旧的同ID实例（如果存在）
         list.removeIf(instance -> instance.实体ID == entityId);
-        // 添加新实例
         list.add(new 时停实例(entityId, x, y, z, range));
         puellamagi$timeStoppersClient = ImmutableList.copyOf(list);
 
@@ -269,7 +282,6 @@ public abstract class TimestopLevelMixin implements TimeStop {
         ImmutableList<LivingEntity> stoppers = puellamagi$getTimeStoppersList();
         if (stoppers.isEmpty()) return;
 
-        // 向所有玩家发送所有时停者的状态
         for (ServerPlayer player : serverLevel.players()) {
             for (LivingEntity stopper : stoppers) {
                 时停状态同步包 packet = 时停状态同步包.开始(
@@ -277,7 +289,7 @@ public abstract class TimestopLevelMixin implements TimeStop {
                         stopper.getX(),
                         stopper.getY(),
                         stopper.getZ(),
-                        -1  // -1 表示无限范围
+                        -1
                 );
                 ModNetwork.getChannel().send(
                         PacketDistributor.PLAYER.with(() -> player),
@@ -287,9 +299,6 @@ public abstract class TimestopLevelMixin implements TimeStop {
         }
     }
 
-    /**
-     * 同步移除时停者给所有客户端
-     */
     @Unique
     private void puellamagi$syncRemovalToClients(LivingEntity entity) {
         Level self = (Level) (Object) this;

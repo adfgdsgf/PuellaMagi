@@ -1,6 +1,6 @@
 // 文件路径: src/main/java/com/v2t/puellamagi/core/event/客户端事件.java
 
-package com.v2t.puellamagi.core.event;
+package com.v2t.puellamagi.core.event.client;
 
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.client.gui.技能栏编辑界面;

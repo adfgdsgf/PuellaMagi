@@ -55,6 +55,13 @@ public final class 时停管理器 {
         public int 获取攻击次数() { return 攻击次数; }
     }
 
+    /**
+     * 清理实体的累计伤害数据
+     */
+    public static void 清理实体伤害(LivingEntity entity) {
+        累计伤害表.remove(entity.getId());
+    }
+
     // ==================== 蓄力状态管理 ====================
 
     private static final Set<UUID> 蓄力中玩家 = ConcurrentHashMap.newKeySet();

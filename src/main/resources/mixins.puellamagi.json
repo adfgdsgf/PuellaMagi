@@ -1,5 +1,4 @@
-{
-  "required": true,
+{"required": true,
   "minVersion": "0.8",
   "package": "com.v2t.puellamagi.mixin",
   "compatibilityLevel": "JAVA_17",
@@ -20,15 +19,24 @@
   "client": [
     "access.AccessParticleMixin",
     "access.ParticleDataMixin",
+    "access.GuiAccessor",
     "timestop.TimestopClientLevelMixin",
     "timestop.TimestopClientLevelParticleMixin",
+    "timestop.TimestopClientLevelTimeMixin",
+    "timestop.TimestopClientPacketMixin",
     "timestop.TimestopMinecraftMixin",
     "timestop.TimestopGameRendererMixin",
+    "timestop.TimestopFrozenFrameMixin",
+    "timestop.TimestopScreenMixin",
+    "timestop.TimestopPauseMixin",
+    "timestop.TimestopInputMixin",
+    "timestop.TimestopMouseMixin",
     "timestop.TimestopEntityRenderDispatcherMixin",
     "timestop.TimestopLivingEntityRendererMixin",
     "timestop.TimestopProjectileRendererMixin",
     "timestop.TimestopParticleEngineMixin",
-    "timestop.TimestopTextureManagerMixin"
+    "timestop.TimestopTextureManagerMixin",
+    "timestop.TimestopWeatherMixin"
   ],
   "server": [],
   "refmap": "mixins.puellamagi.refmap.json"

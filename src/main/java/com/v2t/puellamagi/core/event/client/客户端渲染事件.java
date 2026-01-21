@@ -1,6 +1,6 @@
 // 文件路径: src/main/java/com/v2t/puellamagi/core/event/客户端渲染事件.java
 
-package com.v2t.puellamagi.core.event;
+package com.v2t.puellamagi.core.event.client;
 
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.client.timestop.时停灰度效果;
