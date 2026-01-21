@@ -68,10 +68,21 @@
   "skill.puellamagi.test": "测试技能",
   "skill.puellamagi.time_stop": "时间停止",
 
-  "girl_type.puellamagi.test": "测试类型",
-  "girl_type.puellamagi.test.desc": "用于测试的魔法少女类型，可使用所有技能",
+  "series.puellamagi.soul_gem": "灵魂宝石",
+  "series.puellamagi.soul_gem.desc": "以灵魂宝石为核心的魔法少女，拥有不死之身，但需警惕污浊度的累积。",
+
+  "series.puellamagi.heart_seed": "心之种",
+  "series.puellamagi.heart_seed.desc": "以心之种为核心的魔法少女，通过成长阶段不断强化自身。",
+  "series.puellamagi.heart_seed.stage.seed": "种",
+  "series.puellamagi.heart_seed.stage.sprout": "芽",
+  "series.puellamagi.heart_seed.stage.leaf": "叶",
+  "series.puellamagi.heart_seed.stage.bud": "蕾",
+  "series.puellamagi.heart_seed.stage.flower": "花",
+
+  "girl_type.puellamagi.test": "测试者",
+  "girl_type.puellamagi.test.desc": "测试用魔法少女类型，可使用所有技能。",
   "girl_type.puellamagi.time_manipulator": "时间操控者",
-  "girl_type.puellamagi.time_manipulator.desc": "能够操控时间流动的魔法少女",
+  "girl_type.puellamagi.time_manipulator.desc": "操控时间的魔法少女，可以停止时间的流动。",
 
   "config.puellamagi.timestop.range.range": "时停范围",
   "config.puellamagi.timestop.range.currentDimensionOnly": "仅影响当前维度",

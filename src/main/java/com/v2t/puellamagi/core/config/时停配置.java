@@ -1,4 +1,4 @@
-//文件路径: src/main/java/com/v2t/puellamagi/core/config/时停配置.java
+// 文件路径: src/main/java/com/v2t/puellamagi/core/config/时停配置.java
 
 package com.v2t.puellamagi.core.config;
 
@@ -14,7 +14,7 @@ public class 时停配置 {
 
     public static final ForgeConfigSpec SPEC;
 
-    //==================== 范围设置 ====================
+    // ==================== 范围设置 ====================
 
     public static final ForgeConfigSpec.IntValue 时停范围;
     public static final ForgeConfigSpec.BooleanValue 仅当前维度;
@@ -29,6 +29,13 @@ public class 时停配置 {
     public static final ForgeConfigSpec.IntValue 蓄力时间;
     public static final ForgeConfigSpec.BooleanValue 受击打断蓄力;
     public static final ForgeConfigSpec.IntValue 语音冷却;
+
+    // ==================== 觉醒设置 ====================
+
+    public static final ForgeConfigSpec.BooleanValue 觉醒启用;
+    public static final ForgeConfigSpec.IntValue 觉醒范围;
+    public static final ForgeConfigSpec.BooleanValue 觉醒需要队友;
+    public static final ForgeConfigSpec.BooleanValue 觉醒仅玩家;
 
     // ==================== 构建配置 ====================
 
@@ -87,6 +94,31 @@ public class 时停配置 {
 
         builder.pop();
 
+        // 觉醒设置
+        builder.push("awakening");
+
+        觉醒启用 = builder
+                .translation("config.puellamagi.timestop.awakening.enabled")
+                .comment("是否启用觉醒系统。启用后，时停者靠近的实体可以被唤醒并行动。")
+                .define("enabled", true);
+
+        觉醒范围 = builder
+                .translation("config.puellamagi.timestop.awakening.range")
+                .comment("觉醒范围（方块）。时停者多近时可以唤醒附近实体。0表示禁用。")
+                .defineInRange("range", 5, 0, 64);
+
+        觉醒需要队友 = builder
+                .translation("config.puellamagi.timestop.awakening.requireTeammate")
+                .comment("是否需要是队友才能被唤醒。false表示靠近就能唤醒。")
+                .define("requireTeammate", true);
+
+        觉醒仅玩家 = builder
+                .translation("config.puellamagi.timestop.awakening.playersOnly")
+                .comment("觉醒是否只对玩家生效。false表示所有生物都可以被唤醒。")
+                .define("playersOnly", true);
+
+        builder.pop();
+
         builder.pop();
 
         SPEC = builder.build();
@@ -125,5 +157,23 @@ public class 时停配置 {
 
     public static int 获取语音冷却() {
         return 语音冷却.get();
+    }
+
+    //觉醒相关
+
+    public static boolean 觉醒启用() {
+        return 觉醒启用.get();
+    }
+
+    public static int 获取觉醒范围() {
+        return 觉醒范围.get();
+    }
+
+    public static boolean 觉醒需要队友() {
+        return 觉醒需要队友.get();
+    }
+
+    public static boolean 觉醒仅玩家() {
+        return 觉醒仅玩家.get();
     }
 }

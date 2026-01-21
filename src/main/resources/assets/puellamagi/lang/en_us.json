@@ -67,10 +67,21 @@
   "skill.puellamagi.test": "Test Skill",
   "skill.puellamagi.time_stop": "Time Stop",
 
-  "girl_type.puellamagi.test": "Test Type",
-  "girl_type.puellamagi.test.desc": "Magical girl type for testing, can use all skills",
+  "series.puellamagi.soul_gem": "Soul Gem",
+  "series.puellamagi.soul_gem.desc": "Magical girls with Soul Gem as their core, possessing immortality but must beware of corruption accumulation.",
+
+  "series.puellamagi.heart_seed": "Heart Seed",
+  "series.puellamagi.heart_seed.desc": "Magical girls with Heart Seed as their core, growing stronger through stages.",
+  "series.puellamagi.heart_seed.stage.seed": "Seed",
+  "series.puellamagi.heart_seed.stage.sprout": "Sprout",
+  "series.puellamagi.heart_seed.stage.leaf": "Leaf",
+  "series.puellamagi.heart_seed.stage.bud": "Bud",
+  "series.puellamagi.heart_seed.stage.flower": "Flower",
+
+  "girl_type.puellamagi.test": "Tester",
+  "girl_type.puellamagi.test.desc": "Test magical girl type, can use all skills.",
   "girl_type.puellamagi.time_manipulator": "Time Manipulator",
-  "girl_type.puellamagi.time_manipulator.desc": "Magical girl who can manipulate the flow of time",
+  "girl_type.puellamagi.time_manipulator.desc": "A magical girl who manipulates time, can stop the flow of time.",
 
   "config.puellamagi.timestop.range.range": "Time Stop Range",
   "config.puellamagi.timestop.range.currentDimensionOnly": "Current Dimension Only",

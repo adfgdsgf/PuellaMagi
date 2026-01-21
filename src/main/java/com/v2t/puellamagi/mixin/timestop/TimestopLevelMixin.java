@@ -157,19 +157,12 @@ public abstract class TimestopLevelMixin implements TimeStop {
             return false;
         }
 
-        if (puellamagi$isTimeStopper(entity)) {
+        // 使用豁免系统统一判断
+        if (!com.v2t.puellamagi.system.ability.timestop.时停豁免系统.应该冻结(entity)) {
             return false;
         }
 
-        if (entity instanceof Player player && player.isCreative()) {
-            return false;
-        }
-
-        if (entity.isSpectator()) {
-            return false;
-        }
-
-        // 投射物豁免
+        // 投射物豁免（时停中释放的）
         if (entity instanceof net.minecraft.world.entity.projectile.Projectile) {
             com.v2t.puellamagi.api.access.IProjectileAccess access =
                     (com.v2t.puellamagi.api.access.IProjectileAccess) entity;
@@ -178,8 +171,8 @@ public abstract class TimestopLevelMixin implements TimeStop {
             }
         }
 
-        //===== 掉落物豁免 =====
-        if (entity instanceof ItemEntity) {
+        // 掉落物豁免（时停中产生的）
+        if (entity instanceof net.minecraft.world.entity.item.ItemEntity) {
             com.v2t.puellamagi.api.access.IItemEntityAccess access =
                     (com.v2t.puellamagi.api.access.IItemEntityAccess) entity;
             if (access.puellamagi$isTimeStopCreated()) {

@@ -81,6 +81,7 @@ public class 时间停止技能 implements I技能 {
     /**
      * 获取实际蓄力时间（考虑创造模式）
      */
+    @Override
     public int 获取实际蓄力时间(Player player) {
         if (player != null && player.isCreative()) {
             return 0;

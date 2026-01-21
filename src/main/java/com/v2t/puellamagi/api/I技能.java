@@ -138,6 +138,15 @@ public interface I技能 {
     }
 
     /**
+     * 获取实际蓄力时间（考虑玩家状态，如创造模式）
+     * @param player 玩家
+     * @return 实际蓄力时间，0表示瞬发
+     */
+    default int 获取实际蓄力时间(Player player) {
+        return 获取最大蓄力时间();
+    }
+
+    /**
      * 获取最小蓄力时间（tick）
      * 未达到此时间松开则取消技能
      */

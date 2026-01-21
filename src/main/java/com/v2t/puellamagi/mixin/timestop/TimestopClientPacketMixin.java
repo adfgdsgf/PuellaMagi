@@ -3,9 +3,11 @@
 package com.v2t.puellamagi.mixin.timestop;
 
 import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.system.ability.timestop.时停豁免系统;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
+import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 import net.minecraft.network.protocol.game.ClientboundHurtAnimationPacket;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -18,8 +20,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * 客户端网络包拦截
  *
- * 只拦截被冻结的 LivingEntity 的动画包
- * 解决多人游戏中被冻结生物动作变化的问题
+ *拦截时停中被冻结实体的动画/伤害包
+ * 防止被冻结的实体姿势变化
  */
 @Mixin(ClientPacketListener.class)
 public class TimestopClientPacketMixin {
@@ -29,7 +31,7 @@ public class TimestopClientPacketMixin {
      */
     @Inject(method = "handleHurtAnimation", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onHurtAnimation(ClientboundHurtAnimationPacket packet, CallbackInfo ci) {
-        if (puellamagi$shouldBlockLivingEntityPacket(packet.id())) {
+        if (puellamagi$shouldBlockAnimationPacket(packet.id())) {
             ci.cancel();
         }
     }
@@ -39,16 +41,31 @@ public class TimestopClientPacketMixin {
      */
     @Inject(method = "handleAnimate", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onAnimate(ClientboundAnimatePacket packet, CallbackInfo ci) {
-        if (puellamagi$shouldBlockLivingEntityPacket(packet.getId())) {
+        if (puellamagi$shouldBlockAnimationPacket(packet.getId())) {
             ci.cancel();
         }
     }
 
     /**
-     * 只拦截被冻结的LivingEntity
+     * 拦截伤害事件包（1.19.4+新增，影响实体姿势）
+     */
+    @Inject(method = "handleDamageEvent", at = @At("HEAD"), cancellable = true)
+    private void puellamagi$onDamageEvent(ClientboundDamageEventPacket packet, CallbackInfo ci) {
+        if (puellamagi$shouldBlockAnimationPacket(packet.entityId())) {
+            ci.cancel();
+        }
+    }
+
+    /**
+     * 判断是否应该拦截动画包
+     *
+     * 拦截条件：
+     * 1. 存在时停
+     * 2. 实体是LivingEntity
+     * 3. 实体的tick被冻结（shouldFreezeEntity返回true）
      */
     @Unique
-    private boolean puellamagi$shouldBlockLivingEntityPacket(int entityId) {
+    private boolean puellamagi$shouldBlockAnimationPacket(int entityId) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
             return false;
@@ -74,6 +91,7 @@ public class TimestopClientPacketMixin {
             return false;
         }
 
-        return timeStop.puellamagi$shouldFreezeEntity(entity);
+        // 使用豁免系统判断：需要冻结(tick)的实体才拦截动画
+        return 时停豁免系统.应该冻结(entity);
     }
 }

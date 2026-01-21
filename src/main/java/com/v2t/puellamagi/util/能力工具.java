@@ -1,7 +1,11 @@
+// 文件路径: src/main/java/com/v2t/puellamagi/util/能力工具.java
+
 package com.v2t.puellamagi.util;
 
 import com.v2t.puellamagi.api.I可变身;
+import com.v2t.puellamagi.api.contract.I契约;
 import com.v2t.puellamagi.core.registry.ModCapabilities;
+import com.v2t.puellamagi.system.contract.契约能力;
 import com.v2t.puellamagi.system.skill.技能能力;
 import com.v2t.puellamagi.system.transformation.变身能力;
 import net.minecraft.world.entity.player.Player;
@@ -16,7 +20,7 @@ import java.util.Optional;
 public final class 能力工具 {
     private 能力工具() {}
 
-    //==================== 变身能力 ====================
+    // ==================== 变身能力 ====================
 
     /**
      * 获取玩家的变身能力
@@ -76,7 +80,34 @@ public final class 能力工具 {
                 .orElse(0);
     }
 
-    // TODO: 后续添加
-    // public static Optional<契约能力> 获取契约能力(Player player)
-    // public static boolean 是否有契约(Player player)
+    // ==================== 契约能力 ====================
+
+    /**
+     * 获取玩家的契约能力
+     */
+    public static Optional<I契约> 获取契约能力(Player player) {
+        if (player == null) return Optional.empty();
+        LazyOptional<I契约> cap = player.getCapability(ModCapabilities.契约能力);
+        return cap.resolve();
+    }
+
+    /**
+     * 获取契约能力（完整类型）
+     */
+    public static Optional<契约能力> 获取契约能力完整(Player player) {
+        Optional<I契约> opt = 获取契约能力(player);
+        if (opt.isPresent() && opt.get() instanceof 契约能力 full) {
+            return Optional.of(full);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * 便捷方法：判断玩家是否已契约
+     */
+    public static boolean 是否已契约(Player player) {
+        return 获取契约能力(player)
+                .map(I契约::是否已契约)
+                .orElse(false);
+    }
 }

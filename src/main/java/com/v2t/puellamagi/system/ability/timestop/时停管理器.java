@@ -4,6 +4,8 @@ package com.v2t.puellamagi.system.ability.timestop;
 
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.system.contract.契约管理器;
+import com.v2t.puellamagi.util.资源工具;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
@@ -216,6 +218,22 @@ public final class 时停管理器 {
     public static boolean 是否被冻结(Entity entity) {
         if (entity == null) return false;
         return ((TimeStop) entity.level()).puellamagi$shouldFreezeEntity(entity);
+    }
+
+    //==================== 能力判断 ====================
+
+    /**
+     * 检查玩家是否拥有时停能力（不管是否激活）
+     * 用于判断是否应该画面冻结
+     */
+    public static boolean 拥有时停能力(Player player) {
+        if (player == null) return false;
+
+        // 从契约获取类型 → 获取固有能力ID → 判断是否是时间操控能力
+        return 契约管理器.获取类型(player)
+                .map(type -> type.获取固有能力ID())
+                .map(id -> id.equals(资源工具.本mod("time_control")))
+                .orElse(false);
     }
 
     // ==================== 蓄力状态管理 ====================

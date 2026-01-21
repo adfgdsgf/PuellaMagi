@@ -2,6 +2,7 @@
 
 package com.v2t.puellamagi.client.gui;
 
+import com.v2t.puellamagi.client.蓄力状态管理;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.client.客户端状态管理;
 import com.v2t.puellamagi.client.keybind.按键绑定;
@@ -310,9 +311,9 @@ public class 技能栏HUD implements IGuiOverlay {
     private void 绘制槽位(GuiGraphics graphics, Font font, Player player,技能槽位数据 slot, int x, int y, int size, int index,
                           float scale, float alpha) {
 
-        //绘制槽位背景
+        // 绘制槽位背景
         if (alpha > 0.1f) {
-            渲染工具.绘制纹理(graphics, 资源工具.技能管理_槽位, x, y, size, size, alpha);
+            渲染工具.绘制纹理(graphics,资源工具.技能管理_槽位, x, y, size, size, alpha);
         } else {
             int bgColor = 渲染工具.调整透明度(渲染工具.颜色_槽位背景, alpha);
             int borderColor = 渲染工具.调整透明度(渲染工具.颜色_槽位边框, alpha);
@@ -342,6 +343,12 @@ public class 技能栏HUD implements IGuiOverlay {
 
                 // 绘制冷却遮罩
                 绘制冷却遮罩(graphics, font, player, skillId, x, y, size, scale, alpha);
+
+                // 绘制蓄力进度
+                绘制蓄力进度(graphics, x, y, size, index, alpha);
+
+                // ===== 绘制切换类技能开启状态边框 =====
+                绘制开启状态边框(graphics, player, skillId, x, y, size, index, alpha);
             }
         }
 
@@ -437,5 +444,68 @@ public class 技能栏HUD implements IGuiOverlay {
     }
 
     public void 触发预设显示() {
-        预设切换时间戳 = System.currentTimeMillis();}
+        预设切换时间戳 = System.currentTimeMillis();
+    }
+
+    /**
+     * 绘制蓄力进度条
+     */
+    private void 绘制蓄力进度(GuiGraphics graphics, int x, int y, int size, int slotIndex, float alpha) {
+        // 检查是否是当前蓄力的槽位
+        if (蓄力状态管理.获取蓄力槽位() != slotIndex) {
+            return;
+        }
+
+        float progress = 蓄力状态管理.获取蓄力进度();
+        if (progress <= 0) {
+            return;
+        }
+
+        // 进度条参数
+        int barHeight = 3;
+        int barY = y + size - barHeight - 1;
+        int barWidth = size - 2;
+        int barX = x + 1;
+
+        // 背景（深色）
+        int bgColor = 渲染工具.调整透明度(0x80000000, alpha);
+        graphics.fill(barX, barY, barX + barWidth, barY + barHeight, bgColor);
+
+        // 进度（渐变色）
+        int progressWidth = (int) (barWidth * progress);
+        int progressColor;
+        if (progress < 0.5f) {
+            progressColor = 0xFF00AAFF;
+        } else if (progress < 1.0f) {
+            progressColor = 0xFF00FF00;
+        } else {
+            long time = System.currentTimeMillis();
+            boolean flash = (time / 100) % 2 == 0;
+            progressColor = flash ? 0xFFFFD700 : 0xFFFFFF00;
+        }
+
+        int finalColor = 渲染工具.调整透明度(progressColor, alpha);
+        graphics.fill(barX, barY, barX + progressWidth, barY + barHeight, finalColor);
+
+        // 蓄满时绘制边框高亮
+        if (progress >= 1.0f) {
+            int highlightColor = 渲染工具.调整透明度(0xFFFFD700, alpha * 0.8f);
+            渲染工具.绘制边框矩形(graphics, x, y, size, size, highlightColor,0, 1);
+        }
+    }
+    /**
+     * 绘制切换类技能的开启状态边框
+     */
+    private void 绘制开启状态边框(GuiGraphics graphics, Player player,ResourceLocation skillId, int x, int y, int size, int slotIndex, float alpha) {
+        // 使用蓄力状态管理检查开启状态
+        if (!蓄力状态管理.槽位技能是否开启(player, slotIndex)) {
+            return;
+        }
+
+        // 金色边框（呼吸效果）
+        long time = System.currentTimeMillis();
+        float breathe = 0.7f + 0.3f * (float) Math.sin(time / 300.0);
+        int highlightColor = 渲染工具.调整透明度(0xFFFFD700, alpha * breathe);
+        渲染工具.绘制边框矩形(graphics, x, y, size, size, highlightColor, 0, 2);
+    }
 }

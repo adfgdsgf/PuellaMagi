@@ -1,4 +1,4 @@
-// 文件路径: src/main/java/com/v2t/puellamagi/core/event/客户端事件.java
+// 文件路径: src/main/java/com/v2t/puellamagi/core/event/client/客户端事件.java
 
 package com.v2t.puellamagi.core.event.client;
 
@@ -6,6 +6,7 @@ import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.client.gui.技能栏编辑界面;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.client.客户端状态管理;
+import com.v2t.puellamagi.client.蓄力状态管理;
 import com.v2t.puellamagi.client.gui.技能栏HUD;
 import com.v2t.puellamagi.client.gui.技能管理界面;
 import com.v2t.puellamagi.client.keybind.按键绑定;
@@ -15,7 +16,6 @@ import com.v2t.puellamagi.core.network.packets.c2s.技能松开请求包;
 import com.v2t.puellamagi.core.network.packets.c2s.预设切换请求包;
 import com.v2t.puellamagi.util.能力工具;
 import com.v2t.puellamagi.util.网络工具;
-import com.v2t.puellamagi.util.资源工具;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
@@ -35,7 +35,7 @@ public class 客户端事件 {
 
     //==================== 按键状态追踪 ====================
 
-    // 记录每个技能槽位的按键是否被按住
+    //记录每个技能槽位的按键是否被按住
     private static final boolean[] 技能键按住状态 = new boolean[6];
 
     /**
@@ -89,12 +89,12 @@ public class 客户端事件 {
             // ===== 客户端冷却tick =====
             能力工具.获取技能能力(player).ifPresent(cap -> cap.tick());
 
-            // ===== K键：技能管理界面切换（无论是否在GUI中都检测）=====
+            // ===== K键：技能管理界面切换 =====
             while (按键绑定.技能栏编辑键.consumeClick()) {
-                切换技能管理界面(mc);
+                处理技能管理界面按键(mc, player);
             }
 
-            // 如果在GUI界面中，释放所有按住的按键
+            //如果在GUI界面中，释放所有按住的按键
             if (mc.screen != null) {
                 释放所有技能键(player);return;
             }
@@ -112,7 +112,8 @@ public class 客户端事件 {
             // 预设切换
             while (按键绑定.下一预设键.consumeClick()) {
                 网络工具.发送到服务端(new 预设切换请求包(true));
-            }while (按键绑定.上一预设键.consumeClick()) {
+            }
+            while (按键绑定.上一预设键.consumeClick()) {
                 网络工具.发送到服务端(new 预设切换请求包(false));
             }
 
@@ -123,11 +124,31 @@ public class 客户端事件 {
         }
 
         /**
+         * 处理技能管理界面按键（K键）
+         */
+        private static void 处理技能管理界面按键(Minecraft mc, Player player) {
+            // 如果已经在技能管理界面，关闭它
+            if (mc.screen instanceof 技能管理界面 || mc.screen instanceof 技能栏编辑界面) {
+                mc.setScreen(null);
+                return;
+            }
+
+            // 只有已契约才能打开技能管理界面
+            if (!能力工具.是否已契约(player)) {
+                return;
+            }
+
+            // 打开界面
+            if (mc.screen == null) {
+                mc.setScreen(new 技能管理界面());
+            }
+        }
+
+        /**
          * 处理技能键的按下/松开状态
          */
         private static void 处理技能键状态(Player player) {
             if (!能力工具.是否已变身(player)) {
-                // 未变身时释放所有
                 释放所有技能键(player);
                 return;
             }
@@ -140,14 +161,21 @@ public class 客户端事件 {
                     // 刚按下
                     技能键按住状态[i] = true;
                     网络工具.发送到服务端(new 技能按下请求包(i));
+
+                    // 尝试开始蓄力（UI显示）
+                    蓄力状态管理.尝试开始蓄力(player, i);
+
                     PuellaMagi.LOGGER.debug("技能键 {} 按下", i);
-                } else if (!当前按住 && 之前按住) {
+                } else if (!当前按住 &&之前按住) {
                     // 刚松开
                     技能键按住状态[i] = false;
                     网络工具.发送到服务端(new 技能松开请求包(i));
+
+                    // 结束蓄力（UI显示）
+                    蓄力状态管理.结束槽位蓄力(i);
+
                     PuellaMagi.LOGGER.debug("技能键 {} 松开", i);
                 }
-                // 持续按住或持续松开则不发包（服务端自己tick计时）
             }
         }
 
@@ -162,24 +190,23 @@ public class 客户端事件 {
                     PuellaMagi.LOGGER.debug("技能键 {} 强制松开", i);
                 }
             }
-        }
 
-        /**
-         * 切换技能管理界面（打开/关闭）
-         */
-        private static void 切换技能管理界面(Minecraft mc) {
-            if (mc.screen instanceof 技能管理界面 || mc.screen instanceof 技能栏编辑界面) {
-                mc.setScreen(null);
-            } else if (mc.screen == null) {
-                mc.setScreen(new 技能管理界面());
-            }
+            // 清除所有蓄力状态
+            蓄力状态管理.清除所有状态();
         }
 
         private static void 处理变身按键(Player player) {
             if (能力工具.是否已变身(player)) {
+                // 解除变身
                 网络工具.发送到服务端(new 变身请求包());
             } else {
-                网络工具.发送到服务端(new 变身请求包(资源工具.本mod("test")));
+                // 检查是否已契约
+                if (!能力工具.是否已契约(player)) {
+                    // 未契约，不发送请求
+                    return;
+                }
+                // 变身（服务端从契约获取类型）
+                网络工具.发送到服务端(new 变身请求包(true));
             }
         }
 

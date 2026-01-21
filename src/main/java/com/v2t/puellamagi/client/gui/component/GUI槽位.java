@@ -153,7 +153,8 @@ public class GUI槽位 {
         // 1. 绘制背景
         绘制背景(graphics);
 
-        // 2. 绘制内容绘制内容(graphics);
+        // 2. 绘制内容
+        绘制内容(graphics);
 
         // 3. 绘制高亮边框
         绘制高亮(graphics);

@@ -1,12 +1,14 @@
+// 文件路径: src/main/java/com/v2t/puellamagi/system/transformation/变身管理器.java
+
 package com.v2t.puellamagi.system.transformation;
 
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.api.类型定义.魔法少女类型;
 import com.v2t.puellamagi.core.network.packets.s2c.变身同步包;
 import com.v2t.puellamagi.system.ability.能力管理器;
+import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.util.网络工具;
 import com.v2t.puellamagi.util.能力工具;
-import com.v2t.puellamagi.util.本地化工具;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -16,16 +18,16 @@ import net.minecraft.world.entity.player.Player;
  * 所有变身/解除变身操作都通过此类进行
  *
  * 变身流程：
- * 1. 传入魔法少女类型ID
+ * 1. 检查契约状态
  * 2. 从类型注册表查询类型定义
- * 3. 获取该类型绑定的固有能力ID
- * 4. 激活对应能力
+ * 3. 清除旧能力（如果有）
+ * 4. 激活新能力
  */
 public final class 变身管理器 {
     private 变身管理器() {}
 
     /**
-     *尝试变身
+     * 尝试变身
      * @param player 玩家（必须是ServerPlayer）
      * @param girlTypeId 魔法少女类型ID
      * @return 是否成功
@@ -36,23 +38,36 @@ public final class 变身管理器 {
             return false;
         }
 
-        // 查询类型定义
+        // ===== 检查契约 =====
+        if (!契约管理器.可以变身(serverPlayer)) {
+            PuellaMagi.LOGGER.debug("玩家 {} 未签订契约，无法变身", serverPlayer.getName().getString());
+            return false;
+        }
+
+        // ===== 验证类型与契约匹配 =====
+        var contractTypeOpt = 契约管理器.获取类型(serverPlayer);
+        if (contractTypeOpt.isEmpty() || !contractTypeOpt.get().获取ID().equals(girlTypeId)) {
+            PuellaMagi.LOGGER.warn("玩家 {} 请求变身类型 {} 与契约不匹配",serverPlayer.getName().getString(), girlTypeId);
+            return false;
+        }
+
+        // ===== 查询类型定义 =====
         魔法少女类型 type = 魔法少女类型注册表.获取(girlTypeId).orElse(null);
         if (type == null) {
-            serverPlayer.displayClientMessage(本地化工具.消息("transform_fail_unknown_type"), true);
             PuellaMagi.LOGGER.warn("未知的魔法少女类型: {}", girlTypeId);
             return false;
         }
 
         return 能力工具.获取变身能力完整(serverPlayer).map(cap -> {
-            // 检查：已经变身
+            //检查：已经变身
             if (cap.是否已变身()) {
-                serverPlayer.displayClientMessage(本地化工具.消息("transform_fail_already"), true);
                 return false;
             }
 
-            // TODO: 检查契约
             // TODO: 检查冷却
+
+            // ===== 清除旧能力（确保干净状态）=====
+            能力管理器.失效能力(serverPlayer);
 
             // 执行变身
             cap.设置变身状态(true);
@@ -64,16 +79,14 @@ public final class 变身管理器 {
                 cap.设置模型(type.获取默认模型());
             }
 
-            // 激活对应的能力（通过类型获取能力ID）
+            // 激活对应的能力
             ResourceLocation abilityId = type.获取固有能力ID();
             激活能力(serverPlayer, abilityId);
 
             // 同步给客户端
             同步变身数据(serverPlayer);
 
-            // 发送成功消息
-            serverPlayer.displayClientMessage(本地化工具.消息("transform_success"), true);
-            PuellaMagi.LOGGER.debug("玩家 {} 变身为 {}，能力: {}",
+            PuellaMagi.LOGGER.debug("玩家 {} 变身为 {}，能力:{}",
                     serverPlayer.getName().getString(), girlTypeId, abilityId);
 
             return true;
@@ -106,8 +119,6 @@ public final class 变身管理器 {
             // 同步给客户端
             同步变身数据(serverPlayer);
 
-            // 发送消息
-            serverPlayer.displayClientMessage(本地化工具.消息("detransform"), true);
             PuellaMagi.LOGGER.debug("玩家 {} 解除变身", serverPlayer.getName().getString());
 
             return true;
@@ -117,11 +128,14 @@ public final class 变身管理器 {
     /**
      * 切换变身状态（变身↔解除）
      */
-    public static void 切换变身(Player player, ResourceLocation girlType) {
+    public static void 切换变身(Player player) {
         if (能力工具.是否已变身(player)) {
             解除变身(player);
         } else {
-            尝试变身(player, girlType);
+            // 从契约获取类型
+            契约管理器.获取类型(player).ifPresent(type -> {
+                尝试变身(player, type.获取ID());
+            });
         }
     }
 

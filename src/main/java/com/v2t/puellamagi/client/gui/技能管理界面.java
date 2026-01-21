@@ -11,9 +11,11 @@ import com.v2t.puellamagi.client.keybind.按键绑定;
 import com.v2t.puellamagi.core.network.packets.c2s.槽位配置请求包;
 import com.v2t.puellamagi.core.network.packets.c2s.预设切换请求包;
 import com.v2t.puellamagi.core.network.packets.c2s.预设管理请求包;
+import com.v2t.puellamagi.system.ability.能力注册表;
 import com.v2t.puellamagi.system.skill.技能槽位数据;
 import com.v2t.puellamagi.system.skill.技能注册表;
 import com.v2t.puellamagi.system.skill.技能预设;
+import com.v2t.puellamagi.system.transformation.魔法少女类型注册表;
 import com.v2t.puellamagi.util.渲染工具;
 import com.v2t.puellamagi.util.网络工具;
 import com.v2t.puellamagi.util.能力工具;
@@ -137,7 +139,30 @@ public class 技能管理界面 extends Screen {
 
     private void 刷新技能列表() {
         可用技能列表.clear();
-        可用技能列表.addAll(技能注册表.获取所有技能ID());
+
+        var player = Minecraft.getInstance().player;
+        if (player == null) return;
+
+        // 从契约获取类型，再获取派生技能
+        能力工具.获取契约能力(player).ifPresent(contract -> {
+            if (!contract.是否已契约()) return;
+
+            ResourceLocation typeId = contract.获取类型ID();
+            if (typeId == null) return;
+
+            // 从类型注册表获取类型定义
+            魔法少女类型注册表.获取(typeId).ifPresent(type -> {
+                ResourceLocation abilityId = type.获取固有能力ID();
+                if (abilityId == null) return;
+
+                // 从能力注册表创建临时实例，获取派生技能
+                能力注册表.创建实例(abilityId).ifPresent(ability -> {
+                    for (var skill : ability.获取派生技能()) {
+                        可用技能列表.add(skill.获取ID());
+                    }
+                });
+            });
+        });
     }
 
     private void 初始化滚动条() {

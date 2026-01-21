@@ -9,6 +9,7 @@ import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.api.timestop.TimeStop;
 import com.v2t.puellamagi.mixin.access.GuiAccessor;
 import com.v2t.puellamagi.system.ability.timestop.时停管理器;
+import com.v2t.puellamagi.system.ability.timestop.时停豁免系统;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.ChatScreen;
@@ -114,10 +115,9 @@ public class 时停冻结帧 {
         TimeStop timeStop = (TimeStop) mc.level;
         boolean isCreative = mc.player.isCreative();
 
+        // 使用豁免系统判断是否需要冻结画面
         boolean shouldFreeze = timeStop.puellamagi$hasActiveTimeStop()
-                && timeStop.puellamagi$shouldFreezeEntity(mc.player)
-                && !timeStop.puellamagi$isTimeStopper(mc.player)
-                && !isTimeStopper();
+                && 时停豁免系统.应该冻结画面(mc.player);
 
         if (shouldFreeze && !isFrozen) {
             isFrozen = true;
@@ -134,6 +134,17 @@ public class 时停冻结帧 {
         }
 
         wasCreative = isCreative;
+    }
+
+    /**
+     * 检查当前玩家是否拥有时停能力
+     */
+    private static boolean 拥有时停能力() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) {
+            return false;
+        }
+        return 时停管理器.拥有时停能力(mc.player);
     }
 
     /**
