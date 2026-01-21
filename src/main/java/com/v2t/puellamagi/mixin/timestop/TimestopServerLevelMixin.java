@@ -9,7 +9,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.projectile.FishingHook;
 import net.minecraft.world.entity.vehicle.Boat;
 import net.minecraft.world.level.block.Block;
@@ -26,7 +25,7 @@ import java.util.function.BooleanSupplier;
  * 服务端世界 Mixin - 完全对标 Roundabout 的 WorldTickServer
  *
  * 核心职责：
- * 1. 冻结实体的tick 拦截（服务端逻辑）
+ * 1. 冻结实体的 tick 拦截（服务端逻辑）
  * 2. 流体和方块 tick 拦截
  * 3. 时停伤害释放检查（每tick检查每个实体）
  * 4. 游戏时间冻结（太阳/月亮）
@@ -68,8 +67,6 @@ public abstract class TimestopServerLevelMixin {
                     living.hurtTime = 0;
                     entity.invulnerableTime = 0;
                     ((ILivingEntityAccess) living).puellamagi$pushEntities();
-                } else if (entity instanceof ItemEntity) {
-                    // 掉落物特殊处理
                 } else if (entity instanceof FishingHook) {
                     // 钓鱼钩特殊处理
                 } else if (entity instanceof Boat) {
@@ -80,7 +77,7 @@ public abstract class TimestopServerLevelMixin {
                     entity.yRotO = entity.getYRot();
                 }
 
-                // 处理乘客
+                //处理乘客
                 for (Entity passenger : entity.getPassengers()) {
                     puellamagi$tickPassengerTS(entity, passenger);
                 }
@@ -106,8 +103,6 @@ public abstract class TimestopServerLevelMixin {
                     passenger.invulnerableTime = 0;
                     living.hurtTime = 0;
                     ((ILivingEntityAccess) living).puellamagi$pushEntities();
-                } else if (passenger instanceof ItemEntity) {
-                    // 掉落物特殊处理
                 } else if (passenger instanceof FishingHook) {
                     // 钓鱼钩特殊处理
                 }
@@ -152,7 +147,7 @@ public abstract class TimestopServerLevelMixin {
      */
     @Unique
     private void puellamagi$tickPassengerTS(Entity vehicle, Entity passenger) {
-        // 乘客也检查伤害释放
+        //乘客也检查伤害释放
         puellamagi$tickTSDamage(passenger);
 
         if (((TimeStop) this).puellamagi$shouldFreezeEntity(passenger)) {

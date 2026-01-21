@@ -4,6 +4,7 @@ package com.v2t.puellamagi.system.skill.impl;
 
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.api.I技能;
+import com.v2t.puellamagi.core.config.时停配置;
 import com.v2t.puellamagi.system.ability.timestop.时停管理器;
 import com.v2t.puellamagi.util.资源工具;
 import com.v2t.puellamagi.util.本地化工具;
@@ -25,11 +26,8 @@ public class 时间停止技能 implements I技能 {
     private static final ResourceLocation ID = 资源工具.本mod("time_stop");
     private static final ResourceLocation 图标路径 = 资源工具.技能图标("time_stop");
 
-    //蓄力时间（tick），后续从配置读取
-    private static final int 蓄力所需时间 = 50;  // 2.5秒，配合语音
-
     // 语音列表
-    private static final ResourceLocation[] 蓄力语音 = new ResourceLocation[] {
+    private static final ResourceLocation[]蓄力语音 = new ResourceLocation[] {
             资源工具.音效("timestop_charge_1")
     };
 
@@ -72,12 +70,12 @@ public class 时间停止技能 implements I技能 {
 
     @Override
     public int 获取最大蓄力时间() {
-        return 蓄力所需时间;
+        return 时停配置.获取蓄力时间();
     }
 
     @Override
     public int 获取最小蓄力时间() {
-        return 蓄力所需时间; // 必须蓄满
+        return 时停配置.获取蓄力时间();
     }
 
     /**
@@ -85,9 +83,9 @@ public class 时间停止技能 implements I技能 {
      */
     public int 获取实际蓄力时间(Player player) {
         if (player != null && player.isCreative()) {
-            return 0; // 创造模式瞬发
+            return 0;
         }
-        return 蓄力所需时间;
+        return 时停配置.获取蓄力时间();
     }
 
     @Override
@@ -107,7 +105,7 @@ public class 时间停止技能 implements I技能 {
 
     @Override
     public void 执行(Player player, Level level) {
-        // 蓄力切换类不使用此方法
+        //蓄力切换类不使用此方法
     }
 
     // ==================== 切换类方法 ====================
@@ -124,7 +122,9 @@ public class 时间停止技能 implements I技能 {
 
     @Override
     public void 关闭时(Player player, Level level) {
-        if (!(player instanceof ServerPlayer serverPlayer)) return;
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return;
+        }
 
         时停管理器.结束时停(serverPlayer);
         保护期玩家.remove(player.getUUID());
@@ -136,7 +136,9 @@ public class 时间停止技能 implements I技能 {
 
     @Override
     public void 蓄力完成激活时(Player player, Level level) {
-        if (!(player instanceof ServerPlayer serverPlayer)) return;
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return;
+        }
 
         时停管理器.结束蓄力(player);
         时停管理器.开始时停(serverPlayer);
@@ -168,19 +170,22 @@ public class 时间停止技能 implements I技能 {
 
     @Override
     public long 获取语音保护冷却() {
-        return 500;
+        return 时停配置.获取语音冷却();
     }
 
     // ==================== 按键处理 ====================
 
     @Override
     public void 按下时(Player player, Level level) {
-        if (!(player instanceof ServerPlayer serverPlayer)) return;
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return;
+        }
 
         // 创造模式直接激活
         if (player.isCreative()) {
             时停管理器.开始时停(serverPlayer);
-            进入保护期(player);PuellaMagi.LOGGER.debug("创造模式玩家 {} 瞬发时停", player.getName().getString());return;
+            进入保护期(player);PuellaMagi.LOGGER.debug("创造模式玩家 {} 瞬发时停", player.getName().getString());
+            return;
         }
 
         // 普通模式开始蓄力
@@ -189,7 +194,9 @@ public class 时间停止技能 implements I技能 {
 
     @Override
     public void 蓄力取消时(Player player, Level level) {
-        if (!(player instanceof ServerPlayer)) return;
+        if (!(player instanceof ServerPlayer)) {
+            return;
+        }
 
         时停管理器.结束蓄力(player);
         PuellaMagi.LOGGER.debug("玩家 {} 取消时停蓄力", player.getName().getString());
@@ -201,6 +208,5 @@ public class 时间停止技能 implements I技能 {
      * 玩家下线时清理
      */
     public static void 玩家下线(UUID uuid) {
-        保护期玩家.remove(uuid);
-    }
+        保护期玩家.remove(uuid);}
 }

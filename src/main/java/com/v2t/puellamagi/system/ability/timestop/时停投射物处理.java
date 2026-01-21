@@ -4,6 +4,7 @@ package com.v2t.puellamagi.system.ability.timestop;
 
 import com.v2t.puellamagi.api.access.IAbstractArrowAccess;
 import com.v2t.puellamagi.api.access.IProjectileAccess;
+import com.v2t.puellamagi.core.config.时停配置;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -28,7 +29,7 @@ import javax.annotation.Nullable;
  * 时停投射物处理
  *
  * 处理时停中投射物的惯性运动
- * 完全对标 Roundabout 的 TimeMovingProjectile
+ * 完全对标Roundabout 的 TimeMovingProjectile
  */
 public final class 时停投射物处理 {
 
@@ -37,7 +38,7 @@ public final class 时停投射物处理 {
     /**
      * 投射物 tick 处理
      *
-     * 在时停中替代原版 tick，实现惯性衰减
+     * 在时停中替代原版tick，实现惯性衰减
      */
     public static void tick(Projectile projectile) {
         Vec3 delta = projectile.getDeltaMovement();
@@ -46,8 +47,7 @@ public final class 时停投射物处理 {
         if (projectile.xRotO == 0.0F && projectile.yRotO == 0.0F) {
             double horizontalDist = delta.horizontalDistance();
             projectile.setYRot((float) (Mth.atan2(delta.x, delta.z) * 180.0F / Math.PI));
-            projectile.setXRot((float) (Mth.atan2(delta.y, horizontalDist) * 180.0F / Math.PI));
-            projectile.yRotO = projectile.getYRot();
+            projectile.setXRot((float) (Mth.atan2(delta.y, horizontalDist) * 180.0F / Math.PI));projectile.yRotO = projectile.getYRot();
             projectile.xRotO = projectile.getXRot();
         }
 
@@ -75,7 +75,7 @@ public final class 时停投射物处理 {
             ((IProjectileAccess) projectile).puellamagi$checkInsideBlocks();
         }
 
-        // 箭的震动时间
+        //箭的震动时间
         if (projectile instanceof AbstractArrow arrow) {
             if (arrow.shakeTime > 0) {
                 arrow.shakeTime--;
@@ -96,20 +96,24 @@ public final class 时停投射物处理 {
         float speedMod = access.puellamagi$getSpeedMultiplier();
         Vec3 position = projectile.position();
 
+        // 从配置获取静止阈值
+        double stopThreshold = 时停配置.获取静止阈值();
+
         // 钓鱼钩重力
         if (projectile instanceof FishingHook) {
-            projectile.setDeltaMovement(projectile.getDeltaMovement().add(0.0, -0.03* speedMod, 0.0));
+            projectile.setDeltaMovement(projectile.getDeltaMovement().add(0.0, -0.03 * speedMod, 0.0));
         }
 
         Vec3 reducedDelta = projectile.getDeltaMovement().multiply(speedMod, speedMod, speedMod);
 
         // 实体碰撞预检测（接近实体时减速）
-        if (speedMod > 0.01) {
+        if (speedMod > stopThreshold) {
             Vec3 pos = position;
             Vec3 pos2 = position.add(projectile.getDeltaMovement()).add(projectile.getDeltaMovement()).add(reducedDelta);
             float inflateDist = (float) Math.max(Math.max(reducedDelta.x, reducedDelta.y), reducedDelta.z) * 2;
 
-            HitResult mobHit = ProjectileUtil.getEntityHitResult(projectile.level(), projectile, pos, pos2,
+            HitResult mobHit = ProjectileUtil.getEntityHitResult(
+                    projectile.level(), projectile, pos, pos2,
                     projectile.getBoundingBox().expandTowards(projectile.getDeltaMovement()).inflate(1+ inflateDist),
                     access::puellamagi$canHitEntity
             );
@@ -147,7 +151,8 @@ public final class 时停投射物处理 {
         ));
 
         if (hitResult.getType() != HitResult.Type.MISS) {
-            endPos = hitResult.getLocation();}
+            endPos = hitResult.getLocation();
+        }
 
         // 实体碰撞检测
         EntityHitResult entityHit = findHitEntity(projectile, startPos, endPos, projectile.getDeltaMovement());
@@ -179,9 +184,10 @@ public final class 时停投射物处理 {
         speedMod = access.puellamagi$getSpeedMultiplier();
         reducedDelta = projectile.getDeltaMovement().multiply(speedMod, speedMod, speedMod);
 
-        if (speedMod > 0.01) {
-            //惯性衰减
-            access.puellamagi$setSpeedMultiplier(speedMod * 0.87F);
+        if (speedMod > stopThreshold) {
+            // 从配置获取惯性衰减系数
+            double decayFactor = 时停配置.获取惯性衰减系数();
+            access.puellamagi$setSpeedMultiplier((float) (speedMod * decayFactor));
             projectile.setPos(position.x + reducedDelta.x, position.y + reducedDelta.y, position.z + reducedDelta.z);
         } else {
             // 完全静止

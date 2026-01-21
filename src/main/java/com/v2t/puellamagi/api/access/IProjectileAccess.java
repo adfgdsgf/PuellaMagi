@@ -9,7 +9,7 @@ import net.minecraft.world.phys.HitResult;
  * 投射物访问接口
  *
  * 用于时停中的投射物惯性处理
- * 对标Roundabout 的IProjectileAccess
+ * 对标 Roundabout 的 IProjectileAccess
  */
 public interface IProjectileAccess {
 
@@ -24,7 +24,7 @@ public interface IProjectileAccess {
     void puellamagi$setSpeedMultiplier(float multiplier);
 
     /**
-     * 是否是时停中创建的投射物
+     * 是否是时停中创建的投射物（惯性阶段使用，时停结束后会被清除）
      */
     boolean puellamagi$isTimeStopCreated();
 
@@ -32,6 +32,17 @@ public interface IProjectileAccess {
      * 设置时停创建标记
      */
     void puellamagi$setTimeStopCreated(boolean created);
+
+    /**
+     * 获取无敌帧绕过剩余时间（tick）
+     * 大于0时命中可清除目标无敌帧
+     */
+    int puellamagi$getInvincibilityBypassTicks();
+
+    /**
+     * 设置无敌帧绕过剩余时间
+     */
+    void puellamagi$setInvincibilityBypassTicks(int ticks);
 
     /**
      * 是否被偏转过

@@ -32,7 +32,16 @@ public abstract class TimestopProjectileMixin extends Entity implements IProject
         super(type, level);
     }
 
-    //==================== 时停投射物字段 ====================
+    //==================== 常量 ====================
+
+    /**
+     * 无敌帧绕过持续时间（tick）
+     * 60 ticks = 3秒，足够箭矢飞行和命中
+     */
+    @Unique
+    private static final int INVINCIBILITY_BYPASS_DURATION = 60;
+
+    // ==================== 时停投射物字段 ====================
 
     @Unique
     private boolean puellamagi$isTimeStopCreated = false;
@@ -42,6 +51,14 @@ public abstract class TimestopProjectileMixin extends Entity implements IProject
 
     @Unique
     private float puellamagi$speedMultiplier = 0.75F;
+
+    /**
+     * 无敌帧绕过计时器
+     * 大于0时命中可清除目标无敌帧
+     * 时停期间冻结，时停结束后开始倒计时
+     */
+    @Unique
+    private int puellamagi$invincibilityBypassTicks = 0;
 
     // ==================== IProjectileAccess 实现 ====================
 
@@ -63,6 +80,16 @@ public abstract class TimestopProjectileMixin extends Entity implements IProject
     @Override
     public void puellamagi$setTimeStopCreated(boolean created) {
         puellamagi$isTimeStopCreated = created;
+    }
+
+    @Override
+    public int puellamagi$getInvincibilityBypassTicks() {
+        return puellamagi$invincibilityBypassTicks;
+    }
+
+    @Override
+    public void puellamagi$setInvincibilityBypassTicks(int ticks) {
+        puellamagi$invincibilityBypassTicks = ticks;
     }
 
     @Override
@@ -90,24 +117,56 @@ public abstract class TimestopProjectileMixin extends Entity implements IProject
         this.checkInsideBlocks();
     }
 
-    // ==================== 时停标记注入 ====================
+    // ==================== 时停标记与计时器初始化 ====================
 
     /**
-     * 设置 Owner 时检查是否在时停中
+     * 设置 Owner 时处理时停标记和计时器
      *
-     * 关键修复：时停者发射的投射物才有惯性！
-     * 条件：在时停范围内 且 发射者不会被冻结（即时停者）
+     * 关键逻辑：
+     * 1. 无论如何先重置计时器（处理捡起重射场景）
+     * 2. 如果是时停者发射，则设置标记和计时器
      */
     @Inject(method = "setOwner", at = @At("HEAD"))
     private void puellamagi$onSetOwner(@Nullable Entity owner, CallbackInfo ci) {
+        // 关键：先重置计时器，处理捡起重射的情况
+        puellamagi$invincibilityBypassTicks = 0;
+        puellamagi$isTimeStopCreated = false;
+
         if (owner instanceof LivingEntity) {
             TimeStop timeStop = (TimeStop) owner.level();
 
-            // 关键：在时停范围内 且 发射者是时停者（不会被冻结）
+            // 在时停范围内 且 发射者是时停者（不会被冻结）
             if (timeStop.puellamagi$inTimeStopRange(owner) &&!timeStop.puellamagi$shouldFreezeEntity(owner)) {
-                puellamagi$isTimeStopCreated = true;// 重置速度倍率
-                puellamagi$speedMultiplier = 0.75F;
+                puellamagi$isTimeStopCreated = true;
+                puellamagi$invincibilityBypassTicks = INVINCIBILITY_BYPASS_DURATION;puellamagi$speedMultiplier = 0.75F;
             }
+        }
+    }
+
+    // ==================== 计时器倒计时 ====================
+
+    /**
+     * 在投射物 tick 中处理计时器倒计时
+     *
+     * 只在非时停状态下递减，实现"时停期间冻结"效果
+     */
+    @Inject(method = "tick", at = @At("HEAD"))
+    private void puellamagi$onTick(CallbackInfo ci) {
+        // 只在服务端处理
+        if (this.level().isClientSide) {
+            return;
+        }
+
+        // 有计时器才需要处理
+        if (puellamagi$invincibilityBypassTicks <= 0) {
+            return;
+        }
+
+        TimeStop timeStop = (TimeStop) this.level();
+
+        // 关键：只在没有时停激活时才倒计时
+        if (!timeStop.puellamagi$hasActiveTimeStop()) {
+            puellamagi$invincibilityBypassTicks--;
         }
     }
 

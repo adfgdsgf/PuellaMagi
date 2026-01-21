@@ -5,6 +5,7 @@
   "mixins": [
     "access.AccessLivingEntityMixin",
     "access.EntityAndDataMixin",
+    "access.AbstractArrowAccessor",
     "timestop.TimestopLevelMixin",
     "timestop.TimestopServerLevelMixin",
     "timestop.TimestopLivingEntityMixin",
@@ -36,7 +37,8 @@
     "timestop.TimestopProjectileRendererMixin",
     "timestop.TimestopParticleEngineMixin",
     "timestop.TimestopTextureManagerMixin",
-    "timestop.TimestopWeatherMixin"
+    "timestop.TimestopWeatherMixin",
+    "timestop.TimestopItemEntityRendererMixin"
   ],
   "server": [],
   "refmap": "mixins.puellamagi.refmap.json"

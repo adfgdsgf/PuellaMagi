@@ -9,7 +9,6 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.WalkAnimationState;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.projectile.FishingHook;
 import net.minecraft.world.entity.vehicle.Boat;
 import net.minecraft.world.phys.Vec3;
@@ -22,7 +21,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.function.BooleanSupplier;
 
 /**
- * 客户端世界 Mixin - 完全对标Roundabout 的WorldTickClient
+ * 客户端世界 Mixin - 完全对标Roundabout 的 WorldTickClient
  */
 @Mixin(ClientLevel.class)
 public abstract class TimestopClientLevelMixin {
@@ -79,15 +78,17 @@ public abstract class TimestopClientLevelMixin {
         IEntityAndData data = (IEntityAndData) entity;
         data.puellamagi$setPrevX(entity.getX());
         data.puellamagi$setPrevY(entity.getY());
-        data.puellamagi$setPrevZ(entity.getZ());}
+        data.puellamagi$setPrevZ(entity.getZ());
+    }
 
     /**
-     * 冻结实体的tick 替代 - 对标 roundabout$TSTickEntity
+     * 冻结实体的 tick 替代 - 对标 roundabout$TSTickEntity
      */
     @Unique
     private void puellamagi$tickEntityTS(Entity entity) {
         if (entity instanceof LivingEntity living) {
-            puellamagi$tickLivingEntityTS(living);entity.invulnerableTime = 0;
+            puellamagi$tickLivingEntityTS(living);
+            entity.invulnerableTime = 0;
             living.hurtTime = 0;
         } else {
             //========== 非生物实体的旧值同步（防止抖动）==========
@@ -101,7 +102,7 @@ public abstract class TimestopClientLevelMixin {
             entity.yo = entity.getY();
             entity.zo = entity.getZ();
 
-            //旋转旧值（关键！防止箭尾巴抖动）
+            // 旋转旧值（关键！防止箭尾巴抖动）
             entity.xRotO = entity.getXRot();
             entity.yRotO = entity.getYRot();
 
@@ -113,11 +114,8 @@ public abstract class TimestopClientLevelMixin {
                 //钓鱼钩已在上面处理
             } else if (entity instanceof Boat) {
                 entity.lerpTo(entity.getX(), entity.getY(), entity.getZ(),
-                        entity.getYRot(), entity.getXRot(), 3, false);}
-        }
-
-        if (entity instanceof ItemEntity) {
-            // 掉落物特殊处理（如果需要）
+                        entity.getYRot(), entity.getXRot(), 3, false);
+            }
         }
     }
 

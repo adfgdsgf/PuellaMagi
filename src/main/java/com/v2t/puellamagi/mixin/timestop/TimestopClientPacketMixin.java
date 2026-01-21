@@ -7,10 +7,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
 import net.minecraft.network.protocol.game.ClientboundHurtAnimationPacket;
-import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
-import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -18,8 +18,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * 客户端网络包拦截
  *
- * 阻止时停范围内实体的状态更新包生效
- * 解决多人游戏中被冻结实体动作变化的问题
+ * 只拦截被冻结的 LivingEntity 的动画包
+ * 解决多人游戏中被冻结生物动作变化的问题
  */
 @Mixin(ClientPacketListener.class)
 public class TimestopClientPacketMixin {
@@ -29,7 +29,7 @@ public class TimestopClientPacketMixin {
      */
     @Inject(method = "handleHurtAnimation", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onHurtAnimation(ClientboundHurtAnimationPacket packet, CallbackInfo ci) {
-        if (shouldBlockEntityPacket(packet.id())) {
+        if (puellamagi$shouldBlockLivingEntityPacket(packet.id())) {
             ci.cancel();
         }
     }
@@ -39,38 +39,16 @@ public class TimestopClientPacketMixin {
      */
     @Inject(method = "handleAnimate", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onAnimate(ClientboundAnimatePacket packet, CallbackInfo ci) {
-        if (shouldBlockEntityPacket(packet.getId())) {
+        if (puellamagi$shouldBlockLivingEntityPacket(packet.getId())) {
             ci.cancel();
         }
     }
 
     /**
-     * 拦截实体速度包
+     * 只拦截被冻结的LivingEntity
      */
-    @Inject(method = "handleSetEntityMotion", at = @At("HEAD"), cancellable = true)
-    private void puellamagi$onSetMotion(ClientboundSetEntityMotionPacket packet, CallbackInfo ci) {
-        if (shouldBlockEntityPacket(packet.getId())) {
-            ci.cancel();
-        }
-    }
-
-    /**
-     * 拦截实体数据包（部分数据）
-     *
-     * 注意：这个比较复杂，可能需要细分哪些数据应该拦截
-     */
-    @Inject(method = "handleSetEntityData", at = @At("HEAD"), cancellable = true)
-    private void puellamagi$onSetEntityData(ClientboundSetEntityDataPacket packet, CallbackInfo ci) {
-        if (shouldBlockEntityPacket(packet.id())) {
-            // 只在时停中拦截，允许时停结束后的同步
-            ci.cancel();
-        }
-    }
-
-    /**
-     * 判断是否应该阻止该实体的状态更新
-     */
-    private boolean shouldBlockEntityPacket(int entityId) {
+    @Unique
+    private boolean puellamagi$shouldBlockLivingEntityPacket(int entityId) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
             return false;
@@ -86,12 +64,16 @@ public class TimestopClientPacketMixin {
             return false;
         }
 
-        // 时停者的更新不拦截
+        // 只处理 LivingEntity
+        if (!(entity instanceof LivingEntity)) {
+            return false;
+        }
+
+        // 时停者不拦截
         if (timeStop.puellamagi$isTimeStopper(entity)) {
             return false;
         }
 
-        // 被冻结的实体，拦截其状态更新
         return timeStop.puellamagi$shouldFreezeEntity(entity);
     }
 }

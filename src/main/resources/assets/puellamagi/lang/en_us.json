@@ -70,5 +70,13 @@
   "girl_type.puellamagi.test": "Test Type",
   "girl_type.puellamagi.test.desc": "Magical girl type for testing, can use all skills",
   "girl_type.puellamagi.time_manipulator": "Time Manipulator",
-  "girl_type.puellamagi.time_manipulator.desc": "Magical girl who can manipulate the flow of time"
+  "girl_type.puellamagi.time_manipulator.desc": "Magical girl who can manipulate the flow of time",
+
+  "config.puellamagi.timestop.range.range": "Time Stop Range",
+  "config.puellamagi.timestop.range.currentDimensionOnly": "Current Dimension Only",
+  "config.puellamagi.timestop.projectile.inertiaDecay": "Projectile Inertia Decay",
+  "config.puellamagi.timestop.projectile.stopThreshold": "Projectile Stop Threshold",
+  "config.puellamagi.timestop.skill.chargeTime": "Charge Time",
+  "config.puellamagi.timestop.skill.interruptOnDamage": "Interrupt On Damage",
+  "config.puellamagi.timestop.skill.voiceCooldown": "Voice Cooldown"
 }

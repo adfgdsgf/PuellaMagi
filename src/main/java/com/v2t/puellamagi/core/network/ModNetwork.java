@@ -2,13 +2,7 @@
 
 package com.v2t.puellamagi.core.network;
 
-import com.v2t.puellamagi.core.network.packets.c2s.变身请求包;
-import com.v2t.puellamagi.core.network.packets.c2s.技能按下请求包;
-import com.v2t.puellamagi.core.network.packets.c2s.技能松开请求包;
-import com.v2t.puellamagi.core.network.packets.c2s.槽位配置请求包;
-import com.v2t.puellamagi.core.network.packets.c2s.布局更新请求包;
-import com.v2t.puellamagi.core.network.packets.c2s.预设切换请求包;
-import com.v2t.puellamagi.core.network.packets.c2s.预设管理请求包;
+import com.v2t.puellamagi.core.network.packets.c2s.*;
 import com.v2t.puellamagi.core.network.packets.s2c.变身同步包;
 import com.v2t.puellamagi.core.network.packets.s2c.技能能力同步包;
 import com.v2t.puellamagi.core.network.packets.s2c.时停状态同步包;
@@ -90,6 +84,20 @@ public class ModNetwork {
                 预设管理请求包::encode,
                 预设管理请求包::decode,
                 预设管理请求包::handle
+        );
+
+        registerPacket(
+                掉落物拾取请求包.class,
+                掉落物拾取请求包::encode,
+                掉落物拾取请求包::decode,
+                掉落物拾取请求包::handle
+        );
+
+        registerPacket(
+                投射物拾取请求包.class,
+                投射物拾取请求包::encode,
+                投射物拾取请求包::decode,
+                投射物拾取请求包::handle
         );
 
         // ==================== S2C 包 ====================

@@ -1,10 +1,15 @@
+// 文件路径: src/main/java/com/v2t/puellamagi/PuellaMagi.java
+
 package com.v2t.puellamagi;
 
 import com.mojang.logging.LogUtils;
+import com.v2t.puellamagi.core.config.时停配置;
 import com.v2t.puellamagi.core.network.ModNetwork;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
@@ -15,10 +20,14 @@ import org.slf4j.Logger;
  */
 @Mod(常量.MOD_ID)
 public class PuellaMagi {
+
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public PuellaMagi() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
+        // 注册配置
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, 时停配置.SPEC, "puellamagi-timestop.toml");
 
         // 注册通用初始化事件
         modEventBus.addListener(this::commonSetup);

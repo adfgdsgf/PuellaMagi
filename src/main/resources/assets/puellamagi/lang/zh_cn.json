@@ -71,5 +71,13 @@
   "girl_type.puellamagi.test": "测试类型",
   "girl_type.puellamagi.test.desc": "用于测试的魔法少女类型，可使用所有技能",
   "girl_type.puellamagi.time_manipulator": "时间操控者",
-  "girl_type.puellamagi.time_manipulator.desc": "能够操控时间流动的魔法少女"
+  "girl_type.puellamagi.time_manipulator.desc": "能够操控时间流动的魔法少女",
+
+  "config.puellamagi.timestop.range.range": "时停范围",
+  "config.puellamagi.timestop.range.currentDimensionOnly": "仅影响当前维度",
+  "config.puellamagi.timestop.projectile.inertiaDecay": "投射物惯性衰减系数",
+  "config.puellamagi.timestop.projectile.stopThreshold": "投射物静止阈值",
+  "config.puellamagi.timestop.skill.chargeTime": "蓄力时间",
+  "config.puellamagi.timestop.skill.interruptOnDamage": "受击打断蓄力",
+  "config.puellamagi.timestop.skill.voiceCooldown": "语音播放冷却"
 }
