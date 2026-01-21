@@ -3,6 +3,7 @@
 package com.v2t.puellamagi.core.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.v2t.puellamagi.常量;
@@ -13,6 +14,7 @@ import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.system.series.系列注册表;
 import com.v2t.puellamagi.system.skill.技能管理器;
 import com.v2t.puellamagi.system.skill.技能注册表;
+import com.v2t.puellamagi.system.soulgem.污浊度管理器;
 import com.v2t.puellamagi.system.transformation.变身管理器;
 import com.v2t.puellamagi.system.transformation.魔法少女类型注册表;
 import com.v2t.puellamagi.util.能力工具;
@@ -34,8 +36,11 @@ import java.util.stream.Collectors;
  * /puellamagi contract remove- 解除契约
  * /puellamagi transform- 变身
  * /puellamagi detransform             - 解除变身
- * /puellamagi skill use<技能>        - 释放技能
+ * /puellamagi skill use <技能>        - 释放技能
  * /puellamagi ability current- 查看当前激活的能力
+ * /puellamagi corruption set <值>     - 设置污浊度
+ * /puellamagi corruption add <值>     - 增加/减少污浊度
+ * /puellamagi corruption reset        - 重置污浊度
  *
  * === 普通指令（所有人可用）===
  * /puellamagi status                  - 查看状态
@@ -45,6 +50,7 @@ import java.util.stream.Collectors;
  * /puellamagi type info <类型>        - 查看类型详情
  * /puellamagi ability list            - 列出所有注册的能力
  * /puellamagi skill list              - 列出所有注册的技能
+ * /puellamagi corruption get- 查看污浊度
  */
 public class 测试命令 {
 
@@ -206,7 +212,40 @@ public class 测试命令 {
                                         })
                                 )
                         )
-                ));
+                )
+
+                // ==================== 污浊度命令 ====================
+                .then(Commands.literal("corruption")
+                        // [OP] /puellamagi corruption set <值>
+                        .then(Commands.literal("set")
+                                .requires(source -> source.hasPermission(OP_LEVEL))
+                                .then(Commands.argument("value", FloatArgumentType.floatArg(0, 100))
+                                        .executes(ctx -> {
+                                            float value = FloatArgumentType.getFloat(ctx, "value");
+                                            return 设置污浊度(ctx.getSource(), value);
+                                        })
+                                )
+                        )
+                        // [OP] /puellamagi corruption add <值>
+                        .then(Commands.literal("add")
+                                .requires(source -> source.hasPermission(OP_LEVEL))
+                                .then(Commands.argument("value", FloatArgumentType.floatArg())
+                                        .executes(ctx -> {
+                                            float value = FloatArgumentType.getFloat(ctx, "value");
+                                            return 增加污浊度(ctx.getSource(), value);
+                                        })
+                                )
+                        )
+                        // [普通] /puellamagi corruption get
+                        .then(Commands.literal("get")
+                                .executes(ctx -> 查看污浊度(ctx.getSource()))
+                        )// [OP] /puellamagi corruption reset
+                        .then(Commands.literal("reset")
+                                .requires(source -> source.hasPermission(OP_LEVEL))
+                                .executes(ctx -> 重置污浊度(ctx.getSource()))
+                        )
+                )
+        );
     }
 
     // ==================== 契约命令实现 ====================
@@ -295,7 +334,7 @@ public class 测试命令 {
                         .append(" (").append(series.获取名称().getString()).append(")\n");
             });
         }
-        sb.append("共 ").append(seriesIds.size()).append(" 个系列");
+        sb.append("共").append(seriesIds.size()).append(" 个系列");
 
         source.sendSuccess(() -> Component.literal(sb.toString()), false);
         return 1;
@@ -373,6 +412,12 @@ public class 测试命令 {
             if (cap.是否已变身()) {
                 sb.append("  阶段: ").append(cap.获取当前阶段索引()).append("\n");
             }
+        });
+
+        // 污浊度状态
+        能力工具.获取污浊度能力(player).ifPresent(cap -> {
+            sb.append("污浊度: ").append(String.format("%.1f / %.1f (%.0f%%)",
+                    cap.获取当前值(), cap.获取最大值(), cap.获取百分比() * 100)).append("\n");
         });
 
         // 能力状态
@@ -506,6 +551,76 @@ public class 测试命令 {
 
         技能管理器.按键按下(player, skillId);
         source.sendSuccess(() -> Component.literal("技能触发: " + skillId), true);
+        return 1;
+    }
+
+    // ==================== 污浊度命令实现 ====================
+
+    private static int 设置污浊度(CommandSourceStack source, float value) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("此命令只能由玩家执行"));
+            return 0;
+        }
+
+        污浊度管理器.设置(player, value);
+        source.sendSuccess(() -> Component.literal(
+                String.format("污浊度已设置为 %.1f", value)), true);
+        return 1;
+    }
+
+    private static int 增加污浊度(CommandSourceStack source, float value) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("此命令只能由玩家执行"));
+            return 0;
+        }
+
+        if (value > 0) {
+            boolean success = 污浊度管理器.增加(player, value);
+            if (success) {
+                source.sendSuccess(() -> Component.literal(
+                        String.format("污浊度增加 %.1f", value)), true);
+            } else {
+                source.sendFailure(Component.literal("污浊度未变化（非灵魂宝石系）"));
+            }
+        } else if (value < 0) {
+            boolean success = 污浊度管理器.减少(player, -value);
+            if (success) {
+                source.sendSuccess(() -> Component.literal(
+                        String.format("污浊度减少 %.1f", -value)), true);
+            } else {
+                source.sendFailure(Component.literal("污浊度未变化（非灵魂宝石系）"));
+            }
+        }
+        return 1;
+    }
+
+    private static int 查看污浊度(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("此命令只能由玩家执行"));
+            return 0;
+        }
+
+        能力工具.获取污浊度能力(player).ifPresentOrElse(
+                cap -> {
+                    boolean isSoulGem = 污浊度管理器.是否灵魂宝石系玩家(player);
+                    source.sendSuccess(() -> Component.literal(
+                            String.format("=== 污浊度状态 ===\n当前值: %.1f / %.1f\n百分比: %.1f%%\n系列: %s",
+                                    cap.获取当前值(), cap.获取最大值(), cap.获取百分比() * 100,
+                                    isSoulGem ? "灵魂宝石系（活跃）" : "其他（冻结）")), false);
+                },
+                () -> source.sendFailure(Component.literal("无法获取污浊度数据"))
+        );
+        return 1;
+    }
+
+    private static int 重置污浊度(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("此命令只能由玩家执行"));
+            return 0;
+        }
+
+        污浊度管理器.重置(player);
+        source.sendSuccess(() -> Component.literal("污浊度已重置"), true);
         return 1;
     }
 }

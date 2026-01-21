@@ -6,6 +6,7 @@ import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.api.I可变身;
 import com.v2t.puellamagi.api.contract.I契约;
+import com.v2t.puellamagi.api.soulgem.I污浊度;
 import com.v2t.puellamagi.api.类型定义.魔法少女类型;
 import com.v2t.puellamagi.system.ability.能力注册表;
 import com.v2t.puellamagi.system.ability.impl.测试能力;
@@ -39,6 +40,7 @@ public class 模组事件 {
         event.register(I可变身.class);
         event.register(技能能力.class);
         event.register(I契约.class);
+        event.register(I污浊度.class);
     }
 
     /**
@@ -47,7 +49,7 @@ public class 模组事件 {
     @SubscribeEvent
     public static void 通用初始化(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            // 注册顺序很重要：系列→ 能力 → 技能 → 类型
+            // 注册顺序很重要：系列 → 能力 → 技能 → 类型
             注册所有系列();
             注册所有能力();
             注册所有技能();
@@ -106,7 +108,6 @@ public class 模组事件 {
         PuellaMagi.LOGGER.info("开始注册魔法少女类型...");
 
         // 测试类型（绑定测试能力，可解锁所有技能）
-        // 注意：test_series 是一个特殊的测试系列，不需要注册
         魔法少女类型注册表.注册(new 魔法少女类型(
                 资源工具.本mod("test"),
                 资源工具.本mod("test_series"),
@@ -120,8 +121,7 @@ public class 模组事件 {
                 灵魂宝石系列.ID,
                 资源工具.本mod("time_control"),
                 null
-        );
-        魔法少女类型注册表.注册(时间操控者);
+        );魔法少女类型注册表.注册(时间操控者);
 
         // 将类型添加到系列的可用列表
         灵魂宝石系列.INSTANCE.添加可用类型(时间操控者.获取ID());

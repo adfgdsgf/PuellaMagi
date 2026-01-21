@@ -7,6 +7,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.v2t.puellamagi.PuellaMagi;
 import net.minecraftforge.fml.loading.FMLPaths;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -20,10 +21,11 @@ import java.nio.file.Path;
  * - 最后使用的预设索引
  * - 编辑器标签页位置
  * - 编辑面板位置
+ * - 各HUD位置
  *
  * 存储位置：config/puellamagi/client_state.json
  *
- * 注意：运行时状态（如蓄力进度）由蓄力状态管理 处理
+ * 注意：运行时状态（如蓄力进度）由蓄力状态管理处理
  */
 public final class 客户端状态管理 {
     private 客户端状态管理() {}
@@ -185,6 +187,57 @@ public final class 客户端状态管理 {
     public static void 设置编辑面板位置(int x, int y) {
         设置整数(KEY_EDITOR_PANEL_X, x);
         设置整数(KEY_EDITOR_PANEL_Y, y);
+    }
+
+    // ==================== 便捷方法（HUD位置相关） ====================
+
+    private static final String KEY_HUD_PREFIX = "hud.";
+
+    /**
+     * 获取HUD位置
+     * @param hudId HUD标识
+     * @return [x, y] 或 null（如果未保存过）
+     */
+    @Nullable
+    public static int[] 获取HUD位置(String hudId) {
+        确保已加载();
+        String keyX = KEY_HUD_PREFIX + hudId + ".x";
+        String keyY = KEY_HUD_PREFIX + hudId + ".y";
+
+        if (状态数据.has(keyX) && 状态数据.has(keyY)) {
+            int x = 状态数据.get(keyX).getAsInt();
+            int y = 状态数据.get(keyY).getAsInt();
+            return new int[]{x, y};
+        }
+        return null;
+    }
+
+    /**
+     * 设置HUD位置
+     * @param hudId HUD标识
+     * @param x X坐标
+     * @param y Y坐标
+     */
+    public static void 设置HUD位置(String hudId, int x, int y) {
+        确保已加载();
+        String keyX = KEY_HUD_PREFIX + hudId + ".x";
+        String keyY = KEY_HUD_PREFIX + hudId + ".y";
+        状态数据.addProperty(keyX, x);
+        状态数据.addProperty(keyY, y);
+        保存到文件();
+    }
+
+    /**
+     * 重置指定HUD位置（恢复默认）
+     * @param hudId HUD标识
+     */
+    public static void 重置HUD位置(String hudId) {
+        确保已加载();
+        String keyX = KEY_HUD_PREFIX + hudId + ".x";
+        String keyY = KEY_HUD_PREFIX + hudId + ".y";
+        状态数据.remove(keyX);
+        状态数据.remove(keyY);
+        保存到文件();
     }
 
     // ==================== 工具方法 ====================

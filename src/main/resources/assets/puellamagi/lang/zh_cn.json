@@ -37,6 +37,11 @@
   "gui.puellamagi.label.anchor": "锚点位置",
   "gui.puellamagi.hint.double_click_rename": "双击重命名，右键删除",
   "gui.puellamagi.hint.preset_limit": "最多10个预设",
+  "gui.puellamagi.title.hud_edit": "HUD布局编辑",
+  "gui.puellamagi.hud.corruption": "污浊度",
+  "gui.puellamagi.button.reset_all": "重置全部",
+  "gui.puellamagi.button.edit_hud": "编辑HUD位置",
+  "gui.puellamagi.hud.skill_bar": "技能栏",
 
   "message.puellamagi.transform_success": "变身完成",
   "message.puellamagi.transform_fail_no_contract": "尚未建立契约",

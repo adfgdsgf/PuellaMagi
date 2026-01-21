@@ -7,6 +7,7 @@ import com.v2t.puellamagi.core.network.packets.s2c.变身同步包;
 import com.v2t.puellamagi.core.network.packets.s2c.契约能力同步包;
 import com.v2t.puellamagi.core.network.packets.s2c.技能能力同步包;
 import com.v2t.puellamagi.core.network.packets.s2c.时停状态同步包;
+import com.v2t.puellamagi.core.network.packets.s2c.污浊度同步包;
 import com.v2t.puellamagi.常量;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -87,7 +88,8 @@ public class ModNetwork {
                 预设管理请求包::handle
         );
 
-        registerPacket(掉落物拾取请求包.class,
+        registerPacket(
+                掉落物拾取请求包.class,
                 掉落物拾取请求包::encode,
                 掉落物拾取请求包::decode,
                 掉落物拾取请求包::handle
@@ -127,6 +129,14 @@ public class ModNetwork {
                 时停状态同步包::encode,
                 时停状态同步包::decode,
                 时停状态同步包::handle
+        );
+
+        //污浊度同步包
+        registerPacket(
+                污浊度同步包.class,
+                污浊度同步包::encode,
+                污浊度同步包::decode,
+                污浊度同步包::handle
         );
     }
 

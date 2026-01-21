@@ -4,6 +4,7 @@ package com.v2t.puellamagi.core.registry;
 
 import com.v2t.puellamagi.api.I可变身;
 import com.v2t.puellamagi.api.contract.I契约;
+import com.v2t.puellamagi.api.soulgem.I污浊度;
 import com.v2t.puellamagi.system.skill.技能能力;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.CapabilityManager;
@@ -29,4 +30,9 @@ public class ModCapabilities {
      * 契约能力
      */
     public static final Capability<I契约> 契约能力 = CapabilityManager.get(new CapabilityToken<>() {});
+
+    /**
+     * 污浊度能力（灵魂宝石系）
+     */
+    public static final Capability<I污浊度> 污浊度能力 = CapabilityManager.get(new CapabilityToken<>() {});
 }

@@ -37,6 +37,11 @@
   "gui.puellamagi.label.anchor": "Anchor Position",
   "gui.puellamagi.hint.double_click_rename": "Double-click to rename, right-click to delete",
   "gui.puellamagi.hint.preset_limit": "Max 10 presets",
+  "gui.puellamagi.title.hud_edit": "HUD Layout Editor",
+  "gui.puellamagi.hud.corruption": "Corruption",
+  "gui.puellamagi.button.reset_all": "Reset All",
+  "gui.puellamagi.button.edit_hud": "Edit HUD Position",
+  "gui.puellamagi.hud.skill_bar": "Skill Bar",
 
   "message.puellamagi.transform_success": "Transformation complete",
   "message.puellamagi.transform_fail_no_contract": "No contract established",

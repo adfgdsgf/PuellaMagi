@@ -4,6 +4,8 @@ package com.v2t.puellamagi.core.event;
 
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.system.contract.契约管理器;
+import com.v2t.puellamagi.system.soulgem.污浊度管理器;
+import com.v2t.puellamagi.system.soulgem.污浊度能力;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.core.command.测试命令;
 import com.v2t.puellamagi.core.network.packets.s2c.技能能力同步包;
@@ -25,11 +27,15 @@ import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.entity.player.PlayerWakeUpEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
  * 通用事件处理
+ *
+ * 职责：监听Forge事件并转发给对应的管理器
+ * 不包含业务逻辑，只做转发
  */
 @Mod.EventBusSubscriber(modid = 常量.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class 通用事件 {
@@ -37,6 +43,7 @@ public class 通用事件 {
     private static final ResourceLocation 变身能力ID = new ResourceLocation(常量.MOD_ID, "transformation");
     private static final ResourceLocation 技能能力ID = new ResourceLocation(常量.MOD_ID, "skill");
     private static final ResourceLocation 契约能力ID = new ResourceLocation(常量.MOD_ID, "contract");
+    private static final ResourceLocation 污浊度能力ID = new ResourceLocation(常量.MOD_ID, "corruption");
 
     @SubscribeEvent
     public static void 注册命令(RegisterCommandsEvent event) {
@@ -49,11 +56,15 @@ public class 通用事件 {
         if (event.getObject() instanceof Player) {
             if (!event.getObject().getCapability(ModCapabilities.变身能力).isPresent()) {
                 event.addCapability(变身能力ID, new 变身能力());
-            }if (!event.getObject().getCapability(ModCapabilities.技能能力).isPresent()) {
+            }
+            if (!event.getObject().getCapability(ModCapabilities.技能能力).isPresent()) {
                 event.addCapability(技能能力ID, new 技能能力());
             }
             if (!event.getObject().getCapability(ModCapabilities.契约能力).isPresent()) {
                 event.addCapability(契约能力ID, new 契约能力());
+            }
+            if (!event.getObject().getCapability(ModCapabilities.污浊度能力).isPresent()) {
+                event.addCapability(污浊度能力ID, new 污浊度能力());
             }
         }
     }
@@ -72,7 +83,8 @@ public class 通用事件 {
                     新能力.复制自(旧能力);
                     if (event.isWasDeath()) {
                         新能力.设置变身状态(false);
-                        能力管理器.失效能力(原玩家);时停管理器.玩家下线(原玩家);PuellaMagi.LOGGER.debug("玩家 {} 死亡重生，已解除变身状态", 新玩家.getName().getString());
+                        能力管理器.失效能力(原玩家);时停管理器.玩家下线(原玩家);PuellaMagi.LOGGER.debug("玩家 {} 死亡重生，已解除变身状态",
+                                新玩家.getName().getString());
                     }
                 });
             });
@@ -92,6 +104,17 @@ public class 通用事件 {
                     新能力.复制自(旧能力);
                 });
             });
+
+            // 复制污浊度能力
+            能力工具.获取污浊度能力完整(原玩家).ifPresent(旧能力 -> {
+                能力工具.获取污浊度能力完整(新玩家).ifPresent(新能力 -> {
+                    新能力.复制自(旧能力);
+                    if (event.isWasDeath()) {
+                        // 转发给管理器处理死亡惩罚
+                        污浊度管理器.玩家死亡(新玩家, 新能力);
+                    }
+                });
+            });
         } finally {
             原玩家.invalidateCaps();
         }
@@ -100,12 +123,10 @@ public class 通用事件 {
     @SubscribeEvent
     public static void 玩家登录(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
-            // 同步契约数据
             契约管理器.同步契约状态(serverPlayer);
-            // 同步变身数据
             变身管理器.同步变身数据(serverPlayer);
-            // 同步技能能力
             同步技能能力(serverPlayer);
+            污浊度管理器.同步污浊度(serverPlayer);
 
             PuellaMagi.LOGGER.debug("玩家 {} 登录，已同步数据", serverPlayer.getName().getString());
         }
@@ -114,12 +135,10 @@ public class 通用事件 {
     @SubscribeEvent
     public static void 玩家重生(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
-            // 同步契约数据
             契约管理器.同步契约状态(serverPlayer);
-            // 同步变身数据
             变身管理器.同步变身数据(serverPlayer);
-            // 同步技能能力
             同步技能能力(serverPlayer);
+            污浊度管理器.同步污浊度(serverPlayer);
 
             PuellaMagi.LOGGER.debug("玩家 {} 重生，已同步数据", serverPlayer.getName().getString());
         }
@@ -133,16 +152,32 @@ public class 通用事件 {
                 PuellaMagi.LOGGER.debug("时停者 {} 切换维度，时停结束", serverPlayer.getName().getString());
             }
 
-            // 同步契约数据
             契约管理器.同步契约状态(serverPlayer);
-            // 同步变身数据
             变身管理器.同步变身数据(serverPlayer);
-            // 同步技能能力
             同步技能能力(serverPlayer);
+            污浊度管理器.同步污浊度(serverPlayer);
 
             PuellaMagi.LOGGER.debug("玩家 {} 切换维度，已同步数据", serverPlayer.getName().getString());
         }
     }
+
+    /**
+     * 玩家睡眠唤醒事件
+     * 转发给污浊度管理器处理
+     */
+    @SubscribeEvent
+    public static void 玩家睡醒(PlayerWakeUpEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer serverPlayer)) return;
+
+        // wakeImmediately=true 表示被打断（如怪物接近），不处理
+        if (event.wakeImmediately()) return;
+
+        // 转发给管理器处理
+        污浊度管理器.玩家睡醒(serverPlayer);
+    }
+
+    //用于自然恢复的tick计数
+    private static int tickCounter = 0;
 
     @SubscribeEvent
     public static void 玩家Tick(TickEvent.PlayerTickEvent event) {
@@ -152,6 +187,10 @@ public class 通用事件 {
         能力管理器.tickAll(serverPlayer);
         能力工具.获取技能能力(serverPlayer).ifPresent(技能能力::tick);
         技能管理器.tickAll(serverPlayer);
+
+        // 转发给管理器处理自然恢复
+        tickCounter++;
+        污浊度管理器.自然恢复Tick(serverPlayer, tickCounter);
     }
 
     // ==================== 同步方法 ====================

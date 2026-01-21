@@ -3,7 +3,9 @@
 package com.v2t.puellamagi.core.event.client;
 
 import com.v2t.puellamagi.PuellaMagi;
-import com.v2t.puellamagi.client.gui.技能栏编辑界面;
+import com.v2t.puellamagi.client.gui.HUD编辑界面;
+import com.v2t.puellamagi.client.gui.污浊度HUD;
+import com.v2t.puellamagi.client.gui.hud.可编辑HUD注册表;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.client.客户端状态管理;
 import com.v2t.puellamagi.client.蓄力状态管理;
@@ -35,7 +37,6 @@ public class 客户端事件 {
 
     //==================== 按键状态追踪 ====================
 
-    //记录每个技能槽位的按键是否被按住
     private static final boolean[] 技能键按住状态 = new boolean[6];
 
     /**
@@ -54,20 +55,51 @@ public class 客户端事件 {
 
         @SubscribeEvent
         public static void 注册HUD(RegisterGuiOverlaysEvent event) {
+            // 技能栏HUD
             event.registerAbove(
                     VanillaGuiOverlay.HOTBAR.id(),
                     "skill_bar",
                     技能栏HUD.INSTANCE
             );
+
+            // 污浊度HUD
+            event.registerBelow(
+                    VanillaGuiOverlay.PLAYER_LIST.id(),
+                    "corruption_bar",
+                    污浊度HUD.INSTANCE
+            );
+
             PuellaMagi.LOGGER.info("Puella Magi HUD注册完成");
         }
 
         @SubscribeEvent
         public static void 客户端初始化(FMLClientSetupEvent event) {
             event.enqueueWork(() -> {
+                // 初始化客户端状态管理
                 客户端状态管理.初始化();
+
+                // 注册可编辑HUD
+                注册可编辑HUD();
+
                 PuellaMagi.LOGGER.info("Puella Magi 客户端初始化完成");
             });
+        }
+
+        /**
+         * 注册所有可编辑的HUD到注册表
+         */
+        private static void 注册可编辑HUD() {
+            // 技能栏HUD
+            可编辑HUD注册表.注册(技能栏HUD.INSTANCE);
+
+            // 污浊度HUD
+            可编辑HUD注册表.注册(污浊度HUD.INSTANCE);
+
+            // 未来可添加更多：
+            // 可编辑HUD注册表.注册(成长度HUD.INSTANCE);
+
+            PuellaMagi.LOGGER.info("可编辑HUD注册完成，共 {} 个",
+                    可编辑HUD注册表.获取所有().size());
         }
     }
 
@@ -86,27 +118,28 @@ public class 客户端事件 {
 
             Player player = mc.player;
 
-            // ===== 客户端冷却tick =====
+            // 客户端冷却tick
             能力工具.获取技能能力(player).ifPresent(cap -> cap.tick());
 
-            // ===== K键：技能管理界面切换 =====
+            // K键：技能管理界面切换
             while (按键绑定.技能栏编辑键.consumeClick()) {
                 处理技能管理界面按键(mc, player);
             }
 
-            //如果在GUI界面中，释放所有按住的按键
+            // 如果在GUI界面中，释放所有按住的按键
             if (mc.screen != null) {
-                释放所有技能键(player);return;
+                释放所有技能键(player);
+                return;
             }
 
-            // ===== 以下按键只在游戏中（无GUI）时处理 =====
+            // 以下按键只在游戏中（无GUI）时处理
 
             // 变身键
             while (按键绑定.变身键.consumeClick()) {
                 处理变身按键(player);
             }
 
-            // 技能键（按住状态追踪）
+            // 技能键
             处理技能键状态(player);
 
             // 预设切换
@@ -123,12 +156,9 @@ public class 客户端事件 {
             }
         }
 
-        /**
-         * 处理技能管理界面按键（K键）
-         */
         private static void 处理技能管理界面按键(Minecraft mc, Player player) {
-            // 如果已经在技能管理界面，关闭它
-            if (mc.screen instanceof 技能管理界面 || mc.screen instanceof 技能栏编辑界面) {
+            // 如果已经在技能管理界面或HUD编辑界面，关闭它
+            if (mc.screen instanceof 技能管理界面 || mc.screen instanceof HUD编辑界面) {
                 mc.setScreen(null);
                 return;
             }
@@ -138,15 +168,11 @@ public class 客户端事件 {
                 return;
             }
 
-            // 打开界面
             if (mc.screen == null) {
                 mc.setScreen(new 技能管理界面());
             }
         }
 
-        /**
-         * 处理技能键的按下/松开状态
-         */
         private static void 处理技能键状态(Player player) {
             if (!能力工具.是否已变身(player)) {
                 释放所有技能键(player);
@@ -158,30 +184,42 @@ public class 客户端事件 {
                 boolean 之前按住 = 技能键按住状态[i];
 
                 if (当前按住 && !之前按住) {
-                    // 刚按下
+                    // 检查CD（客户端也要检查，避免无效请求和错误的蓄力动画）
+                    if (检查技能是否冷却中(player, i)) {
+                        continue;
+                    }
+
                     技能键按住状态[i] = true;
                     网络工具.发送到服务端(new 技能按下请求包(i));
-
-                    // 尝试开始蓄力（UI显示）
                     蓄力状态管理.尝试开始蓄力(player, i);
-
                     PuellaMagi.LOGGER.debug("技能键 {} 按下", i);
-                } else if (!当前按住 &&之前按住) {
-                    // 刚松开
+                } else if (!当前按住 && 之前按住) {
                     技能键按住状态[i] = false;
                     网络工具.发送到服务端(new 技能松开请求包(i));
-
-                    // 结束蓄力（UI显示）
                     蓄力状态管理.结束槽位蓄力(i);
-
                     PuellaMagi.LOGGER.debug("技能键 {} 松开", i);
                 }
             }
         }
 
         /**
-         * 释放所有技能键（打开GUI或解除变身时调用）
+         * 检查指定槽位的技能是否在冷却中
          */
+        private static boolean 检查技能是否冷却中(Player player, int slotIndex) {
+            var capOpt = 能力工具.获取技能能力(player);
+            if (capOpt.isEmpty()) return false;
+
+            var cap = capOpt.get();
+            var preset = cap.获取当前预设();
+            if (slotIndex >= preset.获取槽位数量()) return false;
+
+            var slotData = preset.获取槽位(slotIndex);
+            if (slotData == null || slotData.是否为空()) return false;
+
+            net.minecraft.resources.ResourceLocation skillId = slotData.获取技能ID();
+            return cap.是否冷却中(skillId);
+        }
+
         private static void 释放所有技能键(Player player) {
             for (int i = 0; i < 技能键按住状态.length; i++) {
                 if (技能键按住状态[i]) {
@@ -190,22 +228,15 @@ public class 客户端事件 {
                     PuellaMagi.LOGGER.debug("技能键 {} 强制松开", i);
                 }
             }
-
-            // 清除所有蓄力状态
             蓄力状态管理.清除所有状态();
         }
 
         private static void 处理变身按键(Player player) {
             if (能力工具.是否已变身(player)) {
-                // 解除变身
-                网络工具.发送到服务端(new 变身请求包());
-            } else {
-                // 检查是否已契约
+                网络工具.发送到服务端(new 变身请求包());} else {
                 if (!能力工具.是否已契约(player)) {
-                    // 未契约，不发送请求
                     return;
                 }
-                // 变身（服务端从契约获取类型）
                 网络工具.发送到服务端(new 变身请求包(true));
             }
         }

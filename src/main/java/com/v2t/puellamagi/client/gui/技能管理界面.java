@@ -677,7 +677,8 @@ public class 技能管理界面 extends Screen {
         int y = guiTop;
 
         if (mx >= x && mx < x + LAYOUT_BTN_WIDTH && my >= y && my < y + LAYOUT_BTN_HEIGHT) {
-            Minecraft.getInstance().setScreen(new 技能栏编辑界面(this));
+            // 打开统一的HUD编辑界面，而不是专用的技能栏编辑界面
+            Minecraft.getInstance().setScreen(new HUD编辑界面(this));
             return true;
         }
         return false;
