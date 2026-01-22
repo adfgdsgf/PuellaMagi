@@ -3,11 +3,7 @@
 package com.v2t.puellamagi.core.network;
 
 import com.v2t.puellamagi.core.network.packets.c2s.*;
-import com.v2t.puellamagi.core.network.packets.s2c.变身同步包;
-import com.v2t.puellamagi.core.network.packets.s2c.契约能力同步包;
-import com.v2t.puellamagi.core.network.packets.s2c.技能能力同步包;
-import com.v2t.puellamagi.core.network.packets.s2c.时停状态同步包;
-import com.v2t.puellamagi.core.network.packets.s2c.污浊度同步包;
+import com.v2t.puellamagi.core.network.packets.s2c.*;
 import com.v2t.puellamagi.常量;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -102,6 +98,13 @@ public class ModNetwork {
                 投射物拾取请求包::handle
         );
 
+        CHANNEL.registerMessage(nextId(),
+                灵魂宝石损坏请求包.class,
+                灵魂宝石损坏请求包::encode,
+                灵魂宝石损坏请求包::decode,
+                灵魂宝石损坏请求包::handle
+        );
+
         // ==================== S2C 包 ====================
         registerPacket(
                 变身同步包.class,
@@ -137,6 +140,13 @@ public class ModNetwork {
                 污浊度同步包::encode,
                 污浊度同步包::decode,
                 污浊度同步包::handle
+        );
+
+        CHANNEL.registerMessage(nextId(),
+                假死状态同步包.class,
+                假死状态同步包::encode,
+                假死状态同步包::decode,
+                假死状态同步包::handle
         );
     }
 

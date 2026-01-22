@@ -1,11 +1,13 @@
-{"required": true,
-  "minVersion": "0.8",
+{
+  "required": true,
   "package": "com.v2t.puellamagi.mixin",
   "compatibilityLevel": "JAVA_17",
+  "refmap": "mixins.puellamagi.refmap.json",
   "mixins": [
+    "access.AbstractArrowAccessor",
     "access.AccessLivingEntityMixin",
     "access.EntityAndDataMixin",
-    "access.AbstractArrowAccessor",
+    "access.ChunkMapAccessor",
     "timestop.TimestopLevelMixin",
     "timestop.TimestopServerLevelMixin",
     "timestop.TimestopLivingEntityMixin",
@@ -15,12 +17,24 @@
     "timestop.TimestopThrowableProjectileMixin",
     "timestop.TimestopItemEntityMixin",
     "timestop.TimestopSlimeMixin",
-    "timestop.WalkAnimationStateAccessor"
+    "timestop.WalkAnimationStateAccessor",
+    "soulgem.FeignDeathPlayerMixin",
+    "soulgem.FeignDeathGameModeMixin",
+    "soulgem.SoulGemItemEntityMixin",
+    "soulgem.DistanceEffectSpeedMixin",
+    "soulgem.DistanceEffectDamageMixin",
+    "soulgem.SoulGemSlotMixin",
+    "soulgem.SoulGemPassiveDestroyMixin",
+    "soulgem.EmptyHealthStateMixin",
+    "soulgem.EmptyHealthDeathMixin",
+    "soulgem.EmptyHealthImmunityMixin",
+    "soulgem.EmptyHealthAggroMixin"
+
   ],
   "client": [
     "access.AccessParticleMixin",
-    "access.ParticleDataMixin",
     "access.GuiAccessor",
+    "access.ParticleDataMixin",
     "timestop.TimestopClientLevelMixin",
     "timestop.TimestopClientLevelParticleMixin",
     "timestop.TimestopClientLevelTimeMixin",
@@ -35,11 +49,12 @@
     "timestop.TimestopEntityRenderDispatcherMixin",
     "timestop.TimestopLivingEntityRendererMixin",
     "timestop.TimestopProjectileRendererMixin",
+    "timestop.TimestopItemEntityRendererMixin",
     "timestop.TimestopParticleEngineMixin",
     "timestop.TimestopTextureManagerMixin",
     "timestop.TimestopWeatherMixin",
-    "timestop.TimestopItemEntityRendererMixin"
-  ],
-  "server": [],
-  "refmap": "mixins.puellamagi.refmap.json"
+    "soulgem.FeignDeathInputMixin",
+    "soulgem.SoulGemActiveAttackMixin",
+    "soulgem.SoulGemActiveUseMixin"
+  ]
 }

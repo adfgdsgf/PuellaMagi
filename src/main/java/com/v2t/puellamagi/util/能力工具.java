@@ -5,11 +5,16 @@ package com.v2t.puellamagi.util;
 import com.v2t.puellamagi.api.I可变身;
 import com.v2t.puellamagi.api.contract.I契约;
 import com.v2t.puellamagi.api.soulgem.I污浊度;
+import com.v2t.puellamagi.core.network.packets.s2c.契约能力同步包;
 import com.v2t.puellamagi.core.registry.ModCapabilities;
 import com.v2t.puellamagi.system.contract.契约能力;
+import com.v2t.puellamagi.system.series.impl.灵魂宝石系列;
 import com.v2t.puellamagi.system.skill.技能能力;
+import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
 import com.v2t.puellamagi.system.soulgem.污浊度能力;
 import com.v2t.puellamagi.system.transformation.变身能力;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.util.LazyOptional;
 
@@ -22,11 +27,11 @@ import java.util.Optional;
 public final class 能力工具 {
     private 能力工具() {}
 
-    // ==================== 通用后门 ====================
+    //==================== 通用后门 ====================
 
     /**
      * 检查玩家是否应该跳过各种限制（创造模式后门）
-     *统一入口，避免到处写 isCreative()
+     * 统一入口，避免到处写 isCreative()
      *
      * 跳过的限制包括：
      * - 技能CD
@@ -64,8 +69,7 @@ public final class 能力工具 {
      * 便捷方法：判断玩家是否已变身
      */
     public static boolean 是否已变身(Player player) {
-        return 获取变身能力(player)
-                .map(I可变身::是否已变身)
+        return 获取变身能力(player).map(I可变身::是否已变身)
                 .orElse(false);
     }
 
@@ -83,7 +87,7 @@ public final class 能力工具 {
     /**
      * 便捷方法：检查技能是否在冷却中
      */
-    public static boolean 技能是否冷却中(Player player, net.minecraft.resources.ResourceLocation skillId) {
+    public static boolean 技能是否冷却中(Player player, ResourceLocation skillId) {
         return 获取技能能力(player)
                 .map(cap -> cap.是否冷却中(skillId))
                 .orElse(false);
@@ -92,7 +96,7 @@ public final class 能力工具 {
     /**
      * 便捷方法：获取技能剩余冷却
      */
-    public static int 获取技能剩余冷却(Player player, net.minecraft.resources.ResourceLocation skillId) {
+    public static int 获取技能剩余冷却(Player player, ResourceLocation skillId) {
         return 获取技能能力(player)
                 .map(cap -> cap.获取剩余冷却(skillId))
                 .orElse(0);
@@ -101,7 +105,7 @@ public final class 能力工具 {
     // ==================== 契约能力 ====================
 
     /**
-     * 获取玩家的契约能力
+     * 获取玩家的契约能力（接口类型）
      */
     public static Optional<I契约> 获取契约能力(Player player) {
         if (player == null) return Optional.empty();
@@ -127,6 +131,29 @@ public final class 能力工具 {
         return 获取契约能力(player)
                 .map(I契约::是否已契约)
                 .orElse(false);
+    }
+
+    /**
+     * 便捷方法：判断玩家是否为灵魂宝石系
+     */
+    public static boolean 是灵魂宝石系(Player player) {
+        return 获取契约能力(player)
+                .map(contract -> {
+                    ResourceLocation seriesId = contract.获取系列ID();
+                    return 灵魂宝石系列.ID.equals(seriesId);
+                })
+                .orElse(false);
+    }
+
+    /**
+     * 同步契约能力到客户端
+     */
+    public static void 同步契约能力(ServerPlayer player) {
+        if (player == null) return;
+        获取契约能力完整(player).ifPresent(cap -> {
+            契约能力同步包 packet = new 契约能力同步包(cap.写入NBT());
+            网络工具.发送给玩家(player, packet);
+        });
     }
 
     // ==================== 污浊度能力 ====================
@@ -167,5 +194,32 @@ public final class 能力工具 {
         return 获取污浊度能力(player)
                 .map(I污浊度::是否已满)
                 .orElse(false);
+    }
+
+    //==================== 假死状态 ====================
+
+    /**
+     * 便捷方法：判断玩家是否处于假死状态
+     */
+    public static boolean 是否假死中(Player player) {
+        return 假死状态处理器.是否假死中(player);
+    }
+
+    /**
+     * 便捷方法：判断玩家是否处于空血假死状态
+     */
+    public static boolean 是否空血假死(Player player) {
+        return 假死状态处理器.是否空血假死(player);
+    }
+
+    /**
+     * 检查实体是否为空血假死的玩家（供Mixin使用）
+     *
+     * @param entity 任意实体
+     * @return 如果是空血假死的玩家返回true
+     */
+    public static boolean 是空血假死玩家(net.minecraft.world.entity.Entity entity) {
+        if (!(entity instanceof Player player)) return false;
+        return 假死状态处理器.是否空血假死(player);
     }
 }

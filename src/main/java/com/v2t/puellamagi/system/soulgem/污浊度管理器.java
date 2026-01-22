@@ -8,6 +8,7 @@ import com.v2t.puellamagi.core.network.packets.s2c.污浊度同步包;
 import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.system.series.impl.灵魂宝石系列;
 import com.v2t.puellamagi.system.skill.技能管理器;
+import com.v2t.puellamagi.system.soulgem.effect.距离效果处理器;
 import com.v2t.puellamagi.util.能力工具;
 import com.v2t.puellamagi.util.网络工具;
 import net.minecraft.resources.ResourceLocation;
@@ -20,34 +21,14 @@ import java.util.Optional;
  * 污浊度管理器
  *
  * 职责：所有污浊度变化的业务逻辑
- * - 基础增减
- * - 自然恢复（有持续消耗时暂停）
- * - 睡眠恢复
- * - 死亡惩罚
- * - 同步
- *
- * 重要原则：污浊度只在灵魂宝石系玩家身上才会变化
- * 其他系列时数据完全冻结（不增不减）
  */
 public final class 污浊度管理器 {
     private 污浊度管理器() {}
 
-    // ==================== 配置常量 ====================
-
-    /** 自然恢复量（每秒） */
     private static final float 自然恢复量 = 0.2f;
-
-    /** 睡眠恢复量 */
     private static final float 睡眠恢复量 = 30f;
+    private static final float 空血假死惩罚量 = 2f;
 
-    /** 死亡惩罚量 */
-    private static final float 死亡惩罚量 = 15f;
-
-    // ==================== 系列检查 ====================
-
-    /**
-     * 检查玩家是否属于灵魂宝石系
-     */
     public static boolean 是否灵魂宝石系玩家(Player player) {
         return 契约管理器.获取契约(player)
                 .map(contract -> {
@@ -57,36 +38,22 @@ public final class 污浊度管理器 {
                 .orElse(false);
     }
 
-    // ==================== 查询方法 ====================
-
     public static Optional<I污浊度> 获取污浊度(Player player) {
         return 能力工具.获取污浊度能力(player);
     }
 
     public static float 获取当前值(Player player) {
-        return 获取污浊度(player)
-                .map(I污浊度::获取当前值)
-                .orElse(0f);
+        return 获取污浊度(player).map(I污浊度::获取当前值).orElse(0f);
     }
 
     public static float 获取百分比(Player player) {
-        return 获取污浊度(player)
-                .map(I污浊度::获取百分比)
-                .orElse(0f);
+        return 获取污浊度(player).map(I污浊度::获取百分比).orElse(0f);
     }
 
     public static boolean 是否已满(Player player) {
-        return 获取污浊度(player)
-                .map(I污浊度::是否已满)
-                .orElse(false);
+        return 获取污浊度(player).map(I污浊度::是否已满).orElse(false);
     }
 
-    // ==================== 基础修改方法（仅灵魂宝石系）====================
-
-    /**
-     * 增加污浊度（仅灵魂宝石系生效）
-     * @return 是否成功
-     */
     public static boolean 增加(ServerPlayer player, float amount, boolean sync) {
         if (player == null || amount <= 0) return false;
         if (!是否灵魂宝石系玩家(player)) return false;
@@ -109,10 +76,28 @@ public final class 污浊度管理器 {
         return 增加(player, amount, true);
     }
 
+    public static boolean 增加污浊度(ServerPlayer player, float amount) {
+        return 增加(player, amount, true);
+    }
+
     /**
-     * 减少污浊度（仅灵魂宝石系生效）
-     * @return 是否成功
+     * 增加污浊度（带原因，用于日志）
      */
+    public static boolean 增加污浊度(ServerPlayer player, float amount, String reason) {
+        if (player == null || amount <= 0) return false;
+        if (!是否灵魂宝石系玩家(player)) return false;
+
+        能力工具.获取污浊度能力(player).ifPresent(cap -> {
+            cap.增加污浊度(amount);
+            PuellaMagi.LOGGER.debug("玩家 {} 污浊度增加 {}（{}），当前 {}/{}",
+                    player.getName().getString(), amount, reason, cap.获取当前值(), cap.获取最大值());
+            同步污浊度(player);if (cap.是否已满()) {
+                PuellaMagi.LOGGER.warn("玩家 {} 污浊度已满！", player.getName().getString());
+            }
+        });
+        return true;
+    }
+
     public static boolean 减少(ServerPlayer player, float amount, boolean sync) {
         if (player == null || amount <= 0) return false;
         if (!是否灵魂宝石系玩家(player)) return false;
@@ -132,9 +117,10 @@ public final class 污浊度管理器 {
         return 减少(player, amount, true);
     }
 
-    /**
-     * 设置污浊度（强制，用于命令）
-     */
+    public static boolean 减少污浊度(ServerPlayer player, float amount) {
+        return 减少(player, amount, true);
+    }
+
     public static void 设置(ServerPlayer player, float value) {
         if (player == null) return;
         能力工具.获取污浊度能力(player).ifPresent(cap -> {
@@ -143,9 +129,6 @@ public final class 污浊度管理器 {
         });
     }
 
-    /**
-     * 重置污浊度（强制，用于命令）
-     */
     public static void 重置(ServerPlayer player) {
         if (player == null) return;
         能力工具.获取污浊度能力(player).ifPresent(cap -> {
@@ -155,20 +138,17 @@ public final class 污浊度管理器 {
         });
     }
 
-    // ==================== 事件触发的变化 ====================
-
     /**
-     * 自然恢复（每秒调用）
-     * 由通用事件的玩家Tick转发
-     *
-     * 注意：有持续消耗时暂停自然恢复
+     * 自然恢复Tick
      */
-    public static void 自然恢复Tick(ServerPlayer player, int tickCounter) {
-        if (tickCounter % 20 != 0) return;
+    public static void 自然恢复Tick(ServerPlayer player) {
+        if (player.tickCount % 20 != 0) return;
+
         if (!是否灵魂宝石系玩家(player)) return;
 
-        // 有持续消耗时不自然恢复
         if (技能管理器.是否有持续消耗中(player)) return;
+
+        if (距离效果处理器.是否暂停污浊度恢复(player)) return;
 
         能力工具.获取污浊度能力(player).ifPresent(cap -> {
             if (cap.是否为空()) return;
@@ -177,10 +157,6 @@ public final class 污浊度管理器 {
         });
     }
 
-    /**
-     * 睡眠恢复
-     * 由通用事件的PlayerWakeUpEvent转发
-     */
     public static void 玩家睡醒(ServerPlayer player) {
         if (!是否灵魂宝石系玩家(player)) return;
 
@@ -192,20 +168,22 @@ public final class 污浊度管理器 {
     }
 
     /**
-     * 死亡惩罚
-     * 由通用事件的Clone事件转发
+     * 玩家死亡时调用
      *
-     * @param newCap 新玩家的污浊度能力（Clone事件中已复制数据）
+     * 注：真正的死亡惩罚已移至空血假死触发时
+     * 此方法保留用于处理真正死亡（如虚空、/kill）的后续逻辑
      */
-    public static void 玩家死亡(Player newPlayer, 污浊度能力 newCap) {
-        if (!是否灵魂宝石系玩家(newPlayer)) return;
-
-        newCap.增加污浊度(死亡惩罚量);
-        PuellaMagi.LOGGER.debug("玩家 {} 死亡，污浊度增加 {}",
-                newPlayer.getName().getString(), 死亡惩罚量);
+    public static void 玩家死亡(Player newPlayer,污浊度能力 newCap) {
+        // 真正死亡不增加污浊度（已在空血假死时增加）
+        // 此方法保留用于未来可能的其他处理
     }
 
-    // ==================== 同步 ====================
+    /**
+     * 空血假死时调用
+     */
+    public static void 空血假死惩罚(ServerPlayer player) {
+        增加污浊度(player, 空血假死惩罚量, "空血假死");
+    }
 
     public static void 同步污浊度(ServerPlayer player) {
         if (player == null) return;

@@ -4,6 +4,7 @@ package com.v2t.puellamagi.api.series;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.List;
@@ -21,7 +22,7 @@ public interface I系列 {
 
     /**
      * 获取系列ID
-     *如: puellamagi:soul_gem, puellamagi:heart_seed
+     * 如: puellamagi:soul_gem, puellamagi:heart_seed
      */
     ResourceLocation 获取ID();
 
@@ -48,7 +49,7 @@ public interface I系列 {
      */
     ResourceLocation 获取核心物品ID();
 
-    // ==================== 生命周期 ====================
+    // ==================== 契约生命周期 ====================
 
     /**
      * 玩家加入此系列时调用（契约时）
@@ -56,9 +57,11 @@ public interface I系列 {
     void 加入系列时(Player player);
 
     /**
-     * 玩家离开此系列时调用（如果允许的话）
+     * 玩家离开此系列时调用（解除契约时）
      */
     void 离开系列时(Player player);
+
+    // ==================== 变身生命周期 ====================
 
     /**
      * 变身时调用
@@ -70,8 +73,32 @@ public interface I系列 {
      */
     void 解除变身时(Player player);
 
+    // ==================== 玩家生命周期 ====================
+
     /**
-     * 每tick调用（变身状态下）
+     * 玩家登录时调用
+     */
+    default void 玩家登录时(ServerPlayer player) {}
+
+    /**
+     * 玩家登出时调用
+     */
+    default void 玩家登出时(ServerPlayer player) {}
+
+    /**
+     * 玩家重生时调用
+     */
+    default void 玩家重生时(ServerPlayer player) {}
+
+    /**
+     * 维度切换时调用
+     */
+    default void 维度切换时(ServerPlayer player) {}
+
+    // ==================== Tick ====================
+
+    /**
+     * 每tick调用（已契约的玩家，不论是否变身）
      */
     void tick(Player player);
 
@@ -79,7 +106,7 @@ public interface I系列 {
 
     /**
      * 获取成长阶段数量
-     *灵魂宝石系可能返回1（无成长）
+     * 灵魂宝石系可能返回1（无成长）
      * 心之种系返回5（种芽叶蕾花）
      */
     default int 获取成长阶段数() {

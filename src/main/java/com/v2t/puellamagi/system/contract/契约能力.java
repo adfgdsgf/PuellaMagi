@@ -13,6 +13,8 @@ import net.minecraftforge.common.util.LazyOptional;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.UUID;
+
 /**
  * 契约能力的Capability实现
  * 附加到Player上，管理契约状态
@@ -66,7 +68,30 @@ public class 契约能力 implements I契约, ICapabilitySerializable<CompoundTa
         数据.从NBT读取(tag);
     }
 
-    // ==================== 额外方法 ====================
+    // ==================== 灵魂宝石相关 ====================
+
+    public boolean 是否已发放灵魂宝石() {
+        return 数据.是否已发放灵魂宝石();
+    }
+
+    @Nullable
+    public UUID 获取灵魂宝石UUID() {
+        return 数据.获取灵魂宝石UUID();
+    }
+
+    public long 获取灵魂宝石时间戳() {
+        return 数据.获取灵魂宝石时间戳();
+    }
+
+    public void 记录灵魂宝石发放(UUID gemUUID, long timestamp) {
+        数据.记录灵魂宝石发放(gemUUID, timestamp);
+    }
+
+    public void 更新灵魂宝石时间戳(long newTimestamp) {
+        数据.更新灵魂宝石时间戳(newTimestamp);
+    }
+
+    // ==================== 额外数据 ====================
 
     public CompoundTag 获取额外数据() {
         return 数据.获取额外数据();

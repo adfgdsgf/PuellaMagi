@@ -4,6 +4,8 @@ package com.v2t.puellamagi.core.event;
 
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.system.contract.契约管理器;
+import com.v2t.puellamagi.system.series.系列注册表;
+import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
 import com.v2t.puellamagi.system.soulgem.污浊度管理器;
 import com.v2t.puellamagi.system.soulgem.污浊度能力;
 import com.v2t.puellamagi.常量;
@@ -28,13 +30,14 @@ import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerWakeUpEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
  * 通用事件处理
  *
- * 职责：监听Forge事件并转发给对应的管理器
+ * 职责：监听Forge事件并转发给对应的管理器/系列
  * 不包含业务逻辑，只做转发
  */
 @Mod.EventBusSubscriber(modid = 常量.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
@@ -56,8 +59,7 @@ public class 通用事件 {
         if (event.getObject() instanceof Player) {
             if (!event.getObject().getCapability(ModCapabilities.变身能力).isPresent()) {
                 event.addCapability(变身能力ID, new 变身能力());
-            }
-            if (!event.getObject().getCapability(ModCapabilities.技能能力).isPresent()) {
+            }if (!event.getObject().getCapability(ModCapabilities.技能能力).isPresent()) {
                 event.addCapability(技能能力ID, new 技能能力());
             }
             if (!event.getObject().getCapability(ModCapabilities.契约能力).isPresent()) {
@@ -110,11 +112,13 @@ public class 通用事件 {
                 能力工具.获取污浊度能力完整(新玩家).ifPresent(新能力 -> {
                     新能力.复制自(旧能力);
                     if (event.isWasDeath()) {
-                        // 转发给管理器处理死亡惩罚
                         污浊度管理器.玩家死亡(新玩家, 新能力);
                     }
                 });
-            });
+            });// 死亡后清除假死状态
+            if (event.isWasDeath()) {
+                假死状态处理器.清除玩家状态(新玩家.getUUID());
+            }
         } finally {
             原玩家.invalidateCaps();
         }
@@ -123,22 +127,45 @@ public class 通用事件 {
     @SubscribeEvent
     public static void 玩家登录(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            // 通用同步
             契约管理器.同步契约状态(serverPlayer);
             变身管理器.同步变身数据(serverPlayer);
             同步技能能力(serverPlayer);
             污浊度管理器.同步污浊度(serverPlayer);
+
+            // 系列专属处理（分发到对应系列）
+            系列注册表.onPlayerLogin(serverPlayer);
 
             PuellaMagi.LOGGER.debug("玩家 {} 登录，已同步数据", serverPlayer.getName().getString());
         }
     }
 
     @SubscribeEvent
+    public static void 玩家登出(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            // 通用清理：时停状态
+            if (时停管理器.是否时停者(serverPlayer)) {
+                时停管理器.玩家下线(serverPlayer);
+            }
+
+            // 系列专属处理（分发到对应系列）
+            系列注册表.onPlayerLogout(serverPlayer);
+
+            PuellaMagi.LOGGER.debug("玩家 {} 登出，已清理缓存", serverPlayer.getName().getString());
+        }
+    }
+
+    @SubscribeEvent
     public static void 玩家重生(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            // 通用同步
             契约管理器.同步契约状态(serverPlayer);
             变身管理器.同步变身数据(serverPlayer);
             同步技能能力(serverPlayer);
             污浊度管理器.同步污浊度(serverPlayer);
+
+            // 系列专属处理（分发到对应系列）
+            系列注册表.onPlayerRespawn(serverPlayer);
 
             PuellaMagi.LOGGER.debug("玩家 {} 重生，已同步数据", serverPlayer.getName().getString());
         }
@@ -147,57 +174,53 @@ public class 通用事件 {
     @SubscribeEvent
     public static void 维度切换(PlayerEvent.PlayerChangedDimensionEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            // 通用处理：时停结束
             if (时停管理器.是否时停者(serverPlayer)) {
-                时停管理器.结束时停(serverPlayer);
-                PuellaMagi.LOGGER.debug("时停者 {} 切换维度，时停结束", serverPlayer.getName().getString());
+                时停管理器.结束时停(serverPlayer);PuellaMagi.LOGGER.debug("时停者 {} 切换维度，时停结束", serverPlayer.getName().getString());
             }
 
+            // 通用同步
             契约管理器.同步契约状态(serverPlayer);
             变身管理器.同步变身数据(serverPlayer);
             同步技能能力(serverPlayer);
             污浊度管理器.同步污浊度(serverPlayer);
 
+            // 系列专属处理（分发到对应系列）
+            系列注册表.onDimensionChange(serverPlayer);
+
             PuellaMagi.LOGGER.debug("玩家 {} 切换维度，已同步数据", serverPlayer.getName().getString());
         }
     }
 
-    /**
-     * 玩家睡眠唤醒事件
-     * 转发给污浊度管理器处理
-     */
     @SubscribeEvent
     public static void 玩家睡醒(PlayerWakeUpEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer serverPlayer)) return;
 
-        // wakeImmediately=true 表示被打断（如怪物接近），不处理
         if (event.wakeImmediately()) return;
 
-        // 转发给管理器处理
         污浊度管理器.玩家睡醒(serverPlayer);
     }
 
-    //用于自然恢复的tick计数
-    private static int tickCounter = 0;
+    @SubscribeEvent
+    public static void 服务器关闭(ServerStoppingEvent event) {
+        // 通用清理在这里，系列专属清理可以后续添加
+        假死状态处理器.clearAll();
+        PuellaMagi.LOGGER.info("服务器关闭，已清理所有缓存");
+    }
 
     @SubscribeEvent
     public static void 玩家Tick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         if (!(event.player instanceof ServerPlayer serverPlayer)) return;
 
+        // ==================== 通用系统Tick ====================
         能力管理器.tickAll(serverPlayer);
         能力工具.获取技能能力(serverPlayer).ifPresent(技能能力::tick);
         技能管理器.tickAll(serverPlayer);
 
-        // 转发给管理器处理自然恢复
-        tickCounter++;
-        污浊度管理器.自然恢复Tick(serverPlayer, tickCounter);
-    }
+        // ==================== 系列专属Tick（分发到对应系列） ====================
+        系列注册表.tickPlayer(serverPlayer);}
 
-    // ==================== 同步方法 ====================
-
-    /**
-     * 同步技能能力数据给客户端
-     */
     public static void 同步技能能力(ServerPlayer player) {
         能力工具.获取技能能力(player).ifPresent(cap -> {
             技能能力同步包 packet = new 技能能力同步包(player.getUUID(), cap.写入NBT());

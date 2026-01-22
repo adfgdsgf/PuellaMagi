@@ -8,9 +8,11 @@ import com.v2t.puellamagi.api.I可变身;
 import com.v2t.puellamagi.api.contract.I契约;
 import com.v2t.puellamagi.api.soulgem.I污浊度;
 import com.v2t.puellamagi.api.类型定义.魔法少女类型;
+import com.v2t.puellamagi.core.network.ModNetwork;
 import com.v2t.puellamagi.system.ability.能力注册表;
 import com.v2t.puellamagi.system.ability.impl.测试能力;
 import com.v2t.puellamagi.system.ability.impl.时间停止能力;
+import com.v2t.puellamagi.system.adaptation.适应管理器;
 import com.v2t.puellamagi.system.series.系列注册表;
 import com.v2t.puellamagi.system.series.impl.灵魂宝石系列;
 import com.v2t.puellamagi.system.series.impl.心之种系列;
@@ -18,6 +20,7 @@ import com.v2t.puellamagi.system.skill.技能注册表;
 import com.v2t.puellamagi.system.skill.技能能力;
 import com.v2t.puellamagi.system.skill.impl.测试技能;
 import com.v2t.puellamagi.system.skill.impl.时间停止技能;
+import com.v2t.puellamagi.system.soulgem.damage.active.主动损坏注册表;
 import com.v2t.puellamagi.system.transformation.魔法少女类型注册表;
 import com.v2t.puellamagi.util.资源工具;
 import net.minecraftforge.common.capabilities.RegisterCapabilitiesEvent;
@@ -27,9 +30,14 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 
 /**
  * 模组总线事件处理
- * 处理Capability注册、系列注册、能力注册、技能注册、类型注册等模组级事件
+ *
+ * 职责：所有模组级初始化逻辑集中在此
+ * - Capability注册
+ * - 网络注册
+ * - 系统初始化（适应、损坏等）
+ * - 内容注册（系列、能力、技能、类型）
  */
-@Mod.EventBusSubscriber(modid = 常量.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
+@Mod.EventBusSubscriber(modid =常量.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class 模组事件 {
 
     /**
@@ -41,6 +49,8 @@ public class 模组事件 {
         event.register(技能能力.class);
         event.register(I契约.class);
         event.register(I污浊度.class);
+
+        PuellaMagi.LOGGER.info("Capability 注册完成");
     }
 
     /**
@@ -49,53 +59,68 @@ public class 模组事件 {
     @SubscribeEvent
     public static void 通用初始化(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            // 注册顺序很重要：系列 → 能力 → 技能 → 类型
+            // ==================== 基础设施初始化 ====================
+            初始化基础设施();
+
+            // ==================== 内容注册 ====================
+            // 注册顺序很重要：系列 → 能力 → 技能 →类型
             注册所有系列();
             注册所有能力();
             注册所有技能();
-            注册所有魔法少女类型();});
+            注册所有魔法少女类型();
+
+            PuellaMagi.LOGGER.info("Puella Magi 通用初始化完成");
+        });
     }
 
     /**
-     * 注册所有系列到注册表
+     * 初始化基础设施
+     */
+    private static void 初始化基础设施() {
+        // 网络注册
+        ModNetwork.register();
+        PuellaMagi.LOGGER.info("网络注册完成");
+
+        // 适应系统初始化
+        适应管理器.初始化();
+        PuellaMagi.LOGGER.info("适应系统初始化完成");
+
+        //灵魂宝石损坏系统初始化
+        主动损坏注册表.初始化();
+        PuellaMagi.LOGGER.info("灵魂宝石损坏系统初始化完成");
+    }
+
+    /**
+     * 注册所有系列
      */
     private static void 注册所有系列() {
-        PuellaMagi.LOGGER.info("开始注册魔法少女系列...");
+        PuellaMagi.LOGGER.debug("开始注册魔法少女系列...");
 
-        // 灵魂宝石系
         系列注册表.注册(灵魂宝石系列.INSTANCE);
-
-        // 心之种系
         系列注册表.注册(心之种系列.INSTANCE);
 
         PuellaMagi.LOGGER.info("系列注册完成，共 {} 个", 系列注册表.获取系列数量());
     }
 
     /**
-     * 注册所有能力到注册表
+     * 注册所有能力
      */
     private static void 注册所有能力() {
-        PuellaMagi.LOGGER.info("开始注册能力...");
+        PuellaMagi.LOGGER.debug("开始注册能力...");
 
-        // 测试能力（解锁所有技能）
         能力注册表.注册(资源工具.本mod("test"), 测试能力::new);
-
-        // 时间停止能力
         能力注册表.注册(资源工具.本mod("time_control"), 时间停止能力::new);
 
         PuellaMagi.LOGGER.info("能力注册完成，共 {} 个", 能力注册表.获取能力数量());
     }
 
     /**
-     * 注册所有技能到注册表
+     * 注册所有技能
      */
     private static void 注册所有技能() {
-        PuellaMagi.LOGGER.info("开始注册技能...");
+        PuellaMagi.LOGGER.debug("开始注册技能...");
 
-        // 测试技能
         技能注册表.注册(资源工具.本mod("test_skill"), 测试技能::new);
-
-        // 时间停止技能
         技能注册表.注册(资源工具.本mod("time_stop"), 时间停止技能::new);
 
         PuellaMagi.LOGGER.info("技能注册完成，共 {} 个", 技能注册表.获取技能数量());
@@ -105,11 +130,11 @@ public class 模组事件 {
      * 注册所有魔法少女类型
      */
     private static void 注册所有魔法少女类型() {
-        PuellaMagi.LOGGER.info("开始注册魔法少女类型...");
+        PuellaMagi.LOGGER.debug("开始注册魔法少女类型...");
 
-        // 测试类型（绑定测试能力，可解锁所有技能）
+        // 测试类型
         魔法少女类型注册表.注册(new 魔法少女类型(
-                资源工具.本mod("test"),
+        资源工具.本mod("test"),
                 资源工具.本mod("test_series"),
                 资源工具.本mod("test"),
                 null
@@ -121,10 +146,8 @@ public class 模组事件 {
                 灵魂宝石系列.ID,
                 资源工具.本mod("time_control"),
                 null
-        );魔法少女类型注册表.注册(时间操控者);
-
-        // 将类型添加到系列的可用列表
-        灵魂宝石系列.INSTANCE.添加可用类型(时间操控者.获取ID());
+        );
+        魔法少女类型注册表.注册(时间操控者);灵魂宝石系列.INSTANCE.添加可用类型(时间操控者.获取ID());
 
         PuellaMagi.LOGGER.info("魔法少女类型注册完成，共 {} 个", 魔法少女类型注册表.获取类型数量());
     }

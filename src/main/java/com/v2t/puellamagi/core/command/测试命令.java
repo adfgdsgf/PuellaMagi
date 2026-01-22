@@ -14,7 +14,20 @@ import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.system.series.系列注册表;
 import com.v2t.puellamagi.system.skill.技能管理器;
 import com.v2t.puellamagi.system.skill.技能注册表;
+import com.v2t.puellamagi.system.soulgem.灵魂宝石管理器;
 import com.v2t.puellamagi.system.soulgem.污浊度管理器;
+import com.v2t.puellamagi.system.soulgem.damage.灵魂宝石损坏处理器;
+import com.v2t.puellamagi.system.soulgem.damage.损坏上下文;
+import com.v2t.puellamagi.system.soulgem.damage.损坏强度;
+import com.v2t.puellamagi.system.soulgem.data.宝石登记信息;
+import com.v2t.puellamagi.system.soulgem.data.灵魂宝石世界数据;
+import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
+import com.v2t.puellamagi.system.soulgem.effect.持有状态;
+import com.v2t.puellamagi.system.soulgem.effect.距离效果处理器;
+import com.v2t.puellamagi.system.soulgem.item.灵魂宝石数据;
+import com.v2t.puellamagi.system.soulgem.item.灵魂宝石状态;
+import com.v2t.puellamagi.system.soulgem.location.灵魂宝石区块加载器;
+import com.v2t.puellamagi.system.soulgem.util.灵魂宝石距离计算;
 import com.v2t.puellamagi.system.transformation.变身管理器;
 import com.v2t.puellamagi.system.transformation.魔法少女类型注册表;
 import com.v2t.puellamagi.util.能力工具;
@@ -25,44 +38,45 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
  * 开发测试用命令
  *
  * ===OP指令（权限等级2）===
- * /puellamagi contract<系列> <类型>- 签订契约
+ * /puellamagi contract<系列> <类型> - 签订契约
  * /puellamagi contract remove- 解除契约
  * /puellamagi transform- 变身
- * /puellamagi detransform             - 解除变身
- * /puellamagi skill use <技能>        - 释放技能
- * /puellamagi ability current- 查看当前激活的能力
- * /puellamagi corruption set <值>     - 设置污浊度
- * /puellamagi corruption add <值>     - 增加/减少污浊度
- * /puellamagi corruption reset        - 重置污浊度
+ * /puellamagi detransform            - 解除变身
+ * /puellamagi skill use <技能>- 释放技能
+ * /puellamagi ability current        - 查看当前激活的能力
+ * /puellamagi corruption set <值>    - 设置污浊度
+ * /puellamagi corruption add <值>    - 增加/减少污浊度
+ * /puellamagi corruption reset       - 重置污浊度
+ * /puellamagi soulgem give- 发放灵魂宝石
+ * /puellamagi soulgem crack          - 使灵魂宝石龟裂
+ * /puellamagi soulgem destroy        - 使灵魂宝石销毁
+ * /puellamagi soulgem repair         - 修复灵魂宝石
+ * /puellamagi soulgem regenerate     - 重新生成灵魂宝石
  *
  * === 普通指令（所有人可用）===
- * /puellamagi status                  - 查看状态
- * /puellamagi contract status         - 查看契约状态
- * /puellamagi series list             - 列出所有系列
- * /puellamagi type list               - 列出所有类型
- * /puellamagi type info <类型>        - 查看类型详情
- * /puellamagi ability list            - 列出所有注册的能力
- * /puellamagi skill list              - 列出所有注册的技能
+ * /puellamagi status                 - 查看状态
+ * /puellamagi contract status        - 查看契约状态
+ * /puellamagi series list- 列出所有系列
+ * /puellamagi type list- 列出所有类型
+ * /puellamagi type info <类型>       - 查看类型详情
+ * /puellamagi ability list           - 列出所有注册的能力
+ * /puellamagi skill list             - 列出所有注册的技能
  * /puellamagi corruption get- 查看污浊度
+ * /puellamagi soulgem status         - 查看灵魂宝石状态
  */
 public class 测试命令 {
 
-    // ==================== 权限等级常量 ====================
-
     private static final int OP_LEVEL = 2;
 
-    // ==================== 自动补全提供器 ====================
-
-    /**
-     * 系列ID自动补全
-     */
     private static final SuggestionProvider<CommandSourceStack> 系列补全 = (context, builder) ->SharedSuggestionProvider.suggest(
             系列注册表.获取所有系列ID().stream()
                     .map(ResourceLocation::getPath)
@@ -70,9 +84,6 @@ public class 测试命令 {
             builder
     );
 
-    /**
-     *魔法少女类型自动补全（根据已选系列过滤）
-     */
     private static final SuggestionProvider<CommandSourceStack> 类型补全 = (context, builder) -> {
         String seriesArg = StringArgumentType.getString(context, "series");
         ResourceLocation seriesId = 资源工具.本mod(seriesArg);
@@ -85,9 +96,6 @@ public class 测试命令 {
         return SharedSuggestionProvider.suggest(types, builder);
     };
 
-    /**
-     * 所有魔法少女类型自动补全
-     */
     private static final SuggestionProvider<CommandSourceStack> 所有类型补全 = (context, builder) ->
             SharedSuggestionProvider.suggest(
                     魔法少女类型注册表.获取所有类型ID().stream()
@@ -96,9 +104,6 @@ public class 测试命令 {
                     builder
             );
 
-    /**
-     * 技能ID自动补全
-     */
     private static final SuggestionProvider<CommandSourceStack> 技能补全 = (context, builder) ->
             SharedSuggestionProvider.suggest(
                     技能注册表.获取所有技能ID().stream()
@@ -107,14 +112,11 @@ public class 测试命令 {
                     builder
             );
 
-    // ==================== 命令注册 ====================
-
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal(常量.MOD_ID)
 
                 // ==================== 契约命令 ====================
                 .then(Commands.literal("contract")
-                        // [OP] /puellamagi contract <系列> <类型>
                         .then(Commands.argument("series", StringArgumentType.word())
                                 .requires(source -> source.hasPermission(OP_LEVEL))
                                 .suggests(系列补全)
@@ -127,19 +129,16 @@ public class 测试命令 {
                                         })
                                 )
                         )
-                        // [OP] /puellamagi contract remove
                         .then(Commands.literal("remove")
                                 .requires(source -> source.hasPermission(OP_LEVEL))
-                                .executes(ctx -> 解除契约(ctx.getSource()))
+                                .executes(ctx ->解除契约(ctx.getSource()))
                         )
-                        // [普通] /puellamagi contract status
                         .then(Commands.literal("status")
                                 .executes(ctx -> 查看契约状态(ctx.getSource()))
                         )
                 )
 
                 // ==================== 系列命令 ====================
-                // [普通] /puellamagi series list
                 .then(Commands.literal("series")
                         .then(Commands.literal("list")
                                 .executes(ctx -> 列出系列(ctx.getSource()))
@@ -147,30 +146,25 @@ public class 测试命令 {
                 )
 
                 // ==================== 变身命令 ====================
-                // [OP] /puellamagi transform
                 .then(Commands.literal("transform")
                         .requires(source -> source.hasPermission(OP_LEVEL))
                         .executes(ctx -> 执行变身(ctx.getSource()))
                 )
-                // [OP] /puellamagi detransform
                 .then(Commands.literal("detransform")
                         .requires(source -> source.hasPermission(OP_LEVEL))
                         .executes(ctx -> 执行解除变身(ctx.getSource()))
                 )
 
                 // ==================== 状态命令 ====================
-                // [普通] /puellamagi status
                 .then(Commands.literal("status")
                         .executes(ctx -> 查看状态(ctx.getSource()))
                 )
 
                 // ==================== 能力命令 ====================
                 .then(Commands.literal("ability")
-                        // [普通] /puellamagi ability list
                         .then(Commands.literal("list")
                                 .executes(ctx -> 列出能力(ctx.getSource()))
                         )
-                        // [OP] /puellamagi ability current
                         .then(Commands.literal("current")
                                 .requires(source -> source.hasPermission(OP_LEVEL))
                                 .executes(ctx -> 查看当前能力(ctx.getSource()))
@@ -179,11 +173,9 @@ public class 测试命令 {
 
                 // ==================== 类型命令 ====================
                 .then(Commands.literal("type")
-                        // [普通] /puellamagi type list
                         .then(Commands.literal("list")
                                 .executes(ctx -> 列出类型(ctx.getSource()))
                         )
-                        // [普通] /puellamagi type info <类型>
                         .then(Commands.literal("info")
                                 .then(Commands.argument("type", StringArgumentType.word())
                                         .suggests(所有类型补全)
@@ -197,11 +189,9 @@ public class 测试命令 {
 
                 // ==================== 技能命令 ====================
                 .then(Commands.literal("skill")
-                        // [普通] /puellamagi skill list
                         .then(Commands.literal("list")
                                 .executes(ctx -> 列出技能(ctx.getSource()))
                         )
-                        // [OP] /puellamagi skill use <技能>
                         .then(Commands.literal("use")
                                 .requires(source -> source.hasPermission(OP_LEVEL))
                                 .then(Commands.argument("skill", StringArgumentType.word())
@@ -216,7 +206,6 @@ public class 测试命令 {
 
                 // ==================== 污浊度命令 ====================
                 .then(Commands.literal("corruption")
-                        // [OP] /puellamagi corruption set <值>
                         .then(Commands.literal("set")
                                 .requires(source -> source.hasPermission(OP_LEVEL))
                                 .then(Commands.argument("value", FloatArgumentType.floatArg(0, 100))
@@ -226,7 +215,6 @@ public class 测试命令 {
                                         })
                                 )
                         )
-                        // [OP] /puellamagi corruption add <值>
                         .then(Commands.literal("add")
                                 .requires(source -> source.hasPermission(OP_LEVEL))
                                 .then(Commands.argument("value", FloatArgumentType.floatArg())
@@ -236,13 +224,37 @@ public class 测试命令 {
                                         })
                                 )
                         )
-                        // [普通] /puellamagi corruption get
                         .then(Commands.literal("get")
                                 .executes(ctx -> 查看污浊度(ctx.getSource()))
-                        )// [OP] /puellamagi corruption reset
-                        .then(Commands.literal("reset")
+                        ).then(Commands.literal("reset")
                                 .requires(source -> source.hasPermission(OP_LEVEL))
                                 .executes(ctx -> 重置污浊度(ctx.getSource()))
+                        )
+                )
+
+                // ==================== 灵魂宝石命令 ====================
+                .then(Commands.literal("soulgem")
+                        .then(Commands.literal("give")
+                                .requires(source -> source.hasPermission(OP_LEVEL))
+                                .executes(ctx -> 发放灵魂宝石(ctx.getSource()))
+                        )
+                        .then(Commands.literal("status")
+                                .executes(ctx -> 查看灵魂宝石状态(ctx.getSource()))
+                        ).then(Commands.literal("crack")
+                                .requires(source -> source.hasPermission(OP_LEVEL))
+                                .executes(ctx -> 使灵魂宝石龟裂(ctx.getSource()))
+                        )
+                        .then(Commands.literal("destroy")
+                                .requires(source -> source.hasPermission(OP_LEVEL))
+                                .executes(ctx -> 使灵魂宝石销毁(ctx.getSource()))
+                        )
+                        .then(Commands.literal("repair")
+                                .requires(source -> source.hasPermission(OP_LEVEL))
+                                .executes(ctx -> 修复灵魂宝石(ctx.getSource()))
+                        )
+                        .then(Commands.literal("regenerate")
+                                .requires(source -> source.hasPermission(OP_LEVEL))
+                                .executes(ctx -> 重新生成灵魂宝石(ctx.getSource()))
                         )
                 )
         );
@@ -330,11 +342,11 @@ public class 测试命令 {
         StringBuilder sb = new StringBuilder("=== 已注册系列 ===\n");
         for (ResourceLocation id : seriesIds) {
             系列注册表.获取(id).ifPresent(series -> {
-                sb.append("- ").append(id.getPath())
+                sb.append("-").append(id.getPath())
                         .append(" (").append(series.获取名称().getString()).append(")\n");
             });
         }
-        sb.append("共").append(seriesIds.size()).append(" 个系列");
+        sb.append("共 ").append(seriesIds.size()).append(" 个系列");
 
         source.sendSuccess(() -> Component.literal(sb.toString()), false);
         return 1;
@@ -348,13 +360,11 @@ public class 测试命令 {
             return 0;
         }
 
-        // 检查是否已契约
         if (!契约管理器.可以变身(player)) {
             source.sendFailure(Component.literal("尚未签订契约，无法变身"));
             return 0;
         }
 
-        // 从契约获取类型
         var typeOpt = 契约管理器.获取类型(player);
         if (typeOpt.isEmpty()) {
             source.sendFailure(Component.literal("契约数据异常，无法获取类型"));
@@ -397,7 +407,6 @@ public class 测试命令 {
 
         StringBuilder sb = new StringBuilder("=== 玩家状态 ===\n");
 
-        // 契约状态
         能力工具.获取契约能力(player).ifPresent(contract -> {
             sb.append("契约: ").append(contract.是否已契约() ? "已签订" : "未签订").append("\n");
             if (contract.是否已契约()) {
@@ -406,21 +415,18 @@ public class 测试命令 {
             }
         });
 
-        // 变身状态
         能力工具.获取变身能力完整(player).ifPresent(cap -> {
             sb.append("变身: ").append(cap.是否已变身() ? "已变身" : "未变身").append("\n");
             if (cap.是否已变身()) {
-                sb.append("  阶段: ").append(cap.获取当前阶段索引()).append("\n");
+                sb.append("阶段: ").append(cap.获取当前阶段索引()).append("\n");
             }
         });
 
-        // 污浊度状态
         能力工具.获取污浊度能力(player).ifPresent(cap -> {
             sb.append("污浊度: ").append(String.format("%.1f / %.1f (%.0f%%)",
                     cap.获取当前值(), cap.获取最大值(), cap.获取百分比() * 100)).append("\n");
         });
 
-        // 能力状态
         boolean hasAbility = 能力管理器.是否有激活能力(player);
         sb.append("能力激活: ").append(hasAbility ? "是" : "否");
 
@@ -622,5 +628,241 @@ public class 测试命令 {
         污浊度管理器.重置(player);
         source.sendSuccess(() -> Component.literal("污浊度已重置"), true);
         return 1;
+    }
+
+    // ==================== 灵魂宝石命令实现 ====================
+
+    private static int 发放灵魂宝石(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("此命令只能由玩家执行"));
+            return 0;
+        }
+
+        if (!能力工具.是灵魂宝石系(player)) {
+            source.sendFailure(Component.literal("你不是灵魂宝石系魔法少女\n请先使用 /puellamagi contract soul_gem <类型> 签订契约"));
+            return 0;
+        }
+
+        boolean success = 灵魂宝石管理器.尝试发放灵魂宝石(player);
+        if (success) {
+            source.sendSuccess(() -> Component.literal("灵魂宝石已发放"), true);
+            return 1;
+        } else {
+            // 可能已经有登记了
+            灵魂宝石世界数据 worldData = 灵魂宝石世界数据.获取(player.getServer());
+            if (worldData.存在登记(player.getUUID())) {
+                source.sendFailure(Component.literal("你已经有灵魂宝石了\n使用 /puellamagi soulgem regenerate 重新生成"));} else {
+                source.sendFailure(Component.literal("发放失败，请检查契约状态"));
+            }
+            return 0;
+        }
+    }
+
+    private static int 查看灵魂宝石状态(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("此命令只能由玩家执行"));
+            return 0;
+        }
+
+        if (!能力工具.是灵魂宝石系(player)) {
+            source.sendSuccess(() -> Component.literal("你不是灵魂宝石系魔法少女"), false);
+            return 1;
+        }
+
+        StringBuilder sb = new StringBuilder("=== 灵魂宝石状态 ===\n");
+
+        // 从世界数据获取信息
+        灵魂宝石世界数据 worldData = 灵魂宝石世界数据.获取(player.getServer());
+        宝石登记信息 info = worldData.获取登记信息(player.getUUID()).orElse(null);
+
+        if (info != null) {
+            sb.append("登记状态: 已登记\n");
+            sb.append("有效时间戳: ").append(info.获取有效时间戳()).append("\n");
+            sb.append("宝石状态: ").append(info.获取状态().getSerializeName()).append("\n");
+
+            if (info.获取维度() != null && info.获取坐标() != null) {
+                sb.append("位置信息:\n");
+                sb.append("  存储类型: ").append(info.获取存储类型().获取序列化名()).append("\n");
+                sb.append("  维度: ").append(info.获取维度().location()).append("\n");
+                sb.append("  坐标: ").append(String.format("%.1f, %.1f, %.1f",
+                        info.获取坐标().x, info.获取坐标().y, info.获取坐标().z)).append("\n");
+
+                // 显示持有者信息
+                UUID 持有者UUID = info.获取当前持有者UUID();
+                if (持有者UUID != null) {
+                    ServerPlayer 持有者 = player.getServer().getPlayerList().getPlayer(持有者UUID);
+                    if (持有者 != null) {
+                        sb.append("  持有者: ").append(持有者.getName().getString()).append(" (在线)\n");
+                    } else {
+                        sb.append("  持有者: ").append(持有者UUID.toString().substring(0, 8)).append("... (离线)\n");
+                    }
+                } else {
+                    sb.append("  持有者: 无（掉落物/容器）\n");
+                }
+            } else {
+                sb.append("位置信息: 未知\n");
+            }
+
+            // 使用统一的距离计算工具
+            var distResult = 灵魂宝石距离计算.计算(player, info, player.getServer());
+            sb.append("距离计算:\n");
+            if (distResult.有效()) {
+                sb.append("  距离: ").append(String.format("%.1f 格", distResult.距离())).append("\n");} else {
+                sb.append("  距离: 无法计算 (").append(distResult.原因().获取描述()).append(")\n");
+            }
+            sb.append("  持有者在线: ").append(distResult.持有者在线() ? "是" : "否").append("\n");
+        } else {
+            sb.append("登记状态: 未登记\n");
+        }
+
+        // 距离效果状态
+        持有状态 holdState = 距离效果处理器.获取当前状态(player);
+        sb.append("持有状态: ").append(holdState.name()).append("\n");
+
+        // 区块加载状态
+        boolean chunkLoaded = 灵魂宝石区块加载器.是否有区块加载(player.getUUID());
+        sb.append("区块加载: ").append(chunkLoaded ? "是" : "否").append("\n");
+
+        // 假死状态
+        if (假死状态处理器.是否假死中(player)) {
+            int remaining = 假死状态处理器.获取假死剩余秒数(player);
+            sb.append("假死状态: 是（剩余 ").append(remaining).append(" 秒）\n");
+        } else {
+            sb.append("假死状态: 否\n");
+        }
+
+        // 背包中的灵魂宝石
+        ItemStack soulGem = 灵魂宝石管理器.查找玩家背包中的灵魂宝石(player);
+        if (soulGem != null) {
+            灵魂宝石状态 gemState = 灵魂宝石数据.获取状态(soulGem);
+            sb.append("背包中的宝石: ").append(gemState.getSerializeName());} else {
+            sb.append("背包中的宝石: 无");
+        }
+
+        source.sendSuccess(() -> Component.literal(sb.toString()), false);
+        return 1;
+    }
+
+    /**
+     * 使灵魂宝石龟裂
+     *
+     * 通过损坏处理器统一入口处理
+     */
+    private static int 使灵魂宝石龟裂(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("此命令只能由玩家执行"));
+            return 0;
+        }
+
+        ItemStack soulGem = 灵魂宝石管理器.查找玩家背包中的灵魂宝石(player);
+        if (soulGem == null) {
+            source.sendFailure(Component.literal("背包中没有找到灵魂宝石"));
+            return 0;
+        }
+
+        灵魂宝石状态 currentState = 灵魂宝石数据.获取状态(soulGem);
+        if (currentState !=灵魂宝石状态.NORMAL) {
+            source.sendFailure(Component.literal("灵魂宝石不是正常状态，当前: " + currentState.getSerializeName()));
+            return 0;
+        }
+
+        // 使用统一的损坏处理器
+        损坏上下文 context = 损坏上下文.被动销毁(
+                soulGem,
+                player.getUUID(),
+                损坏强度.普通,// 普通强度必定龟裂
+                "测试命令"
+        );
+
+        var result = 灵魂宝石损坏处理器.处理损坏(player.getServer(), context);
+        source.sendSuccess(() -> Component.literal("处理结果: " + result.name()), true);
+        return 1;
+    }
+
+    /**
+     * 使灵魂宝石销毁
+     *
+     * 通过损坏处理器统一入口处理
+     */
+    private static int 使灵魂宝石销毁(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("此命令只能由玩家执行"));
+            return 0;
+        }
+
+        ItemStack soulGem = 灵魂宝石管理器.查找玩家背包中的灵魂宝石(player);
+        if (soulGem == null) {
+            source.sendFailure(Component.literal("背包中没有找到灵魂宝石"));
+            return 0;
+        }
+
+        灵魂宝石状态 currentState = 灵魂宝石数据.获取状态(soulGem);
+        if (currentState == 灵魂宝石状态.DESTROYED) {
+            source.sendFailure(Component.literal("灵魂宝石已经销毁"));
+            return 0;
+        }
+
+        // 使用统一的损坏处理器，严重强度直接销毁
+        损坏上下文 context = 损坏上下文.被动销毁(
+                soulGem,
+                player.getUUID(),
+                损坏强度.严重,  // 严重强度直接销毁
+                "测试命令"
+        );
+
+        var result = 灵魂宝石损坏处理器.处理损坏(player.getServer(), context);
+        source.sendSuccess(() -> Component.literal("处理结果: " + result.name()), true);
+        return 1;
+    }
+
+    /**
+     * 修复灵魂宝石
+     *
+     * 通过损坏处理器统一入口处理
+     */
+    private static int 修复灵魂宝石(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("此命令只能由玩家执行"));
+            return 0;
+        }
+
+        ItemStack soulGem = 灵魂宝石管理器.查找玩家背包中的灵魂宝石(player);
+        if (soulGem == null) {
+            source.sendFailure(Component.literal("背包中没有找到灵魂宝石"));
+            return 0;
+        }
+
+        // 使用统一的损坏处理器修复
+        var result = 灵魂宝石损坏处理器.尝试修复(player.getServer(), soulGem, player.getUUID());
+
+        switch (result) {
+            case 已修复 -> source.sendSuccess(() -> Component.literal("灵魂宝石已修复"), true);
+            case 无需修复 -> source.sendFailure(Component.literal("灵魂宝石状态正常，无需修复"));
+            case 已销毁_无效果 -> source.sendFailure(Component.literal("灵魂宝石已销毁，无法修复"));
+            default -> source.sendFailure(Component.literal("修复失败: " + result.name()));
+        }
+
+        return 1;
+    }
+
+    private static int 重新生成灵魂宝石(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("此命令只能由玩家执行"));
+            return 0;
+        }
+
+        if (!能力工具.是灵魂宝石系(player)) {
+            source.sendFailure(Component.literal("你不是灵魂宝石系魔法少女"));
+            return 0;
+        }
+
+        boolean success = 灵魂宝石管理器.重新生成灵魂宝石(player);
+        if (success) {
+            // 管理器内部已显示消息
+            return 1;
+        } else {
+            source.sendFailure(Component.literal("重新生成失败"));
+            return 0;
+        }
     }
 }
