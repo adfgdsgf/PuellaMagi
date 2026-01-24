@@ -31,13 +31,13 @@ public class 灵魂宝石配置 {
 
     // ==================== 空血设置 ====================
 
-    public static final ForgeConfigSpec.DoubleValue 退出假死血量阈值;
+    public static final ForgeConfigSpec.DoubleValue 退出假死血量百分比;
     public static final ForgeConfigSpec.IntValue 空血污浊度增加;
 
     // ==================== 自动回血设置 ====================
 
     public static final ForgeConfigSpec.IntValue 回血间隔Tick;
-    public static final ForgeConfigSpec.DoubleValue 回血量;
+    public static final ForgeConfigSpec.DoubleValue 回血百分比;
     public static final ForgeConfigSpec.DoubleValue 空血回血倍率;
 
     // ==================== 悲叹之种设置 ====================
@@ -65,15 +65,14 @@ public class 灵魂宝石配置 {
         // ========== 距离设置 ==========
         builder.push("distance");
 
-        距离阈值 = builder
-                .translation("config.puellamagi.soulgem.distance.thresholds")
-                .comment("距离阈值（方块），格式：正常,中距离,远距离,超出范围",
+        距离阈值 = builder.translation("config.puellamagi.soulgem.distance.thresholds")
+                .comment("距离阈值（方块），格式：正常,中距离,远距离",
                         "例如 '5,20,50' 表示：",
-                        "  0-5格：正常",
-                        "  5-20格：中距离（轻微debuff）",
-                        "  20-50格：远距离（严重debuff）",
+                        "  0-10格：正常",
+                        "  10-30格：中距离（轻微debuff）",
+                        "  30-50格：远距离（严重debuff）",
                         "  50格以上：超出范围（假死）")
-                .define("thresholds", "5,20,50");
+                .define("thresholds", "10,30,50");
 
         移速倍率 = builder
                 .translation("config.puellamagi.soulgem.distance.speedMultipliers")
@@ -96,24 +95,27 @@ public class 灵魂宝石配置 {
 
         假死超时分钟 = builder
                 .translation("config.puellamagi.soulgem.feigndeath.timeout")
-                .comment("假死超时时间（分钟）。假死超过此时间判定死亡。")
-                .defineInRange("timeout", 30, 1, 1440);
+                .comment("假死超时时间（分钟）。假死超过此时间判定死亡。",
+                        "-1 表示禁用超时，允许永久假死。")
+                .defineInRange("timeout", -1, -1, 1440);
 
         位置未知重生成延迟分钟 = builder
                 .translation("config.puellamagi.soulgem.feigndeath.regenerateDelay")
                 .comment("灵魂宝石位置未知时的重生成延迟（分钟）。",
                         "持有者离线且无法追踪位置时，等待此时间后在玩家身边重新生成。")
-                .defineInRange("regenerateDelay", 5, 1, 60);
+                .defineInRange("regenerateDelay", 3, 1, 60);
 
         builder.pop();
 
         // ========== 空血设置 ==========
         builder.push("emptyhealth");
 
-        退出假死血量阈值 = builder
+        退出假死血量百分比 = builder
                 .translation("config.puellamagi.soulgem.emptyhealth.recoveryThreshold")
-                .comment("退出空血假死的血量阈值。血量恢复至此以上时退出假死状态。")
-                .defineInRange("recoveryThreshold", 5.0, 1.0, 20.0);
+                .comment("退出空血假死的血量百分比。",
+                        "血量恢复至最大血量的此百分比以上时退出假死状态。",
+                        "0.25 = 25%最大血量")
+                .defineInRange("recoveryThreshold", 0.25, 0.05, 1.0);
 
         空血污浊度增加 = builder
                 .translation("config.puellamagi.soulgem.emptyhealth.corruptionIncrease")
@@ -128,12 +130,13 @@ public class 灵魂宝石配置 {
         回血间隔Tick = builder
                 .translation("config.puellamagi.soulgem.autoheal.interval")
                 .comment("自动回血间隔（tick）。20tick = 1秒。")
-                .defineInRange("interval", 40, 1, 200);
+                .defineInRange("interval", 40, 1, 20000);
 
-        回血量 = builder
+        回血百分比 = builder
                 .translation("config.puellamagi.soulgem.autoheal.amount")
-                .comment("每次回血量（半心 = 1.0）。")
-                .defineInRange("amount", 1.0, 0.5, 10.0);
+                .comment("每次回血量（最大血量的百分比）。",
+                        "0.05 = 每次恢复5%最大血量")
+                .defineInRange("amount", 0.05, 0.01, 1.0);
 
         空血回血倍率 = builder
                 .translation("config.puellamagi.soulgem.autoheal.emptyHealthMultiplier")
@@ -182,7 +185,7 @@ public class 灵魂宝石配置 {
 
     /**
      * 获取距离阈值数组
-     * 索引：0=正常上限, 1=中距离上限, 2=远距离上限(=超出范围下限)
+     *索引：0=正常上限, 1=中距离上限, 2=远距离上限(=超出范围下限)
      */
     public static int[] 获取距离阈值数组() {
         if (距离阈值缓存 == null) {
@@ -203,7 +206,7 @@ public class 灵魂宝石配置 {
     }
 
     /**
-     *刷新缓存（配置重载时调用）
+     * 刷新缓存（配置重载时调用）
      */
     public static void 刷新缓存() {
         距离阈值缓存 = null;
@@ -280,8 +283,20 @@ public class 灵魂宝石配置 {
         return 假死超时分钟.get();
     }
 
+    /**
+     * 是否启用假死超时
+     * @return false表示允许永久假死
+     */
+    public static boolean 启用假死超时() {
+        return 假死超时分钟.get() >= 0;
+    }
+
     public static long 获取假死超时Tick() {
-        return 假死超时分钟.get() * 60L * 20L;
+        int minutes = 假死超时分钟.get();
+        if (minutes < 0) {
+            return Long.MAX_VALUE;  // 永不超时
+        }
+        return minutes * 60L * 20L;
     }
 
     public static int 获取位置未知重生成延迟分钟() {
@@ -294,8 +309,12 @@ public class 灵魂宝石配置 {
 
     // ==================== 便捷获取方法 - 空血 ====================
 
-    public static double 获取退出假死血量阈值() {
-        return 退出假死血量阈值.get();
+    /**
+     * 获取退出假死血量百分比
+     * @return 0.25 = 25%最大血量
+     */
+    public static double 获取退出假死血量百分比() {
+        return 退出假死血量百分比.get();
     }
 
     public static int 获取空血污浊度增加() {
@@ -308,8 +327,12 @@ public class 灵魂宝石配置 {
         return 回血间隔Tick.get();
     }
 
-    public static double 获取回血量() {
-        return 回血量.get();
+    /**
+     * 获取回血百分比
+     * @return 0.05 = 5%最大血量
+     */
+    public static double 获取回血百分比() {
+        return 回血百分比.get();
     }
 
     public static double 获取空血回血倍率() {

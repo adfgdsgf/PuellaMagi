@@ -1,4 +1,4 @@
-// 文件路径: src/main/java/com/v2t/puellamagi/system/soulgem/effect/假死状态处理器.java
+//文件路径: src/main/java/com/v2t/puellamagi/system/soulgem/effect/假死状态处理器.java
 
 package com.v2t.puellamagi.system.soulgem.effect;
 
@@ -131,7 +131,16 @@ public final class 假死状态处理器 {
         return player != null && 是否空血假死(player.getUUID());
     }
 
+    /**
+     * 获取假死剩余秒数
+     * @return 剩余秒数，-1表示未假死或未启用超时（永久假死）
+     */
     public static int 获取假死剩余秒数(ServerPlayer player) {
+        // 未启用超时时返回-1
+        if (!灵魂宝石配置.启用假死超时()) {
+            return -1;
+        }
+
         Long startTime = 假死开始时间.get(player.getUUID());
         if (startTime == null) return -1;
 
@@ -163,7 +172,9 @@ public final class 假死状态处理器 {
         long currentTime = player.level().getGameTime();
         boolean 当前假死 = 是否假死中(playerUUID);
 
-        double 血量阈值 = 灵魂宝石配置.获取退出假死血量阈值();
+        // 使用百分比计算血量阈值
+        float 最大血量 = player.getMaxHealth();
+        float 血量阈值 = (float) (最大血量 * 灵魂宝石配置.获取退出假死血量百分比());
         boolean 空血中 = 空血假死标记.contains(playerUUID) && player.getHealth() < 血量阈值;
         boolean 应该假死 = 距离应该假死 || 空血中;
 
@@ -182,9 +193,12 @@ public final class 假死状态处理器 {
         UUID playerUUID = player.getUUID();
         long startTime = 假死开始时间.getOrDefault(playerUUID, currentTime);
 
-        if (currentTime - startTime > 灵魂宝石配置.获取假死超时Tick()) {
-            触发超时死亡(player);
-            return;
+        // 检查是否启用超时，以及是否超时
+        if (灵魂宝石配置.启用假死超时()) {
+            if (currentTime - startTime >灵魂宝石配置.获取假死超时Tick()) {
+                触发超时死亡(player);
+                return;
+            }
         }
 
         MinecraftServer server = player.getServer();
@@ -193,14 +207,17 @@ public final class 假死状态处理器 {
         灵魂宝石世界数据 worldData = 灵魂宝石世界数据.获取(server);宝石登记信息 info = worldData.获取登记信息(playerUUID).orElse(null);
 
         var result = 灵魂宝石距离计算.计算(player, info, server);
-        if (result.原因() ==灵魂宝石距离计算.失败原因.位置未知) {
+        if (result.原因() == 灵魂宝石距离计算.失败原因.位置未知) {
             处理位置未知(player, currentTime);
         } else {
             位置未知开始时间.remove(playerUUID);
         }
 
-        double 血量阈值 = 灵魂宝石配置.获取退出假死血量阈值();
-        if (空血假死标记.contains(playerUUID) && player.getHealth() >= 血量阈值) {LOGGER.debug("玩家 {} 血量恢复至{}，移除空血标记", player.getName().getString(), player.getHealth());
+        // 使用百分比计算血量阈值
+        float 最大血量 = player.getMaxHealth();
+        float 血量阈值 = (float) (最大血量 * 灵魂宝石配置.获取退出假死血量百分比());
+        if (空血假死标记.contains(playerUUID) && player.getHealth() >= 血量阈值) {LOGGER.debug("玩家 {} 血量恢复至{}（阈值{}），移除空血标记",
+                player.getName().getString(), player.getHealth(), 血量阈值);
             空血假死标记.remove(playerUUID);
         }
     }
@@ -248,8 +265,7 @@ public final class 假死状态处理器 {
         LOGGER.info("玩家 {} 进入假死状态（{}）",
                 player.getName().getString(), 是空血触发 ? "空血" : "距离");
 
-        String messageKey = 是空血触发
-                ? "message.puellamagi.feign_death.enter_empty_health"
+        String messageKey = 是空血触发? "message.puellamagi.feign_death.enter_empty_health"
                 : "message.puellamagi.feign_death.enter";
 
         player.displayClientMessage(
@@ -299,7 +315,9 @@ public final class 假死状态处理器 {
 
         var result = 灵魂宝石距离计算.计算(player, info, server);
 
-        double 血量阈值 = 灵魂宝石配置.获取退出假死血量阈值();
+        // 使用百分比计算血量阈值
+        float 最大血量 = player.getMaxHealth();
+        float 血量阈值 = (float) (最大血量 * 灵魂宝石配置.获取退出假死血量百分比());
         boolean 空血中 = 空血假死标记.contains(player.getUUID())
                 && player.getHealth()< 血量阈值;
 
