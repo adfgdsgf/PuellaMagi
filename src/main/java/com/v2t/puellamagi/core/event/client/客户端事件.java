@@ -6,6 +6,8 @@ import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.client.gui.HUD编辑界面;
 import com.v2t.puellamagi.client.gui.污浊度HUD;
 import com.v2t.puellamagi.client.gui.hud.可编辑HUD注册表;
+import com.v2t.puellamagi.client.gui.搜身界面;
+import com.v2t.puellamagi.core.registry.ModMenuTypes;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.client.客户端状态管理;
 import com.v2t.puellamagi.client.蓄力状态管理;
@@ -19,6 +21,7 @@ import com.v2t.puellamagi.core.network.packets.c2s.预设切换请求包;
 import com.v2t.puellamagi.util.能力工具;
 import com.v2t.puellamagi.util.网络工具;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
@@ -80,6 +83,9 @@ public class 客户端事件 {
 
                 // 注册可编辑HUD
                 注册可编辑HUD();
+
+                // 注册Menu对应的Screen
+                MenuScreens.register(ModMenuTypes.搜身菜单类型.get(), 搜身界面::new);
 
                 PuellaMagi.LOGGER.info("Puella Magi 客户端初始化完成");
             });

@@ -35,18 +35,16 @@ import java.util.UUID;
  * - Shift+左键删除
  * - 数字键替换
  *
- * 原理：延迟一帧检测，等客户端数据同步后再判断物品是否消失
+ * 原理：在操作前记录绑定物品，延迟一帧后检测是否消失
  */
 @Mixin(CreativeModeInventoryScreen.class)
 public class CreativeModeDeleteMixin {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("PuellaMagi/CreativeDelete");
 
-    // 临时存储：操作前的绑定物品信息
     @Unique
     private final List<绑定物品快照> puellamagi$操作前物品列表 = new ArrayList<>();
 
-    // 延迟检测标记
     @Unique
     private boolean puellamagi$需要下帧检测 = false;
 
@@ -54,53 +52,31 @@ public class CreativeModeDeleteMixin {
 
     @Inject(method = "slotClicked", at = @At("HEAD"))
     private void onSlotClickedHead(Slot slot, int slotId, int mouseButton, ClickType type, CallbackInfo ci) {
+        //丢弃到背包外会生成掉落物，不是删除
         if (slotId < 0) {
             return;
         }
 
         puellamagi$记录所有绑定物品();
-        // 在 HEAD 就设置标记
         if (!puellamagi$操作前物品列表.isEmpty()) {
             puellamagi$需要下帧检测 = true;
         }
     }
-
-  /*  @Inject(method = "slotClicked", at = @At("TAIL"))
-    private void onSlotClickedTail(Slot slot, int slotId, int mouseButton, ClickType type, CallbackInfo ci) {
-
-        if (slotId < 0 || puellamagi$操作前物品列表.isEmpty()) {
-            return;
-        }
-
-        puellamagi$需要下帧检测 = true;
-    }*/
 
     // ==================== keyPressed 处理（数字键替换） ====================
 
     @Inject(method = "keyPressed", at = @At("HEAD"))
     private void onKeyPressedHead(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
         puellamagi$记录所有绑定物品();
-        // 在 HEAD 就设置标记，不等TAIL
         if (!puellamagi$操作前物品列表.isEmpty()) {
             puellamagi$需要下帧检测 = true;
         }
     }
 
-/*    @Inject(method = "keyPressed", at = @At("TAIL"))
-    private void onKeyPressedTail(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-        if (puellamagi$操作前物品列表.isEmpty()) {
-            return;
-        }
-
-        // 标记下一帧检测
-        puellamagi$需要下帧检测 = true;
-    }*/
-
     // ==================== containerTick 延迟检测 ====================
 
     @Inject(method = "containerTick", at = @At("TAIL"))
     private void onContainerTick(CallbackInfo ci) {
-
         if (!puellamagi$需要下帧检测) return;
         puellamagi$需要下帧检测 = false;
 
@@ -109,9 +85,6 @@ public class CreativeModeDeleteMixin {
 
     // ==================== 通用逻辑 ====================
 
-    /**
-     * 记录当前所有绑定物品
-     */
     @Unique
     private void puellamagi$记录所有绑定物品() {
         puellamagi$操作前物品列表.clear();
@@ -120,20 +93,15 @@ public class CreativeModeDeleteMixin {
         Player player = screen.getMinecraft().player;
         if (player == null) return;
 
-        // 扫描背包
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
             ItemStack stack = player.getInventory().getItem(i);
             puellamagi$尝试记录绑定物品(stack);
         }
 
-        // 扫描鼠标上的物品
         ItemStack carried = screen.getMenu().getCarried();
         puellamagi$尝试记录绑定物品(carried);
     }
 
-    /**
-     * 检查是否有绑定物品被删除，并通知服务端
-     */
     @Unique
     private void puellamagi$检查删除并通知() {
         if (puellamagi$操作前物品列表.isEmpty()) return;
@@ -145,11 +113,9 @@ public class CreativeModeDeleteMixin {
             return;
         }
 
-        // 检查每个之前存在的绑定物品是否还在
         for (绑定物品快照 快照 : puellamagi$操作前物品列表) {
             if (!puellamagi$物品仍存在(player, screen, 快照)) {
-                // 物品消失了，发包通知服务端
-                LOGGER.debug("检测到绑定物品被删除:类型={}, 所有者={}",
+                LOGGER.debug("检测到绑定物品被删除: 类型={},所有者={}",
                         快照.物品ID(), 快照.所有者UUID());
                 网络工具.发送到服务端(new 创造模式删除绑定物品包(
                         快照.物品ID(),
@@ -162,9 +128,6 @@ public class CreativeModeDeleteMixin {
         puellamagi$操作前物品列表.clear();
     }
 
-    /**
-     * 尝试记录绑定物品信息
-     */
     @Unique
     private void puellamagi$尝试记录绑定物品(ItemStack stack) {
         if (stack.isEmpty()) return;
@@ -173,21 +136,15 @@ public class CreativeModeDeleteMixin {
         UUID 所有者 = 绑定物品.获取所有者UUID(stack);
         if (所有者 == null) return;
 
-        long 时间戳 = 绑定物品.获取时间戳(stack);
-
         puellamagi$操作前物品列表.add(new 绑定物品快照(
                 ForgeRegistries.ITEMS.getKey(stack.getItem()),
                 所有者,
-                时间戳
+                绑定物品.获取时间戳(stack)
         ));
     }
 
-    /**
-     * 检查绑定物品是否仍然存在
-     */
     @Unique
     private boolean puellamagi$物品仍存在(Player player, CreativeModeInventoryScreen screen, 绑定物品快照 目标快照) {
-        // 检查背包
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
             ItemStack stack = player.getInventory().getItem(i);
             绑定物品快照 当前快照 = puellamagi$创建快照(stack);
@@ -196,19 +153,11 @@ public class CreativeModeDeleteMixin {
             }
         }
 
-        // 检查鼠标上
         ItemStack carried = screen.getMenu().getCarried();
         绑定物品快照 鼠标快照 = puellamagi$创建快照(carried);
-        if (目标快照.匹配(鼠标快照)) {
-            return true;
-        }
-
-        return false;
+        return 目标快照.匹配(鼠标快照);
     }
 
-    /**
-     * 从物品创建快照
-     */
     @Unique
     private 绑定物品快照 puellamagi$创建快照(ItemStack stack) {
         if (stack.isEmpty()) return null;

@@ -1,4 +1,4 @@
-package com.v2t.puellamagi.mixin.soulgem;
+package com.v2t.puellamagi.mixin.soulgem.client;
 
 import com.v2t.puellamagi.core.network.packets.c2s.灵魂宝石损坏请求包;
 import com.v2t.puellamagi.core.registry.ModItems;

@@ -5,6 +5,7 @@
   "refmap": "mixins.puellamagi.refmap.json",
   "mixins": [
     "access.AbstractArrowAccessor",
+    "access.AbstractContainerMenuAccessor",
     "access.AccessLivingEntityMixin",
     "access.EntityAndDataMixin",
     "access.ChunkMapAccessor",
@@ -63,9 +64,11 @@
     "timestop.client.TimestopTextureManagerMixin",
     "timestop.client.TimestopWeatherMixin",
 
-    "soulgem.FeignDeathInputMixin",
-    "soulgem.SoulGemActiveAttackMixin",
-    "soulgem.SoulGemActiveUseMixin",
+    "soulgem.client.EmptyHealthRenderMixin",
+    "soulgem.client.EmptyHealthDeathAnimMixin",
+    "soulgem.client.FeignDeathInputMixin",
+    "soulgem.client.SoulGemActiveAttackMixin",
+    "soulgem.client.SoulGemActiveUseMixin",
 
     "client.CreativeModeDeleteMixin"
   ]

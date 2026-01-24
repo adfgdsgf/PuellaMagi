@@ -2,6 +2,7 @@
 
 package com.v2t.puellamagi.mixin.soulgem;
 
+import com.v2t.puellamagi.core.config.灵魂宝石配置;
 import com.v2t.puellamagi.system.soulgem.effect.距离效果处理器;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -17,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.UUID;
 
 /**
- * 距离效果 - 攻击力减少（模拟虚弱）
+ * 距离效果-攻击力减少（模拟虚弱）
  */
 @Mixin(LivingEntity.class)
 public class DistanceEffectDamageMixin {
@@ -28,9 +29,6 @@ public class DistanceEffectDamageMixin {
 
     @Unique
     private static final String PUELLAMAGI_DAMAGE_MODIFIER_NAME = "puellamagi:distance_damage_penalty";
-
-    @Unique
-    private static final double DAMAGE_REDUCTION = -0.5;  // 攻击力减少50%
 
     @Inject(method = "tick", at = @At("TAIL"))
     private void onTickDamage(CallbackInfo ci) {
@@ -58,11 +56,15 @@ public class DistanceEffectDamageMixin {
             return;
         }
 
+        // 从配置获取伤害倍率，计算减少量
+        double damageMultiplier = 灵魂宝石配置.获取远距离伤害倍率();
+        double reduction = damageMultiplier - 1.0;  // 如0.5 - 1.0 = -0.5
+
         // 添加新的修改器
         AttributeModifier newModifier = new AttributeModifier(
                 PUELLAMAGI_DAMAGE_MODIFIER_UUID,
                 PUELLAMAGI_DAMAGE_MODIFIER_NAME,
-                DAMAGE_REDUCTION,
+                reduction,
                 AttributeModifier.Operation.MULTIPLY_TOTAL
         );
         damageAttr.addTransientModifier(newModifier);

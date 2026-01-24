@@ -111,8 +111,10 @@ public class 污浊度HUD implements IGuiOverlay, I可编辑HUD {
         }
 
         // 获取污浊度百分比
-        float 目标值 = 能力工具.获取污浊度百分比(player);
-        当前显示值 = 渲染工具.动画插值(当前显示值, 目标值, 动画速度);
+        if (shouldShow) {
+            float 目标值 = 能力工具.获取污浊度百分比(player);
+            当前显示值 = 渲染工具.动画插值(当前显示值, 目标值, 动画速度);
+        }
 
         // 计算实际尺寸和位置
         float scale = 布局.获取缩放();

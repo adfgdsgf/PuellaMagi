@@ -16,10 +16,10 @@ import org.lwjgl.glfw.GLFW;
 public final class 按键绑定 {
     private 按键绑定() {}
 
-    // 按键类别
+    //按键类别
     private static final String 类别 = "key." + 常量.MOD_ID + ".category";
 
-    // ==================== 变身相关 ====================
+    //==================== 变身相关 ====================
 
     /**
      * 变身/解除变身切换键
@@ -38,7 +38,6 @@ public final class 按键绑定 {
     /**
      * 技能1-6快捷键
      * 默认：Z/X/C/V/B/N
-     * 避免与原版物品栏冲突，位置靠近左手方便操作
      */
     public static final KeyMapping[] 技能键 = new KeyMapping[] {
             创建技能键(1, GLFW.GLFW_KEY_Z),
@@ -73,7 +72,7 @@ public final class 按键绑定 {
 
     /**
      * 切换到下一个预设
-     * 默认：] (右方括号)
+     * 默认：]
      */
     public static final KeyMapping 下一预设键 = new KeyMapping(
             "key." + 常量.MOD_ID + ".preset_next",
@@ -85,7 +84,7 @@ public final class 按键绑定 {
 
     /**
      * 切换到上一个预设
-     * 默认：[ (左方括号)
+     * 默认：[
      */
     public static final KeyMapping 上一预设键 = new KeyMapping(
             "key." + 常量.MOD_ID + ".preset_prev",
@@ -97,7 +96,7 @@ public final class 按键绑定 {
 
     /**
      * 折叠/展开技能栏
-     * 默认：未绑定（可选功能）
+     * 默认：未绑定
      */
     public static final KeyMapping 技能栏折叠键 = new KeyMapping(
             "key." + 常量.MOD_ID + ".skill_bar_toggle",
@@ -107,22 +106,34 @@ public final class 按键绑定 {
             类别
     );
 
-    // ==================== 获取所有按键 ====================
+    // ==================== 交互相关 ====================
 
     /**
-     * 获取所有需要注册的按键
-     * 供ClientSetup使用
+     * 搜身修饰键
+     * 按住此键 + 右键点击玩家 = 搜身
+     * 默认：左Ctrl
      */
+    public static final KeyMapping 搜身修饰键 = new KeyMapping(
+            "key." + 常量.MOD_ID + ".search_modifier",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_LEFT_CONTROL,
+            类别
+    );
+
+    // ==================== 获取所有按键 ====================
+
     public static KeyMapping[] 获取所有按键() {
-        KeyMapping[] all = new KeyMapping[技能键.length + 5];
+        KeyMapping[] all = new KeyMapping[技能键.length + 6];
 
         all[0] = 变身键;
         all[1] = 技能栏编辑键;
         all[2] = 下一预设键;
         all[3] = 上一预设键;
         all[4] = 技能栏折叠键;
+        all[5] = 搜身修饰键;
 
-        System.arraycopy(技能键, 0, all, 5, 技能键.length);
+        System.arraycopy(技能键, 0, all, 6, 技能键.length);
 
         return all;
     }

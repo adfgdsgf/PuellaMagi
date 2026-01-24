@@ -34,7 +34,7 @@ public class ModNetwork {
                 常量.网络协议版本::equals
         );
 
-        //==================== C2S 包 ====================
+        // ==================== C2S 包 ====================
         registerPacket(
                 变身请求包.class,
                 变身请求包::encode,
@@ -112,6 +112,20 @@ public class ModNetwork {
                 创造模式删除绑定物品包::handle
         );
 
+        registerPacket(
+                搜身请求包.class,
+                搜身请求包::encode,
+                搜身请求包::decode,
+                搜身请求包::handle
+        );
+
+        registerPacket(
+                搜身翻页请求包.class,
+                搜身翻页请求包::encode,
+                搜身翻页请求包::decode,
+                搜身翻页请求包::handle
+        );
+
         // ==================== S2C 包 ====================
         registerPacket(
                 变身同步包.class,
@@ -154,6 +168,7 @@ public class ModNetwork {
                 假死状态同步包::decode,
                 假死状态同步包::handle
         );
+
     }
 
     public static <T> void registerPacket(

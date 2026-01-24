@@ -1,5 +1,5 @@
 {
-  "_comment": "Puella Magi - 简体中文语言文件",
+  "_comment": "Puella Magi -简体中文语言文件",
 
   "itemGroup.puellamagi": "魔法少女",
 
@@ -23,6 +23,7 @@
   "key.puellamagi.preset_next": "下一个预设",
   "key.puellamagi.preset_prev": "上一个预设",
   "key.puellamagi.skill_bar_toggle": "折叠/展开技能栏",
+  "key.puellamagi.search_modifier": "搜身（按住+右键）",
 
   "gui.puellamagi.title.skill_edit": "技能栏编辑",
   "gui.puellamagi.title.skill_manage": "技能管理",
@@ -50,6 +51,12 @@
   "gui.puellamagi.hint.preset_limit": "最多10个预设",
   "gui.puellamagi.hud.corruption": "污浊度",
   "gui.puellamagi.hud.skill_bar": "技能栏",
+  "gui.puellamagi.search.title": "搜身- %s",
+  "gui.puellamagi.search.target": "正在搜查: %s",
+  "gui.puellamagi.search.your_inventory": "你的背包",
+  "gui.puellamagi.search.inventory": "背包",
+  "gui.puellamagi.search.equipment": "装备",
+  "gui.puellamagi.search.other_slots": "其他物品",
 
   "tooltip.puellamagi.soul_gem.normal": "魔法少女的灵魂容器",
   "tooltip.puellamagi.soul_gem.cracked": "已经出现裂痕...",
@@ -99,6 +106,7 @@
   "message.puellamagi.contract.cooldown.game_time": "契约冷却中，还需等待 %d 游戏天",
   "message.puellamagi.contract.cooldown.real_time": "契约冷却中，还需等待 %d 分钟",
   "message.puellamagi.soul_gem.deleted_creative": "灵魂宝石已移除（创造模式）",
+  "message.puellamagi.being_searched": "%s 正在搜查你的背包",
 
   "ability.puellamagi.test": "测试能力",
   "ability.puellamagi.time_control": "时间操控",
@@ -121,6 +129,7 @@
   "girl_type.puellamagi.time_manipulator": "时间操控者",
   "girl_type.puellamagi.time_manipulator.desc": "操控时间的魔法少女，可以停止时间的流动。",
 
+  "_comment_config_timestop": "========== 时停配置 ==========",
   "config.puellamagi.timestop.range.range": "时停范围",
   "config.puellamagi.timestop.range.currentDimensionOnly": "仅影响当前维度",
   "config.puellamagi.timestop.projectile.inertiaDecay": "投射物惯性衰减系数",
@@ -128,9 +137,46 @@
   "config.puellamagi.timestop.skill.chargeTime": "蓄力时间",
   "config.puellamagi.timestop.skill.interruptOnDamage": "受击打断蓄力",
   "config.puellamagi.timestop.skill.voiceCooldown": "语音播放冷却",
+  "config.puellamagi.timestop.awakening.enabled": "启用觉醒系统",
+  "config.puellamagi.timestop.awakening.range": "觉醒范围",
+  "config.puellamagi.timestop.awakening.requireTeammate": "觉醒需要队友",
+  "config.puellamagi.timestop.awakening.playersOnly": "觉醒仅对玩家生效",
+
+  "_comment_config_contract": "========== 契约配置 ==========",
   "config.puellamagi.contract.cooldown.enabled": "启用重签冷却",
   "config.puellamagi.contract.cooldown.timeMode": "时间计算模式",
   "config.puellamagi.contract.cooldown.gameDays": "游戏时间冷却（天）",
   "config.puellamagi.contract.cooldown.realMinutes": "现实时间冷却（分钟）",
-  "config.puellamagi.contract.cooldown.creativeBypass": "创造模式绕过"
+  "config.puellamagi.contract.cooldown.creativeBypass": "创造模式绕过冷却",
+
+  "_comment_config_soulgem": "========== 灵魂宝石配置 ==========",
+  "config.puellamagi.soulgem.distance.thresholds": "距离阈值",
+  "config.puellamagi.soulgem.distance.speedMultipliers": "移速倍率",
+  "config.puellamagi.soulgem.distance.farDamageMultiplier": "远距离伤害倍率",
+  "config.puellamagi.soulgem.feigndeath.timeout": "假死超时时间",
+  "config.puellamagi.soulgem.feigndeath.regenerateDelay": "位置未知重生成延迟",
+  "config.puellamagi.soulgem.emptyhealth.recoveryThreshold": "退出假死血量阈值",
+  "config.puellamagi.soulgem.emptyhealth.corruptionIncrease": "空血污浊度增加",
+  "config.puellamagi.soulgem.autoheal.interval": "自动回血间隔",
+  "config.puellamagi.soulgem.autoheal.amount": "自动回血量",
+  "config.puellamagi.soulgem.autoheal.emptyHealthMultiplier": "空血回血倍率",
+  "config.puellamagi.soulgem.griefseed.corruptionReduction": "悲叹之种污浊度减少",
+  "config.puellamagi.soulgem.griefseed.repairCracked": "悲叹之种修复龟裂",
+  "config.puellamagi.soulgem.death.allowRecontract": "死亡后允许重签",
+  "config.puellamagi.soulgem.death.generateRelic": "生成遗物",
+
+  "_comment_config_adaptation": "========== 假死环境适应配置 ==========",
+  "config.puellamagi.feignDeathAdaptation.enabled": "启用假死环境适应",
+  "config.puellamagi.feignDeathAdaptation.baseImmunityDuration": "基础免疫时长",
+  "config.puellamagi.feignDeathAdaptation.consecutiveWindow": "连续判定窗口",
+  "config.puellamagi.feignDeathAdaptation.maxImmunityDuration": "最大免疫时长",
+  "config.puellamagi.feignDeathAdaptation.consecutiveMultiplier": "连续免疫倍率",
+
+  "_comment_config_search": "========== 搜身配置 ==========",
+  "config.puellamagi.search.enabled": "启用搜身系统",
+  "config.puellamagi.search.feignDeathSearchable": "假死时可被搜身",
+  "config.puellamagi.search.timeStopSearchable": "时停时可被搜身",
+  "config.puellamagi.search.notifyTarget": "通知被搜身者",
+  "config.puellamagi.search.allowTake": "允许拿取物品",
+  "config.puellamagi.search.allowPut": "允许放入物品"
 }

@@ -4,6 +4,7 @@ package com.v2t.puellamagi.system.soulgem;
 
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.api.soulgem.I污浊度;
+import com.v2t.puellamagi.core.config.灵魂宝石配置;
 import com.v2t.puellamagi.core.network.packets.s2c.污浊度同步包;
 import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.system.series.impl.灵魂宝石系列;
@@ -25,9 +26,9 @@ import java.util.Optional;
 public final class 污浊度管理器 {
     private 污浊度管理器() {}
 
+    //自然恢复暂不走配置，保持简单
     private static final float 自然恢复量 = 0.2f;
     private static final float 睡眠恢复量 = 30f;
-    private static final float 空血假死惩罚量 = 2f;
 
     public static boolean 是否灵魂宝石系玩家(Player player) {
         return 契约管理器.获取契约(player)
@@ -91,7 +92,8 @@ public final class 污浊度管理器 {
             cap.增加污浊度(amount);
             PuellaMagi.LOGGER.debug("玩家 {} 污浊度增加 {}（{}），当前 {}/{}",
                     player.getName().getString(), amount, reason, cap.获取当前值(), cap.获取最大值());
-            同步污浊度(player);if (cap.是否已满()) {
+            同步污浊度(player);
+            if (cap.是否已满()) {
                 PuellaMagi.LOGGER.warn("玩家 {} 污浊度已满！", player.getName().getString());
             }
         });
@@ -182,7 +184,8 @@ public final class 污浊度管理器 {
      * 空血假死时调用
      */
     public static void 空血假死惩罚(ServerPlayer player) {
-        增加污浊度(player, 空血假死惩罚量, "空血假死");
+        int 惩罚量 = 灵魂宝石配置.获取空血污浊度增加();
+        增加污浊度(player, 惩罚量, "空血假死");
     }
 
     public static void 同步污浊度(ServerPlayer player) {

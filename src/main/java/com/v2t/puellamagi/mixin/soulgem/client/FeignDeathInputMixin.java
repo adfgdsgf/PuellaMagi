@@ -1,6 +1,6 @@
 // 文件路径: src/main/java/com/v2t/puellamagi/mixin/soulgem/FeignDeathInputMixin.java
 
-package com.v2t.puellamagi.mixin.soulgem;
+package com.v2t.puellamagi.mixin.soulgem.client;
 
 import com.v2t.puellamagi.api.restriction.限制类型;
 import com.v2t.puellamagi.system.restriction.行动限制管理器;

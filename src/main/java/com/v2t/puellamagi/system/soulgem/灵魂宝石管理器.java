@@ -2,6 +2,7 @@
 
 package com.v2t.puellamagi.system.soulgem;
 
+import com.v2t.puellamagi.core.config.灵魂宝石配置;
 import com.v2t.puellamagi.core.registry.ModItems;
 import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.system.soulgem.damage.灵魂宝石损坏处理器;
@@ -42,11 +43,9 @@ public final class 灵魂宝石管理器 {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("PuellaMagi/SoulGem");
 
-    private static final float 悲叹之种净化量 = 50.0f;
-
     private 灵魂宝石管理器() {}
 
-    //==================== 发放 ====================
+    //==================== 发放====================
 
     /**
      *尝试为玩家发放灵魂宝石
@@ -192,7 +191,7 @@ public final class 灵魂宝石管理器 {
         }
     }
 
-    // ==================== 验证 ====================
+    // ==================== 验证====================
 
     /**
      * 验证灵魂宝石是否为玩家当前有效的宝石
@@ -248,21 +247,26 @@ public final class 灵魂宝石管理器 {
     /**
      * 使用悲叹之种
      *
-     * 效果：减少污浊度+ 修复龟裂状态
+     * 效果：减少污浊度+ 修复龟裂状态（如果配置允许）
      */
     public static boolean 使用悲叹之种(ServerPlayer player) {
         MinecraftServer server = player.getServer();
         if (server == null) return false;
 
-        // 减少污浊度
-        boolean 污浊度降低成功 = 污浊度管理器.减少污浊度(player,悲叹之种净化量);
+        // 从配置获取净化量
+        int 净化量 = 灵魂宝石配置.获取悲叹之种污浊度减少();
 
-        // 尝试修复（通过统一入口）
+        // 减少污浊度
+        boolean 污浊度降低成功 = 污浊度管理器.减少污浊度(player, 净化量);
+
+        // 尝试修复（检查配置是否允许）
         boolean 修复成功 = false;
-        ItemStack soulGem = 查找玩家背包中的灵魂宝石(player);
-        if (soulGem != null) {
-            var result = 灵魂宝石损坏处理器.尝试修复(server, soulGem, player.getUUID());
-            修复成功 = (result ==灵魂宝石损坏处理器.处理结果.已修复);
+        if (灵魂宝石配置.悲叹之种能修复龟裂()) {
+            ItemStack soulGem = 查找玩家背包中的灵魂宝石(player);
+            if (soulGem != null) {
+                var result = 灵魂宝石损坏处理器.尝试修复(server, soulGem, player.getUUID());
+                修复成功 = (result ==灵魂宝石损坏处理器.处理结果.已修复);
+            }
         }
 
         // 显示结果消息
@@ -388,7 +392,7 @@ public final class 灵魂宝石管理器 {
     }
 
 
-    // ====================兼容旧调用 ====================
+    // ==================== 兼容旧调用 ====================
 
     /**
      * 触发灵魂宝石销毁导致的死亡
