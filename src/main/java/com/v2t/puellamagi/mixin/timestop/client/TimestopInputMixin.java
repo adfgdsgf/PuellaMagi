@@ -1,6 +1,6 @@
 // 文件路径: src/main/java/com/v2t/puellamagi/mixin/timestop/TimestopInputMixin.java
 
-package com.v2t.puellamagi.mixin.timestop;
+package com.v2t.puellamagi.mixin.timestop.client;
 
 import com.v2t.puellamagi.client.timestop.时停冻结帧;
 import net.minecraft.client.KeyboardHandler;

@@ -1,5 +1,3 @@
-// 文件路径: src/main/java/com/v2t/puellamagi/system/soulgem/util/灵魂宝石距离计算.java
-
 package com.v2t.puellamagi.system.soulgem.util;
 
 import com.v2t.puellamagi.system.soulgem.data.宝石登记信息;
@@ -62,8 +60,6 @@ public final class 灵魂宝石距离计算 {
 
         /**
          * 是否应该进入假死
-         *
-         * ★ 修复核心：独立判断，不依赖 获取持有状态()
          */
         public boolean 应该假死() {
             // 情况1：距离有效且超出范围
@@ -82,7 +78,7 @@ public final class 灵魂宝石距离计算 {
             }
 
             // 其他情况（无登记、位置未知等）不触发假死
-            // 这些情况由超时机制处理
+            // 这些情况由位置未知超时机制处理（5分钟后重生成）
             return false;
         }
 
@@ -102,8 +98,7 @@ public final class 灵魂宝石距离计算 {
         无登记信息("无登记信息"),
         位置未知("位置未知"),
         持有者UUID为空("持有者UUID为空"),
-        持有者离线("持有者离线"),
-        跨维度("跨维度");
+        持有者离线("持有者离线"),跨维度("跨维度");
 
         private final String 描述;
 
@@ -151,12 +146,12 @@ public final class 灵魂宝石距离计算 {
 
         // 2. 位置未知
         if (info.获取维度() == null || info.获取坐标() == null) {
-            LOGGER.trace("玩家 {} 宝石位置未知", owner.getName().getString());
+            LOGGER.trace("玩家 {}宝石位置未知", owner.getName().getString());
             return 失败(失败原因.位置未知);
         }
 
         // 3. 持有者在线检查（仅当宝石在玩家背包中时）
-        if (info.获取存储类型() == 存储类型.玩家背包) {
+        if (info.获取存储类型枚举() == 存储类型.玩家背包) {
             UUID 持有者UUID = info.获取当前持有者UUID();
 
             if (持有者UUID == null) {

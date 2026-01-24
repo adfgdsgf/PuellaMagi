@@ -1,5 +1,3 @@
-// 文件路径: src/main/java/com/v2t/puellamagi/mixin/soulgem/SoulGemItemEntityMixin.java
-
 package com.v2t.puellamagi.mixin.soulgem;
 
 import com.v2t.puellamagi.core.registry.ModItems;
@@ -22,7 +20,7 @@ import java.util.UUID;
  *
  * 职责：
  * 1. 验证有效性（时间戳与世界数据比对）
- * 2. 汇报位置到世界数据（持有者为null）
+ * 2.汇报位置到世界数据（持有者为null）
  */
 @Mixin(ItemEntity.class)
 public abstract class SoulGemItemEntityMixin {
@@ -56,13 +54,14 @@ public abstract class SoulGemItemEntityMixin {
             return;
         }
 
-        //掉落物没有持有者，传null
+        // 掉落物没有持有者，传null
         worldData.更新位置(
                 ownerUUID,
                 serverLevel.dimension(),
                 self.position(),
                 存储类型.掉落物,
-                null  // 没有持有者
+                null,
+                serverLevel.getGameTime()
         );
     }
 }

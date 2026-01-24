@@ -6,6 +6,7 @@ import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.api.contract.I契约;
 import com.v2t.puellamagi.api.series.I系列;
 import com.v2t.puellamagi.api.类型定义.魔法少女类型;
+import com.v2t.puellamagi.core.config.契约配置;
 import com.v2t.puellamagi.core.network.packets.s2c.契约能力同步包;
 import com.v2t.puellamagi.core.network.packets.s2c.假死状态同步包;
 import com.v2t.puellamagi.core.network.packets.s2c.技能能力同步包;
@@ -20,6 +21,8 @@ import com.v2t.puellamagi.system.transformation.变身管理器;
 import com.v2t.puellamagi.system.transformation.魔法少女类型注册表;
 import com.v2t.puellamagi.util.能力工具;
 import com.v2t.puellamagi.util.网络工具;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -28,6 +31,11 @@ import java.util.Optional;
 
 /**
  * 契约管理器
+ *
+ * 职责：
+ * - 签订/解除契约的统一入口
+ * - 冷却检查
+ * - 状态同步
  */
 public final class 契约管理器 {
     private 契约管理器() {}
@@ -37,6 +45,13 @@ public final class 契约管理器 {
     public static Optional<I契约> 获取契约(Player player) {
         if (player == null) return Optional.empty();
         return player.getCapability(ModCapabilities.契约能力).resolve();
+    }
+
+    public static Optional<契约能力> 获取契约能力(Player player) {
+        if (player == null) return Optional.empty();
+        return player.getCapability(ModCapabilities.契约能力).resolve()
+                .filter(c -> c instanceof 契约能力)
+                .map(c -> (契约能力) c);
     }
 
     public static boolean 是否已契约(Player player) {
@@ -57,9 +72,60 @@ public final class 契约管理器 {
                 .flatMap(魔法少女类型注册表::获取);
     }
 
+    // ==================== 冷却查询 ====================
+
+    /**
+     * 检查玩家是否在重签冷却中
+     */
+    public static boolean 是否冷却中(ServerPlayer player) {
+        if (!契约配置.是否启用重签冷却()) {
+            return false;
+        }
+        if (契约配置.创造模式绕过冷却() && player.isCreative()) {
+            return false;
+        }
+
+        long gameTime = player.level().getGameTime();
+        return 获取契约能力(player)
+                .map(cap -> cap.是否冷却中(gameTime))
+                .orElse(false);
+    }
+
+    /**
+     * 获取剩余冷却显示值
+     *游戏时间模式返回天数，现实时间模式返回分钟数
+     */
+    public static int 获取剩余冷却显示值(ServerPlayer player) {
+        long gameTime = player.level().getGameTime();
+        return 获取契约能力(player)
+                .map(cap -> cap.获取剩余冷却显示值(gameTime))
+                .orElse(0);
+    }
+
     // ==================== 契约操作 ====================
 
+    /**
+     * 签订契约
+     *
+     * @return 是否成功
+     */
     public static boolean 签订契约(ServerPlayer player, ResourceLocation seriesId, ResourceLocation typeId) {
+        // 检查冷却
+        if (是否冷却中(player)) {
+            int value = 获取剩余冷却显示值(player);
+            String messageKey = 契约配置.是游戏时间模式()
+                    ? "message.puellamagi.contract.cooldown.game_time"
+                    : "message.puellamagi.contract.cooldown.real_time";
+            player.displayClientMessage(
+                    Component.translatable(messageKey, value)
+                            .withStyle(ChatFormatting.RED),
+                    false
+            );
+            PuellaMagi.LOGGER.info("玩家 {} 签订契约失败：冷却中",
+                    player.getName().getString());
+            return false;
+        }
+
         Optional<I系列> seriesOpt = 系列注册表.获取(seriesId);
         if (seriesOpt.isEmpty()) {
             PuellaMagi.LOGGER.warn("签订契约失败：系列 {} 不存在", seriesId);
@@ -86,7 +152,7 @@ public final class 契约管理器 {
 
         if (contract.是否已契约()) {
             PuellaMagi.LOGGER.info("玩家 {} 已有契约，将被覆盖", player.getName().getString());
-            解除契约内部(player, false);
+            解除契约内部(player, false, false);  // 覆盖时不设置冷却
         }
 
         long gameTime = player.level().getGameTime();
@@ -113,17 +179,35 @@ public final class 契约管理器 {
         return true;
     }
 
+    /**
+     * 解除契约（正常解除，设置冷却）
+     */
     public static boolean 解除契约(ServerPlayer player) {
-        return 解除契约内部(player, true);
+        return 解除契约内部(player, true, true);
     }
 
-    private static boolean 解除契约内部(ServerPlayer player, boolean sendSync) {
-        Optional<I契约> contractOpt = 获取契约(player);
+    /**
+     * 因死亡解除契约（灵魂宝石销毁等）
+     * 设置冷却，但不需要同步（玩家马上死亡）
+     */
+    public static boolean 因死亡解除契约(ServerPlayer player) {
+        return 解除契约内部(player, false, true);
+    }
+
+    /**
+     * 内部解除契约
+     *
+     * @param player 玩家
+     * @param sendSync 是否同步到客户端
+     * @param setCooldown 是否设置冷却
+     */
+    private static boolean 解除契约内部(ServerPlayer player, boolean sendSync, boolean setCooldown) {
+        Optional<契约能力> contractOpt = 获取契约能力(player);
         if (contractOpt.isEmpty() || !contractOpt.get().是否已契约()) {
             return false;
         }
 
-        I契约 contract = contractOpt.get();
+        契约能力 contract = contractOpt.get();
         ResourceLocation seriesId = contract.获取系列ID();
 
         // 强制退出假死
@@ -160,6 +244,12 @@ public final class 契约管理器 {
 
         // 解除契约数据
         contract.解除契约();
+
+        // 设置重签冷却
+        if (setCooldown &&契约配置.是否启用重签冷却()) {
+            long gameTime = player.level().getGameTime();
+            contract.设置重签冷却(gameTime);PuellaMagi.LOGGER.info("玩家 {} 设置重签冷却", player.getName().getString());
+        }
 
         PuellaMagi.LOGGER.info("玩家 {} 解除契约", player.getName().getString());
 

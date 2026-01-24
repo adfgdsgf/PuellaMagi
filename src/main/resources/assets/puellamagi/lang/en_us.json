@@ -86,9 +86,9 @@
   "message.puellamagi.grief_seed.no_effect": "No purification needed",
   "message.puellamagi.grief_seed.not_soul_gem_user": "You are not a Soul Gem series magical girl",
   "message.puellamagi.feign_death.enter": "The soul has lost connection with the body...",
-  "message.puellamagi.feign_death.exit": "Consciousness slowly returns, body responds again",
+  "message.puellamagi.feign_death.exit": "Consciousness slowly returns, body responds again...",
   "message.puellamagi.feign_death.timeout": "The soul gem's light has completely faded...",
-  "message.puellamagi.soul_gem.old_vanished": "旧的灵魂宝石已消散...",
+  "message.puellamagi.soul_gem.old_vanished": "The old Soul Gem has faded away...",
   "message.puellamagi.soul_gem.cracked.by_player": "Your Soul Gem was attacked by %s and cracked!",
   "message.puellamagi.soul_gem.cracked.active": "Your Soul Gem has cracked!",
   "message.puellamagi.soul_gem.cracked.passive": "Your Soul Gem was damaged and cracked!",
@@ -96,6 +96,9 @@
   "message.puellamagi.soul_gem.destroyed.active": "Your Soul Gem was destroyed...",
   "message.puellamagi.soul_gem.destroyed.passive": "Your Soul Gem was destroyed...",
   "message.puellamagi.feign_death.enter_empty_health": "Your body can no longer hold... Entering feign death",
+  "message.puellamagi.contract.cooldown.game_time": "Contract on cooldown, %d game days remaining",
+  "message.puellamagi.contract.cooldown.real_time": "Contract on cooldown, %d minutes remaining",
+  "message.puellamagi.soul_gem.deleted_creative": "Soul Gem removed (Creative Mode)",
 
   "ability.puellamagi.test": "Test Ability",
   "ability.puellamagi.time_control": "Time Control",
@@ -124,5 +127,10 @@
   "config.puellamagi.timestop.projectile.stopThreshold": "Projectile Stop Threshold",
   "config.puellamagi.timestop.skill.chargeTime": "Charge Time",
   "config.puellamagi.timestop.skill.interruptOnDamage": "Interrupt On Damage",
-  "config.puellamagi.timestop.skill.voiceCooldown": "Voice Cooldown"
+  "config.puellamagi.timestop.skill.voiceCooldown": "Voice Cooldown",
+  "config.puellamagi.contract.cooldown.enabled": "Enable Recontract Cooldown",
+  "config.puellamagi.contract.cooldown.timeMode": "Time Calculation Mode",
+  "config.puellamagi.contract.cooldown.gameDays": "Game Time Cooldown (Days)",
+  "config.puellamagi.contract.cooldown.realMinutes": "Real Time Cooldown (Minutes)",
+  "config.puellamagi.contract.cooldown.creativeBypass": "Creative Mode Bypass"
 }

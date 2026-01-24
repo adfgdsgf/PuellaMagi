@@ -1,5 +1,3 @@
-// 文件路径: src/main/java/com/v2t/puellamagi/mixin/soulgem/SoulGemSlotMixin.java
-
 package com.v2t.puellamagi.mixin.soulgem;
 
 import com.v2t.puellamagi.core.registry.ModItems;
@@ -77,7 +75,8 @@ public abstract class SoulGemSlotMixin {
                 serverLevel.dimension(),
                 Vec3.atCenterOf(pos),
                 存储类型.容器,
-                null  // 没有持有者
+                null,
+                serverLevel.getGameTime()  // 新增：游戏时间
         );
     }
 }

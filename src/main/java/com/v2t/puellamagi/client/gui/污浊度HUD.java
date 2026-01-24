@@ -56,6 +56,8 @@ public class 污浊度HUD implements IGuiOverlay, I可编辑HUD {
     private float 显示进度动画 = 0f;
     private float 当前显示值 = 0f;
     private static final float 动画速度 = 0.1f;
+    private long 淡出开始时间 = 0;
+    private static final long 防抖时间_毫秒 = 500;
 
     // 编辑模式
     private boolean 编辑模式 = false;
@@ -68,18 +70,42 @@ public class 污浊度HUD implements IGuiOverlay, I可编辑HUD {
     //==================== IGuiOverlay 实现 ====================
 
     @Override
-    public void render(ForgeGui gui, GuiGraphics graphics, float partialTick, int screenWidth, int screenHeight) {Minecraft mc = Minecraft.getInstance();
+    public void render(ForgeGui gui, GuiGraphics graphics, float partialTick, int screenWidth, int screenHeight) {
+        Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
 
         if (player == null) return;
         if (mc.options.hideGui && !编辑模式) return;
 
-        // 编辑模式下始终显示
-        boolean shouldShow = 编辑模式 || 是否显示污浊度(player);
+        // 原始判断
+        boolean 原始应显示 = 编辑模式 || 是否显示污浊度(player);
+
+        // 防抖逻辑：一旦开始淡出，短时间内忽略"显示"请求
+        boolean shouldShow;
+        if (!原始应显示) {
+            // 开始淡出
+            if (淡出开始时间 == 0) {
+                淡出开始时间 = System.currentTimeMillis();
+            }
+            shouldShow = false;
+        } else {
+            // 原始判断为"显示"，检查是否在防抖期内
+            if (淡出开始时间 > 0 && System.currentTimeMillis() - 淡出开始时间 < 防抖时间_毫秒) {
+                // 防抖期内，继续隐藏
+                shouldShow = false;
+            } else {
+                // 正常显示
+                淡出开始时间 = 0;
+                shouldShow = true;
+            }
+        }
 
         if (!shouldShow) {
             显示进度动画 = 渲染工具.动画插值(显示进度动画, 0f, 动画速度);
-            if (显示进度动画 < 0.01f) return;
+            if (显示进度动画 < 0.01f) {
+                淡出开始时间 = 0;  // 完全隐藏后重置
+                return;
+            }
         } else {
             显示进度动画 = 渲染工具.动画插值(显示进度动画, 1f, 动画速度);
         }

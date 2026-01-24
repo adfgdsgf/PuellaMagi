@@ -1,3 +1,5 @@
+// 文件路径: src/main/java/com/v2t/puellamagi/mixin/soulgem/SoulGemPassiveDestroyMixin.java
+
 package com.v2t.puellamagi.mixin.soulgem;
 
 import com.v2t.puellamagi.core.registry.ModItems;
@@ -7,6 +9,7 @@ import com.v2t.puellamagi.system.soulgem.damage.损坏强度;
 import com.v2t.puellamagi.system.soulgem.damage.灵魂宝石损坏处理器;
 import com.v2t.puellamagi.system.soulgem.item.灵魂宝石数据;
 import com.v2t.puellamagi.system.soulgem.item.灵魂宝石状态;
+import com.v2t.puellamagi.util.绑定物品工具;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -48,7 +51,6 @@ public abstract class SoulGemPassiveDestroyMixin {
 
         ItemStack stack = getItem();
 
-        // 只处理灵魂宝石
         if (!puellamagi$是灵魂宝石(stack)) {
             return;
         }
@@ -56,16 +58,13 @@ public abstract class SoulGemPassiveDestroyMixin {
         UUID ownerUUID = 灵魂宝石数据.获取所有者UUID(stack);
         if (ownerUUID == null) return;
 
-        // 已销毁的不处理
+        // 已销毁的不处理，让原版删除逻辑执行
         if (灵魂宝石数据.获取状态(stack) == 灵魂宝石状态.DESTROYED) {
-            cir.setReturnValue(false);
             return;
         }
 
-        // 根据伤害值判断强度
         损坏强度 强度 = 强度判定.从伤害值(amount);
 
-        // 构建上下文
         损坏上下文 context = 损坏上下文.被动销毁(
                 stack,
                 ownerUUID,
@@ -73,15 +72,15 @@ public abstract class SoulGemPassiveDestroyMixin {
                 String.format("被动伤害: %.1f", amount)
         );
 
-        // 处理损坏
         var result = 灵魂宝石损坏处理器.处理损坏(serverLevel.getServer(), context);
 
-        // 如果销毁了，移除掉落物
+        // 如果销毁了，标记合法删除后移除掉落物
         if (result == 灵魂宝石损坏处理器.处理结果.销毁) {
+            绑定物品工具.标记合法移除(self.getId());
             self.discard();
         }
 
-        //阻止原版销毁逻辑（灵魂宝石特殊处理）
+        //阻止原版销毁逻辑
         cir.setReturnValue(false);
     }
 
@@ -95,7 +94,6 @@ public abstract class SoulGemPassiveDestroyMixin {
         if (self.level().isClientSide) return;
         if (!(self.level() instanceof ServerLevel serverLevel)) return;
 
-        // 检测是否掉入虚空
         if (self.getY() > 虚空阈值Y) {
             return;
         }
@@ -109,12 +107,14 @@ public abstract class SoulGemPassiveDestroyMixin {
         UUID ownerUUID = 灵魂宝石数据.获取所有者UUID(stack);
         if (ownerUUID == null) return;
 
-        // 已销毁的不处理
+        // 已销毁的：标记合法删除，让它正常消失
         if (灵魂宝石数据.获取状态(stack) == 灵魂宝石状态.DESTROYED) {
+            绑定物品工具.标记合法移除(self.getId());
+            self.discard();
             return;
         }
 
-        // 虚空 = 严重强度，直接销毁
+        //虚空 = 严重强度，直接销毁
         损坏上下文 context = 损坏上下文.被动销毁(
                 stack,
                 ownerUUID,
@@ -125,13 +125,11 @@ public abstract class SoulGemPassiveDestroyMixin {
         var result = 灵魂宝石损坏处理器.处理损坏(serverLevel.getServer(), context);
 
         if (result == 灵魂宝石损坏处理器.处理结果.销毁) {
+            绑定物品工具.标记合法移除(self.getId());
             self.discard();
         }
     }
 
-    /**
-     * 辅助：检查是否为灵魂宝石
-     */
     @Unique
     private static boolean puellamagi$是灵魂宝石(ItemStack stack) {
         return !stack.isEmpty() && stack.is(ModItems.SOUL_GEM.get());

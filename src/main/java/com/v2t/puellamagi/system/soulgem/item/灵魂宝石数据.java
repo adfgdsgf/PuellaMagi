@@ -1,6 +1,6 @@
 package com.v2t.puellamagi.system.soulgem.item;
 
-import net.minecraft.nbt.CompoundTag;
+import com.v2t.puellamagi.util.绑定物品数据;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
@@ -9,67 +9,65 @@ import java.util.UUID;
 /**
  * 灵魂宝石NBT数据读写工具
  *
- * 简化后的NBT结构（核心数据在世界数据中）：
- * - OwnerUUID: 所有者UUID（校验用）
- * - OwnerName: 所有者名称（显示用）
- * - Timestamp: 有效时间戳（校验用，与世界数据比对）
+ * 基于通用绑定物品数据，添加灵魂宝石特有字段：
  * - State: 状态（冗余存储，方便客户端显示）
+ *
+ * 通用字段（委托给绑定物品数据）：
+ * - OwnerUUID: 所有者UUID
+ * - OwnerName: 所有者名称
+ * - Timestamp: 有效时间戳
  */
 public final class 灵魂宝石数据 {
 
-    private static final String TAG_OWNER_UUID = "OwnerUUID";
-    private static final String TAG_OWNER_NAME = "OwnerName";
-    private static final String TAG_TIMESTAMP = "Timestamp";
+    // 特有字段的NBT键名
     private static final String TAG_STATE = "State";
 
     private 灵魂宝石数据() {}
 
-    //==================== 读取方法 ====================
+    //==================== 通用字段（委托）====================
 
     @Nullable
     public static UUID 获取所有者UUID(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        if (tag != null && tag.hasUUID(TAG_OWNER_UUID)) {
-            return tag.getUUID(TAG_OWNER_UUID);
-        }
-        return null;
+        return 绑定物品数据.获取所有者UUID(stack);
     }
 
     @Nullable
     public static String 获取所有者名称(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        if (tag != null && tag.contains(TAG_OWNER_NAME)) {
-            return tag.getString(TAG_OWNER_NAME);
-        }
-        return null;
+        return 绑定物品数据.获取所有者名称(stack);
     }
 
     public static long 获取时间戳(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        if (tag != null && tag.contains(TAG_TIMESTAMP)) {
-            return tag.getLong(TAG_TIMESTAMP);
-        }
-        return 0L;
+        return 绑定物品数据.获取时间戳(stack);
     }
 
+    public static void 设置所有者(ItemStack stack, UUID uuid, String name) {
+        绑定物品数据.设置所有者(stack, uuid, name);
+    }
+
+    public static void 设置时间戳(ItemStack stack, long timestamp) {
+        绑定物品数据.设置时间戳(stack, timestamp);
+    }
+
+    public static boolean 是已绑定宝石(ItemStack stack) {
+        return 绑定物品数据.是已绑定(stack);
+    }
+
+    public static boolean 是空白宝石(ItemStack stack) {
+        return !绑定物品数据.是已绑定(stack);
+    }
+
+    public static boolean 属于玩家(ItemStack stack, UUID playerUUID) {
+        return 绑定物品数据.属于玩家(stack, playerUUID);
+    }
+
+    // ==================== 特有字段（状态）====================
+
     public static 灵魂宝石状态 获取状态(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
+        var tag = stack.getTag();
         if (tag != null && tag.contains(TAG_STATE)) {
             return 灵魂宝石状态.fromString(tag.getString(TAG_STATE));
         }
         return 灵魂宝石状态.NORMAL;
-    }
-
-    // ==================== 写入方法 ====================
-
-    public static void 设置所有者(ItemStack stack, UUID uuid, String name) {
-        CompoundTag tag = stack.getOrCreateTag();
-        tag.putUUID(TAG_OWNER_UUID, uuid);
-        tag.putString(TAG_OWNER_NAME, name);
-    }
-
-    public static void 设置时间戳(ItemStack stack, long timestamp) {
-        stack.getOrCreateTag().putLong(TAG_TIMESTAMP, timestamp);
     }
 
     public static void 设置状态(ItemStack stack, 灵魂宝石状态 state) {
@@ -87,30 +85,9 @@ public final class 灵魂宝石数据 {
      * @param timestamp 有效时间戳（与世界数据一致）
      */
     public static void 初始化(ItemStack stack, UUID ownerUUID, String ownerName, long timestamp) {
-        设置所有者(stack, ownerUUID, ownerName);
-        设置时间戳(stack, timestamp);
+        // 使用通用方法初始化绑定信息
+        绑定物品数据.初始化绑定(stack, ownerUUID, ownerName, timestamp);
+        // 设置特有字段
         设置状态(stack, 灵魂宝石状态.NORMAL);
-    }
-
-    /**
-     * 检查是否为已绑定的灵魂宝石（有所有者信息）
-     */
-    public static boolean 是已绑定宝石(ItemStack stack) {
-        return 获取所有者UUID(stack) != null;
-    }
-
-    /**
-     * 检查是否为空白宝石（/give获得的，无所有者）
-     */
-    public static boolean 是空白宝石(ItemStack stack) {
-        return 获取所有者UUID(stack) == null;
-    }
-
-    /**
-     * 检查该宝石是否属于指定玩家
-     */
-    public static boolean 属于玩家(ItemStack stack, UUID playerUUID) {
-        UUID owner = 获取所有者UUID(stack);
-        return owner != null && owner.equals(playerUUID);
     }
 }

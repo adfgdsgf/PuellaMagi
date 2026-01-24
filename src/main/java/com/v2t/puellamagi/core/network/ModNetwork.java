@@ -34,7 +34,7 @@ public class ModNetwork {
                 常量.网络协议版本::equals
         );
 
-        // ==================== C2S 包 ====================
+        //==================== C2S 包 ====================
         registerPacket(
                 变身请求包.class,
                 变身请求包::encode,
@@ -98,11 +98,18 @@ public class ModNetwork {
                 投射物拾取请求包::handle
         );
 
-        CHANNEL.registerMessage(nextId(),
+        registerPacket(
                 灵魂宝石损坏请求包.class,
                 灵魂宝石损坏请求包::encode,
                 灵魂宝石损坏请求包::decode,
                 灵魂宝石损坏请求包::handle
+        );
+
+        registerPacket(
+                创造模式删除绑定物品包.class,
+                创造模式删除绑定物品包::encode,
+                创造模式删除绑定物品包::decode,
+                创造模式删除绑定物品包::handle
         );
 
         // ==================== S2C 包 ====================
@@ -134,7 +141,6 @@ public class ModNetwork {
                 时停状态同步包::handle
         );
 
-        //污浊度同步包
         registerPacket(
                 污浊度同步包.class,
                 污浊度同步包::encode,
@@ -142,7 +148,7 @@ public class ModNetwork {
                 污浊度同步包::handle
         );
 
-        CHANNEL.registerMessage(nextId(),
+        registerPacket(
                 假死状态同步包.class,
                 假死状态同步包::encode,
                 假死状态同步包::decode,

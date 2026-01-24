@@ -1,5 +1,3 @@
-// 文件路径: src/main/java/com/v2t/puellamagi/system/soulgem/data/灵魂宝石世界数据.java
-
 package com.v2t.puellamagi.system.soulgem.data;
 
 import com.v2t.puellamagi.core.data.ModWorldData;
@@ -33,7 +31,7 @@ public class 灵魂宝石世界数据 extends ModWorldData {
     private static final String KEY_ENTRIES = "Entries";
 
     /**
-     * 玩家UUID -> 宝石登记信息
+     * 玩家UUID ->宝石登记信息
      */
     private final Map<UUID, 宝石登记信息> 登记表 = new HashMap<>();
 
@@ -42,7 +40,8 @@ public class 灵魂宝石世界数据 extends ModWorldData {
      */
     public static 灵魂宝石世界数据 获取(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(
-                tag -> {灵魂宝石世界数据 data = new 灵魂宝石世界数据();
+                tag -> {
+                    灵魂宝石世界数据 data = new 灵魂宝石世界数据();
                     data.从NBT加载(tag);
                     return data;
                 },
@@ -55,15 +54,11 @@ public class 灵魂宝石世界数据 extends ModWorldData {
 
     /**
      * 登记新的灵魂宝石
-     *
-     * @param 玩家UUID 所有者UUID
-     * @param 时间戳 创建时间戳，用于唯一性校验
-     * @return 创建的登记信息
      */
-    public 宝石登记信息 登记宝石(UUID 玩家UUID, long 时间戳) {
-        宝石登记信息 info = new 宝石登记信息(时间戳);
+    public 宝石登记信息 登记宝石(UUID 玩家UUID, long 时间戳) {宝石登记信息 info = new 宝石登记信息(时间戳);
         登记表.put(玩家UUID, info);
-        标记已修改();LOGGER.debug("登记灵魂宝石: 玩家={}, 时间戳={}", 玩家UUID, 时间戳);
+        标记已修改();
+        LOGGER.debug("登记灵魂宝石: 玩家={}, 时间戳={}", 玩家UUID, 时间戳);
         return info;
     }
 
@@ -82,17 +77,26 @@ public class 灵魂宝石世界数据 extends ModWorldData {
     }
 
     /**
-     * 更新宝石位置（带持有者）
-     *
-     * @param 玩家UUID 宝石所有者UUID
-     * @param 维度 所在维度
-     * @param 坐标 所在坐标
-     * @param 存储类型 存储类型
-     * @param 持有者UUID 当前持有者UUID，掉落物/容器时为null
+     * 更新宝石位置（带游戏时间）
      */
-    public void 更新位置(UUID 玩家UUID, ResourceKey<Level> 维度, Vec3 坐标, 存储类型 存储类型, @Nullable UUID 持有者UUID) {宝石登记信息 info = 登记表.get(玩家UUID);
+    public void 更新位置(UUID 玩家UUID, ResourceKey<Level> 维度, Vec3 坐标, 存储类型 存储类型, @Nullable UUID 持有者UUID, long 游戏时间) {
+        宝石登记信息 info = 登记表.get(玩家UUID);
         if (info != null) {
-            info.更新位置(维度, 坐标, 存储类型,持有者UUID);
+            info.更新位置(维度, 坐标, 存储类型, 持有者UUID, 游戏时间);
+            标记已修改();
+        }
+    }
+
+    /**
+     * 更新宝石位置（兼容旧调用）
+     *
+     * @deprecated 请使用带游戏时间参数的版本
+     */
+    @Deprecated
+    public void 更新位置(UUID 玩家UUID, ResourceKey<Level> 维度, Vec3 坐标, 存储类型 存储类型, @Nullable UUID 持有者UUID) {
+        宝石登记信息 info = 登记表.get(玩家UUID);
+        if (info != null) {
+            info.更新位置(维度, 坐标, 存储类型, 持有者UUID);
             标记已修改();
         }
     }
@@ -132,7 +136,6 @@ public class 灵魂宝石世界数据 extends ModWorldData {
 
     /**
      * 验证时间戳是否有效
-     * 用于判断物品是否为当前有效的灵魂宝石
      */
     public boolean 验证时间戳(UUID 玩家UUID, long 物品时间戳) {
         宝石登记信息 info = 登记表.get(玩家UUID);

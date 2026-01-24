@@ -2,7 +2,8 @@
 
 package com.v2t.puellamagi.mixin.soulgem;
 
-import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
+import com.v2t.puellamagi.api.restriction.限制类型;
+import com.v2t.puellamagi.system.restriction.行动限制管理器;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
@@ -21,12 +22,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 假死状态 - 服务端游戏模式拦截
+ * 行动限制 - 服务端游戏模式拦截
  *
- * 拦截：
- * - 破坏方块
- * -挖掘动作
- * - 右键使用物品/方块
+ * 统一调用行动限制管理器
  */
 @Mixin(ServerPlayerGameMode.class)
 public class FeignDeathGameModeMixin {
@@ -39,18 +37,19 @@ public class FeignDeathGameModeMixin {
      */
     @Inject(method = "destroyBlock", at = @At("HEAD"), cancellable = true)
     private void onDestroyBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
-        if (假死状态处理器.应该限制行动(this.player)) {
+        if (行动限制管理器.是否被限制(this.player, 限制类型.破坏方块)) {
             cir.setReturnValue(false);
         }
     }
 
     /**
      * 拦截挖掘动作（开始挖掘、挖掘中、停止挖掘）
-     * 这里让挖掘完全无效，类似冒险模式
      */
     @Inject(method = "handleBlockBreakAction", at = @At("HEAD"), cancellable = true)
-    private void onHandleBlockBreak(BlockPos pos, ServerboundPlayerActionPacket.Action action,Direction direction, int maxBuildHeight, int sequence, CallbackInfo ci) {
-        if (假死状态处理器.应该限制行动(this.player)) {
+    private void onHandleBlockBreak(BlockPos pos, ServerboundPlayerActionPacket.Action action,
+                                    Direction direction, int maxBuildHeight, int sequence,
+                                    CallbackInfo ci) {
+        if (行动限制管理器.是否被限制(this.player, 限制类型.破坏方块)) {
             ci.cancel();
         }
     }
@@ -62,7 +61,7 @@ public class FeignDeathGameModeMixin {
     private void onUseItemOn(ServerPlayer player, Level level, ItemStack stack,
                              InteractionHand hand, BlockHitResult hitResult,
                              CallbackInfoReturnable<InteractionResult> cir) {
-        if (假死状态处理器.应该限制行动(player)) {
+        if (行动限制管理器.是否被限制(player, 限制类型.交互方块)) {
             cir.setReturnValue(InteractionResult.FAIL);
         }
     }
@@ -71,9 +70,9 @@ public class FeignDeathGameModeMixin {
      * 拦截使用物品（如吃东西、射箭等）
      */
     @Inject(method = "useItem", at = @At("HEAD"), cancellable = true)
-    private void onUseItem(ServerPlayer player, Level level, ItemStack stack, InteractionHand hand,
-                           CallbackInfoReturnable<InteractionResult> cir) {
-        if (假死状态处理器.应该限制行动(player)) {
+    private void onUseItem(ServerPlayer player, Level level, ItemStack stack,
+                           InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+        if (行动限制管理器.是否被限制(player, 限制类型.使用物品)) {
             cir.setReturnValue(InteractionResult.FAIL);
         }
     }

@@ -3,6 +3,8 @@
 package com.v2t.puellamagi.client;
 
 import com.v2t.puellamagi.api.I技能;
+import com.v2t.puellamagi.api.restriction.限制类型;
+import com.v2t.puellamagi.system.restriction.行动限制管理器;
 import com.v2t.puellamagi.system.skill.技能注册表;
 import com.v2t.puellamagi.system.skill.技能槽位数据;
 import com.v2t.puellamagi.util.能力工具;
@@ -16,7 +18,7 @@ import java.util.Optional;
  *
  * 职责：
  * - 蓄力进度追踪
- * - 淡出效果管理
+ * -淡出效果管理
  * - 技能开启状态查询
  *
  * 纯客户端运行时状态，不持久化
@@ -24,18 +26,11 @@ import java.util.Optional;
 public final class 蓄力状态管理 {
     private 蓄力状态管理() {}
 
-    //==================== 蓄力状态====================
+    // ==================== 蓄力状态 ====================
 
-    // 当前正在蓄力的槽位索引，-1表示无
     private static int 蓄力槽位索引 = -1;
-
-    // 蓄力开始的时间戳（毫秒）
     private static long 蓄力开始时间 = 0;
-
-    // 蓄力总时长（tick）
     private static int 蓄力总时长 = 0;
-
-    // 蓄满后是否自动释放
     private static boolean 蓄满自动释放 = true;
 
     // ==================== 淡出状态 ====================
@@ -54,6 +49,13 @@ public final class 蓄力状态管理 {
      * @return 是否成功开始蓄力
      */
     public static boolean 尝试开始蓄力(Player player, int slotIndex) {
+        // ===== 新增：检查行动限制 =====
+        // 假死/灵魂视角等状态下不能开始蓄力
+        if (行动限制管理器.是否被限制(player, 限制类型.释放技能)) {
+            return false;
+        }
+        // ===== 新增结束 =====
+
         var skillInfo = 获取槽位技能信息(player, slotIndex);
         if (skillInfo.isEmpty()) {
             return false;
@@ -62,7 +64,7 @@ public final class 蓄力状态管理 {
         I技能 skill = skillInfo.get();
         I技能.按键类型 type = skill.获取按键类型();
 
-        // 切换类/蓄力切换类：已开启时按下是关闭，不开始蓄力
+        //切换类/蓄力切换类：已开启时按下是关闭，不开始蓄力
         if (type == I技能.按键类型.切换 || type == I技能.按键类型.蓄力切换) {
             if (skill.是否开启(player)) {
                 return false;
@@ -92,7 +94,6 @@ public final class 蓄力状态管理 {
         蓄力总时长 = durationTicks;
         蓄力开始时间 = System.currentTimeMillis();
         蓄满自动释放 = autoRelease;
-        // 清除淡出状态
         淡出槽位索引 = -1;
     }
 
@@ -101,12 +102,28 @@ public final class 蓄力状态管理 {
      */
     public static void 结束蓄力() {
         if (蓄力槽位索引 >= 0) {
-            淡出槽位索引 = 蓄力槽位索引;
-            淡出开始时间 = System.currentTimeMillis();}
+            // 只有蓄满才进入淡出状态（显示完成效果）
+            if (计算当前进度() >= 1.0f) {
+                淡出槽位索引 = 蓄力槽位索引;
+                淡出开始时间 = System.currentTimeMillis();
+            }
+        }
         蓄力槽位索引 = -1;
         蓄力总时长 = 0;
         蓄力开始时间 = 0;
         蓄满自动释放 = true;
+    }
+
+    /**
+     * 计算当前蓄力进度（内部方法，不触发自动释放）
+     */
+    private static float 计算当前进度() {
+        if (蓄力槽位索引 < 0|| 蓄力总时长 <= 0) {
+            return 0f;
+        }
+        long elapsed = System.currentTimeMillis() - 蓄力开始时间;
+        float elapsedTicks = elapsed / 50f;
+        return Math.min(1.0f, elapsedTicks / 蓄力总时长);
     }
 
     /**
@@ -125,8 +142,7 @@ public final class 蓄力状态管理 {
         蓄力槽位索引 = -1;
         蓄力总时长 = 0;
         蓄力开始时间 = 0;
-        蓄满自动释放 = true;
-        淡出槽位索引 = -1;
+        蓄满自动释放 = true;淡出槽位索引 = -1;
         淡出开始时间 = 0;
     }
 
@@ -137,15 +153,12 @@ public final class 蓄力状态管理 {
      * @return 槽位索引，-1表示无
      */
     public static int 获取蓄力槽位() {
-        // 先调用获取蓄力进度，触发自动释放检测
         获取蓄力进度();
 
-        // 正在蓄力
         if (蓄力槽位索引 >= 0) {
             return 蓄力槽位索引;
         }
 
-        // 淡出期间
         if (淡出槽位索引 >= 0) {
             long elapsed = System.currentTimeMillis() - 淡出开始时间;
             if (elapsed < 淡出持续毫秒) {
@@ -163,7 +176,6 @@ public final class 蓄力状态管理 {
      * @return 0.0~1.0，0表示刚开始，1表示蓄满
      */
     public static float 获取蓄力进度() {
-        // 正在蓄力
         if (蓄力槽位索引 >= 0 && 蓄力总时长 > 0) {
             long elapsed = System.currentTimeMillis() - 蓄力开始时间;
             float elapsedTicks = elapsed / 50f;
@@ -181,12 +193,12 @@ public final class 蓄力状态管理 {
             return progress;
         }
 
-        // 淡出期间保持满进度
         if (淡出槽位索引 >= 0) {
             long elapsed = System.currentTimeMillis() - 淡出开始时间;
             if (elapsed < 淡出持续毫秒) {
                 return 1.0f;
-            }}
+            }
+        }
 
         return 0f;
     }
@@ -237,9 +249,6 @@ public final class 蓄力状态管理 {
 
     // ==================== 内部工具方法 ====================
 
-    /**
-     * 获取槽位对应的技能实例
-     */
     private static Optional<I技能> 获取槽位技能信息(Player player, int slotIndex) {
         return 能力工具.获取技能能力(player).flatMap(cap -> {
             var preset = cap.获取当前预设();

@@ -1,6 +1,6 @@
 // 文件路径: src/main/java/com/v2t/puellamagi/mixin/timestop/TimestopMinecraftMixin.java
 
-package com.v2t.puellamagi.mixin.timestop;
+package com.v2t.puellamagi.mixin.timestop.client;
 
 import com.v2t.puellamagi.api.timestop.TimeStop;
 import com.v2t.puellamagi.system.ability.timestop.时停豁免系统;

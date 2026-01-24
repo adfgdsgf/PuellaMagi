@@ -2,6 +2,7 @@
 
 package com.v2t.puellamagi.mixin.soulgem;
 
+import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
 import com.v2t.puellamagi.util.能力工具;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -11,13 +12,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 空血状态Mixin
+ * 空血状态 Mixin
  *
- * 核心：让空血的灵魂宝石系玩家，isDeadOrDying()返回false
- * 效果：原版认为玩家没死，不触发死亡UI、死亡动画
+ * 核心：让空血的灵魂宝石系玩家，isDeadOrDying() 返回 false
+ * 效果：原版认为玩家没死，不触发死亡 UI、死亡动画
  *
- * 注意：不依赖空血假死标记，因为该标记在die()中设置，
- *       但isDeadOrDying()在die()之前就被调用
+ * 例外：致命伤害（/kill、虚空）时不拦截，让玩家正常死亡
  */
 @Mixin(LivingEntity.class)
 public abstract class EmptyHealthStateMixin {
@@ -37,7 +37,12 @@ public abstract class EmptyHealthStateMixin {
         // 创造模式不拦截
         if (能力工具.应该跳过限制(player)) return;
 
-        // 血量<=0时，告诉原版"我没死"
+        // 致命伤害中：不拦截，让玩家正常死亡
+        if (假死状态处理器.是致命伤害中(player.getUUID())) {
+            return;  // 返回原版结果（true）
+        }
+
+        // 血量 <= 0 时，告诉原版"我没死"
         if (player.getHealth() <= 0) {
             cir.setReturnValue(false);
         }

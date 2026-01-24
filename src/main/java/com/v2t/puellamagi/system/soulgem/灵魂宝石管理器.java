@@ -3,6 +3,7 @@
 package com.v2t.puellamagi.system.soulgem;
 
 import com.v2t.puellamagi.core.registry.ModItems;
+import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.system.soulgem.damage.灵魂宝石损坏处理器;
 import com.v2t.puellamagi.system.soulgem.data.宝石登记信息;
 import com.v2t.puellamagi.system.soulgem.data.灵魂宝石世界数据;
@@ -12,6 +13,7 @@ import com.v2t.puellamagi.system.soulgem.item.灵魂宝石数据;
 import com.v2t.puellamagi.system.soulgem.item.灵魂宝石状态;
 import com.v2t.puellamagi.system.soulgem.location.灵魂宝石区块加载器;
 import com.v2t.puellamagi.system.soulgem.util.宝石清理工具;
+import com.v2t.puellamagi.system.transformation.变身管理器;
 import com.v2t.puellamagi.util.能力工具;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -44,10 +46,10 @@ public final class 灵魂宝石管理器 {
 
     private 灵魂宝石管理器() {}
 
-    // ==================== 发放 ====================
+    //==================== 发放 ====================
 
     /**
-     * 尝试为玩家发放灵魂宝石
+     *尝试为玩家发放灵魂宝石
      *
      * @param player 目标玩家
      * @return 是否成功发放
@@ -74,8 +76,7 @@ public final class 灵魂宝石管理器 {
 
         // 登记到世界数据
         宝石登记信息 info = worldData.登记宝石(player.getUUID(), timestamp);
-        info.更新位置(
-                player.level().dimension(),
+        info.更新位置(player.level().dimension(),
                 player.position(),
                 存储类型.玩家背包,
                 player.getUUID()
@@ -191,7 +192,7 @@ public final class 灵魂宝石管理器 {
         }
     }
 
-    // ==================== 验证====================
+    // ==================== 验证 ====================
 
     /**
      * 验证灵魂宝石是否为玩家当前有效的宝石
@@ -247,14 +248,14 @@ public final class 灵魂宝石管理器 {
     /**
      * 使用悲叹之种
      *
-     * 效果：减少污浊度 + 修复龟裂状态
+     * 效果：减少污浊度+ 修复龟裂状态
      */
     public static boolean 使用悲叹之种(ServerPlayer player) {
         MinecraftServer server = player.getServer();
         if (server == null) return false;
 
         // 减少污浊度
-        boolean 污浊度降低成功 = 污浊度管理器.减少污浊度(player, 悲叹之种净化量);
+        boolean 污浊度降低成功 = 污浊度管理器.减少污浊度(player,悲叹之种净化量);
 
         // 尝试修复（通过统一入口）
         boolean 修复成功 = false;
@@ -290,16 +291,89 @@ public final class 灵魂宝石管理器 {
         return false;
     }
 
-    // ==================== 死亡处理 ====================
+    // ==================== 销毁处理 ====================
 
     /**
-     * 触发灵魂宝石销毁导致的死亡
+     * 处理灵魂宝石销毁（统一入口）
      *
-     * 由损坏处理器调用
+     * 根据所有者的游戏模式决定后续行为：
+     * - 创造模式：只解除契约，不死亡
+     * - 非创造模式：解除契约并死亡
+     *
+     * @param owner 宝石所有者
      */
-    public static void 触发销毁死亡(ServerPlayer owner) {
+    public static void 处理宝石销毁(ServerPlayer owner) {
+        if (owner.isCreative()) {
+            处理创造模式销毁(owner);
+        } else {
+            处理生存模式销毁(owner);
+        }
+    }
+
+    /**
+     * 处理创造模式下的宝石销毁
+     *
+     * 只解除契约，不触发死亡
+     */
+    public static void 处理创造模式销毁(ServerPlayer owner) {
+        LOGGER.info("玩家 {} 的灵魂宝石被删除（创造模式）", owner.getName().getString());
+
+        // 发送消息
+        owner.displayClientMessage(
+                Component.translatable("message.puellamagi.soul_gem.deleted_creative")
+                        .withStyle(ChatFormatting.GRAY),
+                false
+        );
+
+        // 清理数据
+        清理销毁数据(owner);
+
+        // 解除契约（创造模式不设置冷却）
+        契约管理器.获取契约能力(owner).ifPresent(contract -> {
+            if (contract.是否已契约()) {
+                contract.解除契约();
+                契约管理器.同步契约状态(owner);
+            }
+        });
+
+        // 强制解除变身
+        能力工具.获取变身能力完整(owner).ifPresent(cap -> {
+            if (cap.是否已变身()) {
+                变身管理器.解除变身(owner);
+            }
+        });
+    }
+
+    /**
+     * 处理生存模式下的宝石销毁
+     *
+     * 解除契约并触发死亡
+     * 不发送消息（由损坏处理器发送）
+     */
+    public static void 处理生存模式销毁(ServerPlayer owner) {
         LOGGER.warn("玩家 {} 的灵魂宝石被销毁，触发死亡", owner.getName().getString());
 
+        // 清理数据
+        清理销毁数据(owner);
+
+        // 解除契约状态
+        契约管理器.因死亡解除契约(owner);
+
+        // 强制解除变身
+        能力工具.获取变身能力完整(owner).ifPresent(cap -> {
+            if (cap.是否已变身()) {
+                变身管理器.解除变身(owner);
+            }
+        });
+
+        // 触发真正的死亡
+        owner.kill();
+    }
+
+    /**
+     * 清理销毁相关数据（通用）
+     */
+    private static void 清理销毁数据(ServerPlayer owner) {
         MinecraftServer server = owner.getServer();
         if (server == null) return;
 
@@ -311,14 +385,18 @@ public final class 灵魂宝石管理器 {
 
         // 退出假死状态
         假死状态处理器.强制退出(owner);
+    }
 
-        // TODO: 解除契约状态
-        // 契约管理器.解除契约(owner);
 
-        // TODO: 强制解除变身
-        // 变身管理器.解除变身(owner);
+    // ====================兼容旧调用 ====================
 
-        // 触发真正的死亡
-        owner.kill();
+    /**
+     * 触发灵魂宝石销毁导致的死亡
+     *
+     * @deprecated 使用 {@link #处理宝石销毁(ServerPlayer)} 代替
+     */
+    @Deprecated
+    public static void 触发销毁死亡(ServerPlayer owner) {
+        处理宝石销毁(owner);
     }
 }

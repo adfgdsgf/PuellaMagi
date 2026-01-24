@@ -91,6 +91,45 @@ public class 契约能力 implements I契约, ICapabilitySerializable<CompoundTa
         数据.更新灵魂宝石时间戳(newTimestamp);
     }
 
+    // ==================== 重签冷却相关 ====================
+
+    /**
+     * 检查是否在冷却中
+     *
+     * @param currentGameTime 当前游戏时间
+     * @return 是否冷却中
+     */
+    public boolean 是否冷却中(long currentGameTime) {
+        return 数据.是否冷却中(currentGameTime);
+    }
+
+    /**
+     * 获取剩余冷却显示值
+     * 游戏时间模式返回天数，现实时间模式返回分钟数
+     *
+     * @param currentGameTime 当前游戏时间
+     * @return 显示数值
+     */
+    public int 获取剩余冷却显示值(long currentGameTime) {
+        return 数据.获取剩余冷却显示值(currentGameTime);
+    }
+
+    /**
+     * 设置重签冷却
+     *
+     * @param currentGameTime 当前游戏时间
+     */
+    public void 设置重签冷却(long currentGameTime) {
+        数据.设置重签冷却(currentGameTime);
+    }
+
+    /**
+     * 清除冷却
+     */
+    public void 清除冷却() {
+        数据.清除冷却();
+    }
+
     // ==================== 额外数据 ====================
 
     public CompoundTag 获取额外数据() {

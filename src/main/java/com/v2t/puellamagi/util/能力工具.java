@@ -15,6 +15,8 @@ import com.v2t.puellamagi.system.soulgem.污浊度能力;
 import com.v2t.puellamagi.system.transformation.变身能力;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.util.LazyOptional;
 
@@ -196,7 +198,7 @@ public final class 能力工具 {
                 .orElse(false);
     }
 
-    //==================== 假死状态 ====================
+    // ==================== 假死状态 ====================
 
     /**
      * 便捷方法：判断玩家是否处于假死状态
@@ -221,5 +223,23 @@ public final class 能力工具 {
     public static boolean 是空血假死玩家(net.minecraft.world.entity.Entity entity) {
         if (!(entity instanceof Player player)) return false;
         return 假死状态处理器.是否空血假死(player);
+    }
+
+    // ==================== 致命伤害判断 ====================
+
+    /**
+     * 判断是否为致命伤害（应该绕过假死系统，直接死亡）
+     *
+     * 包括：
+     * - /kill 命令（GENERIC_KILL）
+     * - 虚空伤害（FELL_OUT_OF_WORLD）
+     * - 其他绕过无敌的伤害（BYPASSES_INVULNERABILITY标签）
+     *
+     * @param source 伤害来源
+     * @return 是否为致命伤害
+     */
+    public static boolean 是致命伤害(DamageSource source) {
+        if (source == null) return false;
+        return source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
     }
 }

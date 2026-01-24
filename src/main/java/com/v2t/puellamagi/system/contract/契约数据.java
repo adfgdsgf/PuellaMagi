@@ -2,6 +2,7 @@
 
 package com.v2t.puellamagi.system.contract;
 
+import com.v2t.puellamagi.core.config.契约配置;
 import com.v2t.puellamagi.util.NBT工具;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -28,6 +29,10 @@ public class 契约数据 {
     private static final String KEY_SOUL_GEM_UUID = "SoulGemUUID";
     private static final String KEY_SOUL_GEM_TIMESTAMP = "SoulGemTimestamp";
 
+    // 重签冷却（双模式）
+    private static final String KEY_COOLDOWN_GAME_TIME = "CooldownGameTime";
+    private static final String KEY_COOLDOWN_REAL_TIME = "CooldownRealTime";
+
     // ==================== 数据字段 ====================
 
     private boolean 已契约 = false;
@@ -40,6 +45,10 @@ public class 契约数据 {
     private boolean 已发放灵魂宝石 = false;
     private UUID 灵魂宝石UUID = null;
     private long 灵魂宝石时间戳 = 0;
+
+    // 重签冷却（同时存储两种，根据配置选择使用哪个）
+    private long 游戏时间冷却结束 = 0;  // 游戏时间（gameTime）
+    private long 现实时间冷却结束 = 0;  // 现实时间戳（System.currentTimeMillis）
 
     // ==================== 基础 Getter ====================
 
@@ -135,6 +144,10 @@ public class 契约数据 {
         }
         tag.putLong(KEY_SOUL_GEM_TIMESTAMP, 灵魂宝石时间戳);
 
+        // 冷却数据（同时存储两种）
+        tag.putLong(KEY_COOLDOWN_GAME_TIME, 游戏时间冷却结束);
+        tag.putLong(KEY_COOLDOWN_REAL_TIME, 现实时间冷却结束);
+
         return tag;
     }
 
@@ -152,6 +165,10 @@ public class 契约数据 {
         this.已发放灵魂宝石 = NBT工具.获取Boolean(tag, KEY_SOUL_GEM_ISSUED, false);
         this.灵魂宝石UUID = tag.hasUUID(KEY_SOUL_GEM_UUID) ? tag.getUUID(KEY_SOUL_GEM_UUID) : null;
         this.灵魂宝石时间戳 = tag.getLong(KEY_SOUL_GEM_TIMESTAMP);
+
+        // 冷却数据
+        this.游戏时间冷却结束 = tag.getLong(KEY_COOLDOWN_GAME_TIME);
+        this.现实时间冷却结束 = tag.getLong(KEY_COOLDOWN_REAL_TIME);
     }
 
     // ==================== 工具方法 ====================
@@ -164,12 +181,12 @@ public class 契约数据 {
         this.系列ID = seriesId;
         this.类型ID = typeId;
         this.契约时间 = gameTime;
-        //灵魂宝石状态不在这里设置，由灵魂宝石管理器处理
+        // 签订成功后清除冷却
+        清除冷却();
     }
 
     /**
      * 解除契约
-     * 注意：解除契约不回收灵魂宝石物品，但清除记录
      */
     public void 解除() {
         this.已契约 = false;
@@ -182,6 +199,63 @@ public class 契约数据 {
         this.已发放灵魂宝石 = false;
         this.灵魂宝石UUID = null;
         this.灵魂宝石时间戳 = 0;
+
+        // 注意：冷却由契约管理器设置，这里不处理
+    }
+
+    // ==================== 冷却相关 ====================
+
+    /**
+     * 设置重签冷却（同时设置两种模式）
+     *
+     * @param currentGameTime 当前游戏时间
+     */
+    public void 设置重签冷却(long currentGameTime) {
+        // 游戏时间模式
+        this.游戏时间冷却结束 = currentGameTime + 契约配置.获取游戏时间冷却Tick();
+
+        // 现实时间模式
+        this.现实时间冷却结束 = System.currentTimeMillis() + 契约配置.获取现实时间冷却毫秒();
+    }
+
+    /**
+     * 检查是否在冷却中（根据配置选择模式）
+     *
+     * @param currentGameTime 当前游戏时间
+     * @return 是否冷却中
+     */
+    public boolean 是否冷却中(long currentGameTime) {
+        if (契约配置.是游戏时间模式()) {
+            return 游戏时间冷却结束 > currentGameTime;
+        } else {
+            return 现实时间冷却结束 > System.currentTimeMillis();
+        }
+    }
+
+    /**
+     * 获取剩余冷却显示文本用的数值
+     *
+     * @param currentGameTime 当前游戏时间
+     * @return 游戏模式返回天数，现实模式返回分钟数
+     */
+    public int 获取剩余冷却显示值(long currentGameTime) {
+        if (契约配置.是游戏时间模式()) {
+            long remaining = 游戏时间冷却结束 - currentGameTime;
+            if (remaining <= 0) return 0;
+            return (int) Math.ceil(remaining / 24000.0);  // 天数
+        } else {
+            long remaining = 现实时间冷却结束 - System.currentTimeMillis();
+            if (remaining <= 0) return 0;
+            return (int) Math.ceil(remaining / 60000.0);  // 分钟数
+        }
+    }
+
+    /**
+     * 清除冷却
+     */
+    public void 清除冷却() {
+        this.游戏时间冷却结束 = 0;
+        this.现实时间冷却结束 = 0;
     }
 
     /**

@@ -1,6 +1,6 @@
 // 文件路径: src/main/java/com/v2t/puellamagi/mixin/timestop/TimestopProjectileRendererMixin.java
 
-package com.v2t.puellamagi.mixin.timestop;
+package com.v2t.puellamagi.mixin.timestop.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.v2t.puellamagi.api.timestop.TimeStop;

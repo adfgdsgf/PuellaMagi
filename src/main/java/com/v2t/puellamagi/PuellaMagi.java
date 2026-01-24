@@ -3,6 +3,7 @@
 package com.v2t.puellamagi;
 
 import com.mojang.logging.LogUtils;
+import com.v2t.puellamagi.core.config.契约配置;
 import com.v2t.puellamagi.core.config.时停配置;
 import com.v2t.puellamagi.core.registry.ModItems;
 import net.minecraftforge.common.MinecraftForge;
@@ -29,11 +30,14 @@ public class PuellaMagi {
 
         // 注册配置
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, 时停配置.SPEC, "puellamagi-timestop.toml");
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, 契约配置.SPEC, "puellamagi-contract.toml");
 
         // 注册DeferredRegister
         ModItems.register(modEventBus);
 
         // 注册Forge事件总线
-        MinecraftForge.EVENT_BUS.register(this);LOGGER.info("Puella Magi 模组入口初始化完成");
+        MinecraftForge.EVENT_BUS.register(this);
+
+        LOGGER.info("Puella Magi 模组入口初始化完成");
     }
 }

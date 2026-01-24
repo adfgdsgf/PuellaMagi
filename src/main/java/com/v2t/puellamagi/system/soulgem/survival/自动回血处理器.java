@@ -11,13 +11,10 @@ import org.slf4j.LoggerFactory;
  * 自动回血处理器
  *
  * 职责：
- * - 灵魂宝石系魔法少女持续缓慢回血
+ * -灵魂宝石系魔法少女持续缓慢回血
  * - 独立于假死系统，不管是否假死都生效
  * - 无视饱食度，直接恢复生命值
- *
- * 设计原理：
- * - 灵魂宝石承载灵魂，肉体只是容器
- * - 只要灵魂宝石完整，肉体可以持续修复
+ * - 空血假死时回血速度降低（惩罚机制）
  */
 public final class 自动回血处理器 {
 
@@ -27,15 +24,15 @@ public final class 自动回血处理器 {
 
     /** 回血间隔（tick） */
     // TODO: 改为配置项soulgem.autoheal.interval
-    private static final int 回血间隔 = 20;  // 1秒
+    private static final int 回血间隔 = 40;  // 2秒
 
     /** 每次回血量*/
     // TODO: 改为配置项 soulgem.autoheal.amount
     private static final float 回血量 = 1.0f;  // 0.5颗心
 
-    /** 空血假死时的回血倍率（加快恢复） */
+    /** 空血假死时的回血倍率（惩罚：恢复变慢） */
     // TODO: 改为配置项 soulgem.autoheal.emptyHealthMultiplier
-    private static final float 空血回血倍率 = 2.0f;
+    private static final float 空血回血倍率 = 1.0f / 3.0f;  // 1/3速度
 
     private 自动回血处理器() {}
 
@@ -43,8 +40,6 @@ public final class 自动回血处理器 {
 
     /**
      * 每tick调用，处理自动回血
-     *
-     * 调用位置：通用事件.玩家Tick 或灵魂宝石系列.tick
      */
     public static void onPlayerTick(ServerPlayer player) {
         // 只处理灵魂宝石系
@@ -67,7 +62,7 @@ public final class 自动回血处理器 {
         // 计算回血量
         float healAmount = 回血量;
 
-        // 空血假死时加快恢复
+        // 空血假死时恢复变慢（惩罚机制）
         if (能力工具.是否空血假死(player)) {
             healAmount *= 空血回血倍率;
         }

@@ -1,9 +1,12 @@
+// 文件路径: src/main/java/com/v2t/puellamagi/mixin/soulgem/FeignDeathInputMixin.java
+
 package com.v2t.puellamagi.mixin.soulgem;
 
-import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
+import com.v2t.puellamagi.api.restriction.限制类型;
+import com.v2t.puellamagi.system.restriction.行动限制管理器;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
-import net.minecraft.client.multiplayer.MultiPlayerGameMode;
+import net.minecraft.client.player.LocalPlayer;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -13,9 +16,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 假死状态 - 客户端输入拦截
+ * 行动限制 - 客户端输入拦截
  *
  * 直接禁用攻击和使用键，消除视觉残留
+ * 注意：客户端需要能查询到限制状态（通过同步包）
  */
 @Mixin(Minecraft.class)
 public class FeignDeathInputMixin {
@@ -24,13 +28,23 @@ public class FeignDeathInputMixin {
     @Final
     public Options options;
 
+    @Shadow
+    public LocalPlayer player;
+
     /**
-     * 在处理按键绑定时，如果假死则禁用攻击/使用键
+     * 在处理按键绑定时，检查限制状态
      */
     @Inject(method = "handleKeybinds", at = @At("HEAD"))
     private void onHandleKeybinds(CallbackInfo ci) {
-        if (假死状态处理器.客户端是否假死()) {
+        if (this.player == null) return;
+
+        // 检查攻击限制
+        if (行动限制管理器.是否被限制(this.player, 限制类型.攻击)) {
             this.options.keyAttack.setDown(false);
+        }
+
+        // 检查使用物品限制（右键）
+        if (行动限制管理器.是否被限制(this.player, 限制类型.使用物品)&& 行动限制管理器.是否被限制(this.player, 限制类型.交互方块)) {
             this.options.keyUse.setDown(false);
         }
     }
@@ -40,7 +54,9 @@ public class FeignDeathInputMixin {
      */
     @Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
     private void onStartUseItem(CallbackInfo ci) {
-        if (假死状态处理器.客户端是否假死()) {
+        if (this.player == null) return;
+
+        if (行动限制管理器.是否被限制(this.player, 限制类型.使用物品)) {
             ci.cancel();
         }
     }
@@ -50,7 +66,9 @@ public class FeignDeathInputMixin {
      */
     @Inject(method = "continueAttack", at = @At("HEAD"), cancellable = true)
     private void onContinueAttack(boolean leftClick, CallbackInfo ci) {
-        if (假死状态处理器.客户端是否假死()) {
+        if (this.player == null) return;
+
+        if (行动限制管理器.是否被限制(this.player, 限制类型.攻击)) {
             ci.cancel();
         }
     }
@@ -60,7 +78,9 @@ public class FeignDeathInputMixin {
      */
     @Inject(method = "startAttack", at = @At("HEAD"), cancellable = true)
     private void onStartAttack(CallbackInfoReturnable<Boolean> cir) {
-        if (假死状态处理器.客户端是否假死()) {
+        if (this.player == null) return;
+
+        if (行动限制管理器.是否被限制(this.player, 限制类型.攻击)) {
             cir.setReturnValue(false);
         }
     }

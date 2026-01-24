@@ -13,6 +13,7 @@ import com.v2t.puellamagi.system.ability.能力注册表;
 import com.v2t.puellamagi.system.ability.impl.测试能力;
 import com.v2t.puellamagi.system.ability.impl.时间停止能力;
 import com.v2t.puellamagi.system.adaptation.适应管理器;
+import com.v2t.puellamagi.system.restriction.行动限制管理器;
 import com.v2t.puellamagi.system.series.系列注册表;
 import com.v2t.puellamagi.system.series.impl.灵魂宝石系列;
 import com.v2t.puellamagi.system.series.impl.心之种系列;
@@ -34,10 +35,10 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
  * 职责：所有模组级初始化逻辑集中在此
  * - Capability注册
  * - 网络注册
- * - 系统初始化（适应、损坏等）
+ * - 系统初始化（适应、损坏、行动限制等）
  * - 内容注册（系列、能力、技能、类型）
  */
-@Mod.EventBusSubscriber(modid =常量.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
+@Mod.EventBusSubscriber(modid = 常量.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class 模组事件 {
 
     /**
@@ -50,7 +51,7 @@ public class 模组事件 {
         event.register(I契约.class);
         event.register(I污浊度.class);
 
-        PuellaMagi.LOGGER.info("Capability 注册完成");
+        PuellaMagi.LOGGER.info("Capability注册完成");
     }
 
     /**
@@ -63,7 +64,7 @@ public class 模组事件 {
             初始化基础设施();
 
             // ==================== 内容注册 ====================
-            // 注册顺序很重要：系列 → 能力 → 技能 →类型
+            // 注册顺序很重要：系列 → 能力 → 技能 → 类型
             注册所有系列();
             注册所有能力();
             注册所有技能();
@@ -88,6 +89,10 @@ public class 模组事件 {
         //灵魂宝石损坏系统初始化
         主动损坏注册表.初始化();
         PuellaMagi.LOGGER.info("灵魂宝石损坏系统初始化完成");
+
+        // 行动限制系统初始化（新增）
+        行动限制管理器.初始化();
+        PuellaMagi.LOGGER.info("行动限制系统初始化完成");
     }
 
     /**
@@ -134,7 +139,7 @@ public class 模组事件 {
 
         // 测试类型
         魔法少女类型注册表.注册(new 魔法少女类型(
-        资源工具.本mod("test"),
+                资源工具.本mod("test"),
                 资源工具.本mod("test_series"),
                 资源工具.本mod("test"),
                 null

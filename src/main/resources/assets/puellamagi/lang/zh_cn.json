@@ -1,4 +1,5 @@
-{"_comment": "Puella Magi -简体中文语言文件",
+{
+  "_comment": "Puella Magi - 简体中文语言文件",
 
   "itemGroup.puellamagi": "魔法少女",
 
@@ -88,15 +89,16 @@
   "message.puellamagi.feign_death.exit": "意识逐渐恢复，身体重新听从指挥...",
   "message.puellamagi.feign_death.timeout": "灵魂宝石的光芒彻底熄灭...",
   "message.puellamagi.soul_gem.old_vanished": "旧的灵魂宝石已消散...",
-  "message.puellamagi.soul_gem.cracked.by_player": "你的灵魂宝石被%s 攻击，出现了裂痕！",
+  "message.puellamagi.soul_gem.cracked.by_player": "你的灵魂宝石被 %s 攻击，出现了裂痕！",
   "message.puellamagi.soul_gem.cracked.active": "你的灵魂宝石出现了裂痕！",
   "message.puellamagi.soul_gem.cracked.passive": "你的灵魂宝石受到冲击，出现了裂痕！",
   "message.puellamagi.soul_gem.destroyed.by_player": "你的灵魂宝石被 %s 摧毁了...",
   "message.puellamagi.soul_gem.destroyed.active": "你的灵魂宝石被摧毁了...",
   "message.puellamagi.soul_gem.destroyed.passive": "你的灵魂宝石被摧毁了...",
   "message.puellamagi.feign_death.enter_empty_health": "你的身体已无法支撑...进入假死状态",
-
-
+  "message.puellamagi.contract.cooldown.game_time": "契约冷却中，还需等待 %d 游戏天",
+  "message.puellamagi.contract.cooldown.real_time": "契约冷却中，还需等待 %d 分钟",
+  "message.puellamagi.soul_gem.deleted_creative": "灵魂宝石已移除（创造模式）",
 
   "ability.puellamagi.test": "测试能力",
   "ability.puellamagi.time_control": "时间操控",
@@ -125,5 +127,10 @@
   "config.puellamagi.timestop.projectile.stopThreshold": "投射物静止阈值",
   "config.puellamagi.timestop.skill.chargeTime": "蓄力时间",
   "config.puellamagi.timestop.skill.interruptOnDamage": "受击打断蓄力",
-  "config.puellamagi.timestop.skill.voiceCooldown": "语音播放冷却"
+  "config.puellamagi.timestop.skill.voiceCooldown": "语音播放冷却",
+  "config.puellamagi.contract.cooldown.enabled": "启用重签冷却",
+  "config.puellamagi.contract.cooldown.timeMode": "时间计算模式",
+  "config.puellamagi.contract.cooldown.gameDays": "游戏时间冷却（天）",
+  "config.puellamagi.contract.cooldown.realMinutes": "现实时间冷却（分钟）",
+  "config.puellamagi.contract.cooldown.creativeBypass": "创造模式绕过"
 }

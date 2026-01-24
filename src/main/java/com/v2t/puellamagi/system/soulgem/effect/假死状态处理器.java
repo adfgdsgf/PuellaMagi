@@ -8,10 +8,8 @@ import com.v2t.puellamagi.system.soulgem.data.灵魂宝石世界数据;
 import com.v2t.puellamagi.system.soulgem.util.灵魂宝石距离计算;
 import com.v2t.puellamagi.system.soulgem.污浊度管理器;
 import com.v2t.puellamagi.system.soulgem.灵魂宝石管理器;
-import com.v2t.puellamagi.util.能力工具;
 import com.v2t.puellamagi.util.网络工具;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,6 +32,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * - 管理玩家的假死状态
  * - 处理假死进入/退出逻辑
  * - 同步假死状态到客户端
+ * - 管理致命伤害标记（跨Mixin传递状态）
+ *
+ * 注意：行动限制判断已迁移到 行动限制管理器
+ * 本类只负责状态管理，不再提供限制判断方法
  *
  * 假死触发条件（满足任一）：
  * - 距离超出范围（50格+）
@@ -54,13 +56,12 @@ public final class 假死状态处理器 {
     // ==================== 配置常量 ====================
 
     /**宝石位置未知多久后重新生成（tick） */
-    private static final long 宝石重生成延迟 = 20 * 60* 5;// 5分钟
+    private static final long 宝石重生成延迟 = 20* 60 * 5;  // 5分钟
 
     /** 假死超时时间（tick） */
     private static final long 假死超时时间 = 20 * 60 * 30;   // 30分钟
 
     /** 血量恢复阈值 - 血量达到此值以上才能退出空血假死 */
-    // TODO: 改为配置项soulgem.emptyhealth.recoveryThreshold
     private static final float 血量恢复阈值 = 5.0f;
 
     // ==================== 服务端状态存储 ====================
@@ -77,6 +78,19 @@ public final class 假死状态处理器 {
     /** 空血假死标记（区分空血假死和距离假死） */
     private static final Set<UUID> 空血假死标记 = ConcurrentHashMap.newKeySet();
 
+    // ==================== 致命伤害标记 ====================
+
+    /**
+     * 致命伤害标记
+     * 用于在Mixin 之间传递"当前是致命伤害"的信息
+     *
+     * 流程：
+     * 1. EmptyHealthImmunityMixin.hurt() 检测到致命伤害 → 标记
+     * 2. EmptyHealthStateMixin.isDeadOrDying() 检查标记 → 不拦截
+     * 3. EmptyHealthDeathMixin.die() 允许死亡 → 清除标记
+     */
+    private static final Set<UUID> 致命伤害标记 = ConcurrentHashMap.newKeySet();
+
     // ==================== 客户端状态 ====================
 
     /** 客户端：本地假死状态（由同步包更新） */
@@ -85,7 +99,35 @@ public final class 假死状态处理器 {
 
     private 假死状态处理器() {}
 
-    // ==================== 客户端API ====================
+    // ==================== 致命伤害标记 API ====================
+
+    /**
+     * 标记玩家正在受到致命伤害
+     * 由 EmptyHealthImmunityMixin 调用
+     */
+    public static void 标记致命伤害(UUID playerUUID) {
+        致命伤害标记.add(playerUUID);
+        LOGGER.debug("玩家 {} 标记为致命伤害中", playerUUID);
+    }
+
+    /**
+     * 检查玩家是否正在受到致命伤害
+     * 由 EmptyHealthStateMixin 和 EmptyHealthDeathMixin 调用
+     */
+    public static boolean 是致命伤害中(UUID playerUUID) {
+        return 致命伤害标记.contains(playerUUID);
+    }
+
+    /**
+     * 清除致命伤害标记
+     * 由 EmptyHealthDeathMixin 在允许死亡后调用
+     */
+    public static void 清除致命伤害标记(UUID playerUUID) {
+        致命伤害标记.remove(playerUUID);
+        LOGGER.debug("玩家 {} 清除致命伤害标记", playerUUID);
+    }
+
+    // ==================== 客户端 API ====================
 
     @OnlyIn(Dist.CLIENT)
     public static void 设置客户端假死状态(boolean 假死) {
@@ -93,27 +135,15 @@ public final class 假死状态处理器 {
     }
 
     /**
-     * 客户端是否假死（供客户端Mixin使用）
+     * 客户端是否处于假死状态
+     * 供客户端限制检查使用（通过假死限制来源）
      */
     @OnlyIn(Dist.CLIENT)
-    public static boolean 客户端是否假死() {Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null && mc.player.isCreative()) {
-            return false;
-        }
+    public static boolean 客户端是否假死中() {
         return 客户端假死状态;
     }
 
-    // ==================== 状态查询API ====================
-
-    /**
-     * 检查玩家是否应该被限制行动
-     * 统一入口，供所有服务端Mixin调用
-     */
-    public static boolean 应该限制行动(Player player) {
-        if (player == null) return false;
-        if (能力工具.应该跳过限制(player)) return false;
-        return 是否假死中(player.getUUID());
-    }
+    // ==================== 状态查询 API ====================
 
     /**
      * 检查玩家是否处于假死状态
@@ -151,7 +181,6 @@ public final class 假死状态处理器 {
 
     // ==================== 核心逻辑：空血假死 ====================
 
-    // 修改因空血进入假死方法
     /**
      * 因空血进入假死（立即触发，由Mixin调用）
      *
@@ -236,8 +265,7 @@ public final class 假死状态处理器 {
 
         // 检查空血恢复
         if (空血假死标记.contains(playerUUID) && player.getHealth() >= 血量恢复阈值) {
-            LOGGER.debug("玩家 {} 血量恢复至{}，移除空血标记",
-                    player.getName().getString(), player.getHealth());
+            LOGGER.debug("玩家 {} 血量恢复至{}，移除空血标记",player.getName().getString(), player.getHealth());
             空血假死标记.remove(playerUUID);
         }
     }
@@ -278,7 +306,7 @@ public final class 假死状态处理器 {
         // 立即停止移动
         player.setDeltaMovement(Vec3.ZERO);
 
-        // 禁用飞行
+        //禁用飞行
         if (player.getAbilities().flying) {
             player.getAbilities().flying = false;
             player.onUpdateAbilities();
@@ -290,8 +318,7 @@ public final class 假死状态处理器 {
         LOGGER.info("玩家 {} 进入假死状态（{}）",
                 player.getName().getString(), 是空血触发 ? "空血" : "距离");
 
-        String messageKey = 是空血触发
-                ? "message.puellamagi.feign_death.enter_empty_health"
+        String messageKey = 是空血触发? "message.puellamagi.feign_death.enter_empty_health"
                 : "message.puellamagi.feign_death.enter";
 
         player.displayClientMessage(
@@ -378,10 +405,11 @@ public final class 假死状态处理器 {
 
     /**
      * 每tick调用 - 维持假死状态
+     * 注意：行动限制由Mixin通过行动限制管理器处理
+     * 这里只处理物理状态（速度归零、禁飞）
      */
     public static void onPlayerTick(ServerPlayer player) {
         if (!是否假死中(player)) return;
-        if (能力工具.应该跳过限制(player)) return;
 
         player.setDeltaMovement(Vec3.ZERO);
 
@@ -394,7 +422,7 @@ public final class 假死状态处理器 {
     // ==================== 生命周期 ====================
 
     /**
-     * 玩家登录时同步假死状态
+     *玩家登录时同步假死状态
      */
     public static void onPlayerLogin(ServerPlayer player) {
         boolean 是否假死 = 是否假死中(player);
@@ -419,6 +447,7 @@ public final class 假死状态处理器 {
         位置未知开始时间.remove(playerUUID);
         假死位置.remove(playerUUID);
         空血假死标记.remove(playerUUID);
+        致命伤害标记.remove(playerUUID);
     }
 
     public static void clearAll() {
@@ -426,5 +455,6 @@ public final class 假死状态处理器 {
         位置未知开始时间.clear();
         假死位置.clear();
         空血假死标记.clear();
+        致命伤害标记.clear();
     }
 }

@@ -8,6 +8,8 @@
     "access.AccessLivingEntityMixin",
     "access.EntityAndDataMixin",
     "access.ChunkMapAccessor",
+    "access.ChunkMapInvoker",
+
     "timestop.TimestopLevelMixin",
     "timestop.TimestopServerLevelMixin",
     "timestop.TimestopLivingEntityMixin",
@@ -18,6 +20,7 @@
     "timestop.TimestopItemEntityMixin",
     "timestop.TimestopSlimeMixin",
     "timestop.WalkAnimationStateAccessor",
+
     "soulgem.FeignDeathPlayerMixin",
     "soulgem.FeignDeathGameModeMixin",
     "soulgem.SoulGemItemEntityMixin",
@@ -28,33 +31,42 @@
     "soulgem.EmptyHealthStateMixin",
     "soulgem.EmptyHealthDeathMixin",
     "soulgem.EmptyHealthImmunityMixin",
-    "soulgem.EmptyHealthAggroMixin"
+    "soulgem.EmptyHealthAggroMixin",
 
+    "item.ItemEntityLifespanMixin",
+    "item.PlayerLogoutDropMixin",
+    "item.PlayerDeathKeepMixin",
+    "item.ItemEntityProtectionMixin",
+    "item.ItemEntityPickupMixin"
   ],
   "client": [
     "access.AccessParticleMixin",
     "access.GuiAccessor",
     "access.ParticleDataMixin",
-    "timestop.TimestopClientLevelMixin",
-    "timestop.TimestopClientLevelParticleMixin",
-    "timestop.TimestopClientLevelTimeMixin",
-    "timestop.TimestopClientPacketMixin",
-    "timestop.TimestopMinecraftMixin",
-    "timestop.TimestopGameRendererMixin",
-    "timestop.TimestopFrozenFrameMixin",
-    "timestop.TimestopScreenMixin",
-    "timestop.TimestopPauseMixin",
-    "timestop.TimestopInputMixin",
-    "timestop.TimestopMouseMixin",
-    "timestop.TimestopEntityRenderDispatcherMixin",
-    "timestop.TimestopLivingEntityRendererMixin",
-    "timestop.TimestopProjectileRendererMixin",
-    "timestop.TimestopItemEntityRendererMixin",
-    "timestop.TimestopParticleEngineMixin",
-    "timestop.TimestopTextureManagerMixin",
-    "timestop.TimestopWeatherMixin",
+
+    "timestop.client.TimestopClientLevelMixin",
+    "timestop.client.TimestopClientLevelParticleMixin",
+    "timestop.client.TimestopClientLevelTimeMixin",
+    "timestop.client.TimestopClientPacketMixin",
+    "timestop.client.TimestopMinecraftMixin",
+    "timestop.client.TimestopGameRendererMixin",
+    "timestop.client.TimestopFrozenFrameMixin",
+    "timestop.client.TimestopScreenMixin",
+    "timestop.client.TimestopPauseMixin",
+    "timestop.client.TimestopInputMixin",
+    "timestop.client.TimestopMouseMixin",
+    "timestop.client.TimestopEntityRenderDispatcherMixin",
+    "timestop.client.TimestopLivingEntityRendererMixin",
+    "timestop.client.TimestopProjectileRendererMixin",
+    "timestop.client.TimestopItemEntityRendererMixin",
+    "timestop.client.TimestopParticleEngineMixin",
+    "timestop.client.TimestopTextureManagerMixin",
+    "timestop.client.TimestopWeatherMixin",
+
     "soulgem.FeignDeathInputMixin",
     "soulgem.SoulGemActiveAttackMixin",
-    "soulgem.SoulGemActiveUseMixin"
+    "soulgem.SoulGemActiveUseMixin",
+
+    "client.CreativeModeDeleteMixin"
   ]
 }

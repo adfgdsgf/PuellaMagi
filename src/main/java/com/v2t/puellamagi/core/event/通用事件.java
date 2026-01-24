@@ -3,13 +3,13 @@
 package com.v2t.puellamagi.core.event;
 
 import com.v2t.puellamagi.PuellaMagi;
+import com.v2t.puellamagi.core.command.命令注册器;
 import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.system.series.系列注册表;
 import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
 import com.v2t.puellamagi.system.soulgem.污浊度管理器;
 import com.v2t.puellamagi.system.soulgem.污浊度能力;
 import com.v2t.puellamagi.常量;
-import com.v2t.puellamagi.core.command.测试命令;
 import com.v2t.puellamagi.core.network.packets.s2c.技能能力同步包;
 import com.v2t.puellamagi.core.registry.ModCapabilities;
 import com.v2t.puellamagi.system.ability.能力管理器;
@@ -19,6 +19,7 @@ import com.v2t.puellamagi.system.skill.技能管理器;
 import com.v2t.puellamagi.system.skill.技能能力;
 import com.v2t.puellamagi.system.transformation.变身管理器;
 import com.v2t.puellamagi.system.transformation.变身能力;
+import com.v2t.puellamagi.util.绑定物品工具;
 import com.v2t.puellamagi.util.能力工具;
 import com.v2t.puellamagi.util.网络工具;
 import net.minecraft.resources.ResourceLocation;
@@ -48,9 +49,16 @@ public class 通用事件 {
     private static final ResourceLocation 契约能力ID = new ResourceLocation(常量.MOD_ID, "contract");
     private static final ResourceLocation 污浊度能力ID = new ResourceLocation(常量.MOD_ID, "corruption");
 
+    /**
+     * 清理计数器
+     * 用于定期执行缓存清理，防止内存泄漏
+     * 每 200 tick（10秒）执行一次
+     */
+    private static int 清理计数器 = 0;
+
     @SubscribeEvent
     public static void 注册命令(RegisterCommandsEvent event) {
-        测试命令.register(event.getDispatcher());
+        命令注册器.register(event.getDispatcher());
         PuellaMagi.LOGGER.info("Puella Magi 命令注册完成");
     }
 
@@ -59,7 +67,8 @@ public class 通用事件 {
         if (event.getObject() instanceof Player) {
             if (!event.getObject().getCapability(ModCapabilities.变身能力).isPresent()) {
                 event.addCapability(变身能力ID, new 变身能力());
-            }if (!event.getObject().getCapability(ModCapabilities.技能能力).isPresent()) {
+            }
+            if (!event.getObject().getCapability(ModCapabilities.技能能力).isPresent()) {
                 event.addCapability(技能能力ID, new 技能能力());
             }
             if (!event.getObject().getCapability(ModCapabilities.契约能力).isPresent()) {
@@ -79,13 +88,17 @@ public class 通用事件 {
         原玩家.reviveCaps();
 
         try {
+            //==================== 能力复制 ====================
+
             // 复制变身能力
             能力工具.获取变身能力完整(原玩家).ifPresent(旧能力 -> {
                 能力工具.获取变身能力完整(新玩家).ifPresent(新能力 -> {
                     新能力.复制自(旧能力);
                     if (event.isWasDeath()) {
                         新能力.设置变身状态(false);
-                        能力管理器.失效能力(原玩家);时停管理器.玩家下线(原玩家);PuellaMagi.LOGGER.debug("玩家 {} 死亡重生，已解除变身状态",
+                        能力管理器.失效能力(原玩家);
+                        时停管理器.玩家下线(原玩家);
+                        PuellaMagi.LOGGER.debug("玩家 {} 死亡重生，已解除变身状态",
                                 新玩家.getName().getString());
                     }
                 });
@@ -115,10 +128,17 @@ public class 通用事件 {
                         污浊度管理器.玩家死亡(新玩家, 新能力);
                     }
                 });
-            });// 死亡后清除假死状态
+            });
+
+            // ==================== 死亡专属处理 ====================
+
             if (event.isWasDeath()) {
+                // 清除假死状态
                 假死状态处理器.清除玩家状态(新玩家.getUUID());
-            }
+
+                // 同步死亡保留的绑定物品
+                绑定物品工具.同步到新玩家(原玩家,新玩家);}
+
         } finally {
             原玩家.invalidateCaps();
         }
@@ -145,8 +165,10 @@ public class 通用事件 {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
             // 通用清理：时停状态
             if (时停管理器.是否时停者(serverPlayer)) {
-                时停管理器.玩家下线(serverPlayer);
-            }
+                时停管理器.玩家下线(serverPlayer);}
+
+            // 清理绑定物品缓存（防止内存泄漏）
+            绑定物品工具.清理玩家缓存(serverPlayer.getUUID());
 
             // 系列专属处理（分发到对应系列）
             系列注册表.onPlayerLogout(serverPlayer);
@@ -176,7 +198,8 @@ public class 通用事件 {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
             // 通用处理：时停结束
             if (时停管理器.是否时停者(serverPlayer)) {
-                时停管理器.结束时停(serverPlayer);PuellaMagi.LOGGER.debug("时停者 {} 切换维度，时停结束", serverPlayer.getName().getString());
+                时停管理器.结束时停(serverPlayer);
+                PuellaMagi.LOGGER.debug("时停者 {} 切换维度，时停结束", serverPlayer.getName().getString());
             }
 
             // 通用同步
@@ -203,8 +226,10 @@ public class 通用事件 {
 
     @SubscribeEvent
     public static void 服务器关闭(ServerStoppingEvent event) {
-        // 通用清理在这里，系列专属清理可以后续添加
+        // 通用清理
         假死状态处理器.clearAll();
+        绑定物品工具.清理所有缓存();
+
         PuellaMagi.LOGGER.info("服务器关闭，已清理所有缓存");
     }
 
@@ -213,14 +238,24 @@ public class 通用事件 {
         if (event.phase != TickEvent.Phase.END) return;
         if (!(event.player instanceof ServerPlayer serverPlayer)) return;
 
-        // ==================== 通用系统Tick ====================
+        // ==================== 定期清理（每 200 tick） ====================
+        清理计数器++;
+        if (清理计数器 >= 200) {
+            清理计数器 = 0;绑定物品工具.清理过期标记();
+        }
+
+        // ==================== 通用系统 Tick ====================
         能力管理器.tickAll(serverPlayer);
         能力工具.获取技能能力(serverPlayer).ifPresent(技能能力::tick);
         技能管理器.tickAll(serverPlayer);
 
-        // ==================== 系列专属Tick（分发到对应系列） ====================
-        系列注册表.tickPlayer(serverPlayer);}
+        // ==================== 系列专属 Tick（分发到对应系列） ====================
+        系列注册表.tickPlayer(serverPlayer);
+    }
 
+    /**
+     * 同步技能能力到客户端
+     */
     public static void 同步技能能力(ServerPlayer player) {
         能力工具.获取技能能力(player).ifPresent(cap -> {
             技能能力同步包 packet = new 技能能力同步包(player.getUUID(), cap.写入NBT());

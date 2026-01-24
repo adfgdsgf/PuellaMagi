@@ -45,7 +45,7 @@ public class SoulGemActiveAttackMixin {
         if (player == null || player.level() == null) return;
 
         // 假死状态不处理
-        if (假死状态处理器.客户端是否假死()) {
+        if (假死状态处理器.客户端是否假死中()) {
             return;
         }
 
