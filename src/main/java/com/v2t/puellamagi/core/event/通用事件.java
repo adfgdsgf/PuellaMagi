@@ -9,6 +9,9 @@ import com.v2t.puellamagi.system.series.系列注册表;
 import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
 import com.v2t.puellamagi.system.soulgem.污浊度管理器;
 import com.v2t.puellamagi.system.soulgem.污浊度能力;
+import com.v2t.puellamagi.system.team.队伍同步工具;
+import com.v2t.puellamagi.system.team.队伍管理器;
+import com.v2t.puellamagi.system.team.队伍邀请管理器;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.core.network.packets.s2c.技能能力同步包;
 import com.v2t.puellamagi.core.registry.ModCapabilities;
@@ -23,12 +26,15 @@ import com.v2t.puellamagi.util.绑定物品工具;
 import com.v2t.puellamagi.util.能力工具;
 import com.v2t.puellamagi.util.网络工具;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.living.LivingAttackEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerWakeUpEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -52,7 +58,7 @@ public class 通用事件 {
     /**
      * 清理计数器
      * 用于定期执行缓存清理，防止内存泄漏
-     * 每 200 tick（10秒）执行一次
+     * 每200 tick（10秒）执行一次
      */
     private static int 清理计数器 = 0;
 
@@ -67,8 +73,7 @@ public class 通用事件 {
         if (event.getObject() instanceof Player) {
             if (!event.getObject().getCapability(ModCapabilities.变身能力).isPresent()) {
                 event.addCapability(变身能力ID, new 变身能力());
-            }
-            if (!event.getObject().getCapability(ModCapabilities.技能能力).isPresent()) {
+            }if (!event.getObject().getCapability(ModCapabilities.技能能力).isPresent()) {
                 event.addCapability(技能能力ID, new 技能能力());
             }
             if (!event.getObject().getCapability(ModCapabilities.契约能力).isPresent()) {
@@ -96,9 +101,7 @@ public class 通用事件 {
                     新能力.复制自(旧能力);
                     if (event.isWasDeath()) {
                         新能力.设置变身状态(false);
-                        能力管理器.失效能力(原玩家);
-                        时停管理器.玩家下线(原玩家);
-                        PuellaMagi.LOGGER.debug("玩家 {} 死亡重生，已解除变身状态",
+                        能力管理器.失效能力(原玩家);时停管理器.玩家下线(原玩家);PuellaMagi.LOGGER.debug("玩家 {} 死亡重生，已解除变身状态",
                                 新玩家.getName().getString());
                     }
                 });
@@ -109,7 +112,8 @@ public class 通用事件 {
                 能力工具.获取技能能力(新玩家).ifPresent(新能力 -> {
                     新能力.复制自(旧能力);
                     if (event.isWasDeath()) {
-                        新能力.清除所有冷却();}
+                        新能力.清除所有冷却();
+                    }
                 });
             });
 
@@ -153,6 +157,12 @@ public class 通用事件 {
             同步技能能力(serverPlayer);
             污浊度管理器.同步污浊度(serverPlayer);
 
+            // 队伍数据同步
+            队伍同步工具.同步队伍数据(serverPlayer);
+
+            // 同步待处理邀请（登录时将服务端未过期邀请推送给客户端）
+            队伍同步工具.同步待处理邀请(serverPlayer);
+
             // 系列专属处理（分发到对应系列）
             系列注册表.onPlayerLogin(serverPlayer);
 
@@ -165,10 +175,14 @@ public class 通用事件 {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
             // 通用清理：时停状态
             if (时停管理器.是否时停者(serverPlayer)) {
-                时停管理器.玩家下线(serverPlayer);}
+                时停管理器.玩家下线(serverPlayer);
+            }
 
             // 清理绑定物品缓存（防止内存泄漏）
             绑定物品工具.清理玩家缓存(serverPlayer.getUUID());
+
+            // 队伍邀请：保留邀请记录（重连后仍可接受），仅通知管理器
+            队伍邀请管理器.onPlayerLogout(serverPlayer.getUUID());
 
             // 系列专属处理（分发到对应系列）
             系列注册表.onPlayerLogout(serverPlayer);
@@ -186,6 +200,9 @@ public class 通用事件 {
             同步技能能力(serverPlayer);
             污浊度管理器.同步污浊度(serverPlayer);
 
+            // 队伍数据同步
+            队伍同步工具.同步队伍数据(serverPlayer);
+
             // 系列专属处理（分发到对应系列）
             系列注册表.onPlayerRespawn(serverPlayer);
 
@@ -198,8 +215,7 @@ public class 通用事件 {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
             // 通用处理：时停结束
             if (时停管理器.是否时停者(serverPlayer)) {
-                时停管理器.结束时停(serverPlayer);
-                PuellaMagi.LOGGER.debug("时停者 {} 切换维度，时停结束", serverPlayer.getName().getString());
+                时停管理器.结束时停(serverPlayer);PuellaMagi.LOGGER.debug("时停者 {} 切换维度，时停结束", serverPlayer.getName().getString());
             }
 
             // 通用同步
@@ -207,6 +223,9 @@ public class 通用事件 {
             变身管理器.同步变身数据(serverPlayer);
             同步技能能力(serverPlayer);
             污浊度管理器.同步污浊度(serverPlayer);
+
+            // 队伍数据同步
+            队伍同步工具.同步队伍数据(serverPlayer);
 
             // 系列专属处理（分发到对应系列）
             系列注册表.onDimensionChange(serverPlayer);
@@ -227,8 +246,10 @@ public class 通用事件 {
     @SubscribeEvent
     public static void 服务器关闭(ServerStoppingEvent event) {
         // 通用清理
-        假死状态处理器.clearAll();
-        绑定物品工具.清理所有缓存();
+        假死状态处理器.clearAll();绑定物品工具.清理所有缓存();
+
+        // 队伍邀请清理（非持久化数据）
+        队伍邀请管理器.clearAll();
 
         PuellaMagi.LOGGER.info("服务器关闭，已清理所有缓存");
     }
@@ -250,8 +271,7 @@ public class 通用事件 {
         技能管理器.tickAll(serverPlayer);
 
         // ==================== 系列专属 Tick（分发到对应系列） ====================
-        系列注册表.tickPlayer(serverPlayer);
-    }
+        系列注册表.tickPlayer(serverPlayer);}
 
     /**
      * 同步技能能力到客户端
@@ -262,4 +282,40 @@ public class 通用事件 {
             网络工具.发送给玩家(player, packet);
         });
     }
+
+    /**
+     * 友伤控制
+     *
+     * 使用LivingAttackEvent（而非LivingHurtEvent）在最早阶段拦截
+     * cancel后完全不触发：伤害、受击动画、击退、音效
+     *
+     * 检查攻击者的个人配置：
+     * - A开友伤、B关友伤 → A打B有伤害，B打A无伤害
+     * - 即：攻击者的friendlyFire=false时，对队友的攻击被取消
+     */
+    @SubscribeEvent
+    public static void 攻击事件(LivingAttackEvent event) {
+        if (event.getEntity().level().isClientSide) return;
+
+        // 目标必须是玩家
+        if (!(event.getEntity() instanceof ServerPlayer target)) return;
+
+        // 攻击来源必须是玩家
+        if (!(event.getSource().getEntity() instanceof ServerPlayer attacker)) return;
+
+        // 不拦截自伤
+        if (attacker.equals(target)) return;
+
+        MinecraftServer server = attacker.getServer();
+        if (server == null) return;
+
+        // 不是队友则不处理
+        if (!队伍管理器.是否同队(server, attacker.getUUID(), target.getUUID())) return;
+
+        // 检查攻击者的友伤配置：关闭则完全取消攻击
+        if (!队伍管理器.获取个人配置(server, attacker.getUUID(), "friendlyFire")) {
+            event.setCanceled(true);
+        }
+    }
+
 }

@@ -20,6 +20,7 @@ public class 命令注册器 {
         变身命令.register(root);
         灵魂宝石命令.register(root);
         调试命令.register(root);
+        队伍命令.register(dispatcher);
 
         dispatcher.register(root);
     }

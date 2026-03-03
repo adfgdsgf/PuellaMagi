@@ -4,6 +4,7 @@ package com.v2t.puellamagi.system.restriction;
 
 import com.v2t.puellamagi.api.restriction.I限制来源;
 import com.v2t.puellamagi.api.restriction.限制类型;
+import com.v2t.puellamagi.system.ability.timestop.时停限制来源;
 import com.v2t.puellamagi.system.soulgem.effect.假死限制来源;
 import com.v2t.puellamagi.util.能力工具;
 import net.minecraft.world.entity.player.Player;
@@ -48,6 +49,7 @@ public final class 行动限制管理器 {
 
         // 注册内置限制来源
         注册来源(new 假死限制来源());
+        注册来源(new 时停限制来源());
         // 未来：注册来源(new 灵魂视角限制来源());
 
         已初始化 = true;

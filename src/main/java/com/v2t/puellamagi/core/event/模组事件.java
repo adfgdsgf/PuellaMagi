@@ -3,6 +3,7 @@
 package com.v2t.puellamagi.core.event;
 
 import com.v2t.puellamagi.PuellaMagi;
+import com.v2t.puellamagi.system.interaction.impl.队友搜身来源;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.api.I可变身;
 import com.v2t.puellamagi.api.contract.I契约;
@@ -111,6 +112,7 @@ public class 模组事件 {
         // 注册搜身来源
         搜身管理器.注册来源(假死搜身来源.INSTANCE);
         搜身管理器.注册来源(时停搜身来源.INSTANCE);
+        搜身管理器.注册来源(队友搜身来源.INSTANCE);
 
         // 注册槽位提供者
         搜身槽位注册表.注册(原版槽位提供者.INSTANCE);

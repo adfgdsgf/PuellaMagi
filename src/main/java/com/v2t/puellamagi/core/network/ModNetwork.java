@@ -119,11 +119,38 @@ public class ModNetwork {
                 搜身请求包::handle
         );
 
-        registerPacket(
-                搜身翻页请求包.class,
+        registerPacket(搜身翻页请求包.class,
                 搜身翻页请求包::encode,
                 搜身翻页请求包::decode,
                 搜身翻页请求包::handle
+        );
+
+        registerPacket(
+                队伍操作请求包.class,
+                队伍操作请求包::encode,
+                队伍操作请求包::decode,
+                队伍操作请求包::handle
+        );
+
+        registerPacket(
+                队伍邀请请求包.class,
+                队伍邀请请求包::encode,
+                队伍邀请请求包::decode,
+                队伍邀请请求包::handle
+        );
+
+        registerPacket(
+                队伍邀请响应包.class,
+                队伍邀请响应包::encode,
+                队伍邀请响应包::decode,
+                队伍邀请响应包::handle
+        );
+
+        registerPacket(
+                队伍配置更新包.class,
+                队伍配置更新包::encode,
+                队伍配置更新包::decode,
+                队伍配置更新包::handle
         );
 
         // ==================== S2C 包 ====================
@@ -167,6 +194,27 @@ public class ModNetwork {
                 假死状态同步包::encode,
                 假死状态同步包::decode,
                 假死状态同步包::handle
+        );
+
+        registerPacket(
+                队伍数据同步包.class,
+                队伍数据同步包::encode,
+                队伍数据同步包::decode,
+                队伍数据同步包::handle
+        );
+
+        registerPacket(
+                队伍邀请通知包.class,
+                队伍邀请通知包::encode,
+                队伍邀请通知包::decode,
+                队伍邀请通知包::handle
+        );
+
+        registerPacket(
+                队伍成员更新包.class,
+                队伍成员更新包::encode,
+                队伍成员更新包::decode,
+                队伍成员更新包::handle
         );
 
     }

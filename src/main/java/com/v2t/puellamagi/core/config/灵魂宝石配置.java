@@ -68,11 +68,11 @@ public class 灵魂宝石配置 {
         距离阈值 = builder.translation("config.puellamagi.soulgem.distance.thresholds")
                 .comment("距离阈值（方块），格式：正常,中距离,远距离",
                         "例如 '5,20,50' 表示：",
-                        "  0-10格：正常",
-                        "  10-30格：中距离（轻微debuff）",
-                        "  30-50格：远距离（严重debuff）",
-                        "  50格以上：超出范围（假死）")
-                .define("thresholds", "10,30,50");
+                        "  0-30格：正常",
+                        "  30-50格：中距离（轻微debuff）",
+                        "  50-100格：远距离（严重debuff）",
+                        "  100格以上：超出范围（假死）")
+                .define("thresholds", "30,50,100");
 
         移速倍率 = builder
                 .translation("config.puellamagi.soulgem.distance.speedMultipliers")

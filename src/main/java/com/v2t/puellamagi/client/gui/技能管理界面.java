@@ -43,7 +43,7 @@ import java.util.List;
  */
 public class 技能管理界面 extends Screen {
 
-    // ==================== 尺寸常量 ====================
+    //==================== 尺寸常量 ====================
     private static final int GUI_WIDTH = 280;
     private static final int GUI_HEIGHT = 180;
 
@@ -74,17 +74,29 @@ public class 技能管理界面 extends Screen {
     private static final int ADD_BTN_SIZE = 18;
     private static final int MAX_VISIBLE_TABS = 4;
 
-    // 外部布局按钮
-    private static final int LAYOUT_BTN_WIDTH = 40;
-    private static final int LAYOUT_BTN_HEIGHT = 16;
+    // 右侧按钮栏
+    private static final int SIDE_BTN_WIDTH = 40;
+    private static final int SIDE_BTN_HEIGHT = 16;
+    private static final int SIDE_BTN_GAP = 3;
+    private static final int SIDE_BTN_OFFSET_X = 4;
 
     // 双击检测
     private static final long 双击间隔毫秒 = 400;
 
+    // ==================== 右侧按钮定义 ====================
+
+    /**
+     * 右侧按钮定义
+     * 按顺序从上往下排列
+     */
+    private record 侧边按钮(String 翻译键, Runnable 点击动作) {}
+
+    private List<侧边按钮> 右侧按钮列表;
+
     // ==================== 状态变量 ====================
     private int guiLeft, guiTop;
 
-    // 技能网格槽位
+    //技能网格槽位
     private final List<GUI槽位> 网格槽位列表 = new ArrayList<>();
 
     // 底部技能槽位
@@ -135,7 +147,9 @@ public class 技能管理界面 extends Screen {
         this.guiTop = (this.height - GUI_HEIGHT) / 2;刷新技能列表();
         初始化滚动条();
         初始化网格槽位();
-        初始化装备槽位();}
+        初始化装备槽位();
+        初始化右侧按钮();
+    }
 
     private void 刷新技能列表() {
         可用技能列表.clear();
@@ -170,7 +184,8 @@ public class 技能管理界面 extends Screen {
         int scrollBarX = guiLeft + GRID_X + GRID_COLS * (GRID_CELL_SIZE + GRID_GAP);
         int scrollBarY = guiTop + GRID_Y;
 
-        int 总行数 = (int) Math.ceil((double) 可用技能列表.size() / GRID_COLS);滚动条 = new GUI滚动条(scrollBarX, scrollBarY, gridHeight)
+        int 总行数 = (int) Math.ceil((double) 可用技能列表.size() / GRID_COLS);
+        滚动条 = new GUI滚动条(scrollBarX, scrollBarY, gridHeight)
                 .宽度(6)
                 .滚动范围(总行数, GRID_ROWS)
                 .滚动回调(this::更新网格槽位内容);
@@ -274,6 +289,23 @@ public class 技能管理界面 extends Screen {
         }
     }
 
+    private void 初始化右侧按钮() {
+        右侧按钮列表 = new ArrayList<>();
+
+        // 布局按钮
+        右侧按钮列表.add(new 侧边按钮("gui.puellamagi.button.edit_layout",
+                () -> Minecraft.getInstance().setScreen(new HUD编辑界面(this))));
+
+        // 队伍按钮
+        右侧按钮列表.add(new 侧边按钮(
+                "gui.puellamagi.team.button.team",
+                () -> Minecraft.getInstance().setScreen(new 队伍界面(this))
+        ));
+
+        // 未来可继续添加：
+        // 右侧按钮列表.add(new 侧边按钮("gui.puellamagi.button.settings", () -> {...}));
+    }
+
     // ==================== 网格区域计算 ====================
 
     private int 获取网格宽度() {
@@ -288,14 +320,12 @@ public class 技能管理界面 extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        更新悬停状态(mouseX, mouseY);
-
-        绘制背景(graphics);
+        更新悬停状态(mouseX, mouseY);绘制背景(graphics);
         绘制预设标签(graphics, mouseX, mouseY);
         绘制技能网格(graphics, mouseX, mouseY);
         绘制装备槽位(graphics);
         绘制技能详情(graphics);
-        绘制布局按钮(graphics, mouseX, mouseY);
+        绘制右侧按钮栏(graphics, mouseX, mouseY);
 
         if (拖拽.是否正在拖拽() && 当前拖拽内容 != null) {
             绘制拖拽技能(graphics, mouseX, mouseY);
@@ -324,7 +354,7 @@ public class 技能管理界面 extends Screen {
         for (int i = 0; i < visibleCount; i++) {
             int x = startX + i * (TAB_WIDTH + 2);
             boolean isActive = (i == currentIndex);
-            boolean isHover = mouseX >= x && mouseX < x + TAB_WIDTH
+            boolean isHover = mouseX >= x && mouseX< x + TAB_WIDTH
                     && mouseY >= y && mouseY < y + TAB_HEIGHT;
             boolean isPendingDelete = (i == 待删除的预设索引);
 
@@ -365,22 +395,32 @@ public class 技能管理界面 extends Screen {
         }
     }
 
-    private void 绘制布局按钮(GuiGraphics graphics, int mouseX, int mouseY) {
-        int x = guiLeft + GUI_WIDTH +4;
-        int y = guiTop;
+    private void 绘制右侧按钮栏(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (右侧按钮列表 == null) return;
 
-        boolean isHover = mouseX >= x && mouseX < x + LAYOUT_BTN_WIDTH
-                && mouseY >= y && mouseY < y + LAYOUT_BTN_HEIGHT;
+        int baseX = guiLeft + GUI_WIDTH + SIDE_BTN_OFFSET_X;
+        int baseY = guiTop;
 
-        资源工具.纹理信息 tex = isHover ? 资源工具.技能管理_按钮悬停 : 资源工具.技能管理_按钮普通;
-        渲染工具.绘制纹理(graphics, tex, x, y, LAYOUT_BTN_WIDTH, LAYOUT_BTN_HEIGHT);
-        graphics.drawCenteredString(this.font, "布局", x + LAYOUT_BTN_WIDTH / 2, y + 4, 0xFFFFFF);
+        for (int i = 0; i < 右侧按钮列表.size(); i++) {
+            侧边按钮 btn = 右侧按钮列表.get(i);
+            int y = baseY + i * (SIDE_BTN_HEIGHT + SIDE_BTN_GAP);
+
+            boolean isHover = mouseX >= baseX && mouseX < baseX + SIDE_BTN_WIDTH
+                    && mouseY >= y && mouseY < y + SIDE_BTN_HEIGHT;
+
+            资源工具.纹理信息 tex = isHover ? 资源工具.技能管理_按钮悬停 : 资源工具.技能管理_按钮普通;
+            渲染工具.绘制纹理(graphics, tex, baseX, y, SIDE_BTN_WIDTH, SIDE_BTN_HEIGHT);
+
+            Component text = Component.translatable(btn.翻译键());渲染工具.绘制居中文本(graphics, this.font, text,
+                    baseX + SIDE_BTN_WIDTH / 2, y + 4, 0xFFFFFF);
+        }
     }
 
     private void 绘制技能网格(GuiGraphics graphics, int mouseX, int mouseY) {
         for (GUI槽位 slot : 网格槽位列表) {
             slot.绘制(graphics);
-        }滚动条.绘制(graphics, mouseX, mouseY);
+        }
+        滚动条.绘制(graphics, mouseX, mouseY);
     }
 
     private void 绘制技能详情(GuiGraphics graphics) {
@@ -411,7 +451,7 @@ public class 技能管理界面 extends Screen {
         int slotsLeft = guiLeft + SLOTS_X;
         int slotsTop = guiTop + SLOTS_Y;
 
-        graphics.drawString(this.font, "技能槽位", slotsLeft, slotsTop - 12, 0xCCCCCC);
+        graphics.drawString(this.font, Component.translatable("gui.puellamagi.label.skill_slots"), slotsLeft, slotsTop - 12, 0xCCCCCC);
 
         for (GUI槽位 slot : 装备槽位列表) {
             slot.设置拖拽悬停(拖拽.是否正在拖拽() && slot.是否悬停());
@@ -499,7 +539,7 @@ public class 技能管理界面 extends Screen {
 
         // 左键处理
         if (button == 0) {
-            if (处理布局按钮点击(mx, my)) {
+            if (处理右侧按钮点击(mx, my)) {
                 return true;
             }
 
@@ -509,7 +549,8 @@ public class 技能管理界面 extends Screen {
                 if (slot.包含坐标(mouseX, mouseY) && slot.获取内容() instanceof 技能槽位内容 content) {
                     拖拽.开始按下(content, i, mouseX, mouseY);
                     当前拖拽内容 = content;
-                    当前拖拽来源 = 拖拽来源类型.网格;拖拽来源索引 = i;
+                    当前拖拽来源 = 拖拽来源类型.网格;
+                    拖拽来源索引 = i;
                     return true;
                 }
             }
@@ -602,7 +643,7 @@ public class 技能管理界面 extends Screen {
         }
 
         // 检查是否点击了 [+] 按钮
-        if (button == 0 && presetCount < 10) {
+        if (button == 0&& presetCount < 10) {
             int addBtnX = startX + visibleCount * (TAB_WIDTH + 2);
             if (mx >= addBtnX && mx < addBtnX + ADD_BTN_SIZE
                     && my >= y && my < y + ADD_BTN_SIZE) {
@@ -672,14 +713,20 @@ public class 技能管理界面 extends Screen {
         );
     }
 
-    private boolean 处理布局按钮点击(int mx, int my) {
-        int x = guiLeft + GUI_WIDTH + 4;
-        int y = guiTop;
+    private boolean 处理右侧按钮点击(int mx, int my) {
+        if (右侧按钮列表 == null) return false;
 
-        if (mx >= x && mx < x + LAYOUT_BTN_WIDTH && my >= y && my < y + LAYOUT_BTN_HEIGHT) {
-            // 打开统一的HUD编辑界面，而不是专用的技能栏编辑界面
-            Minecraft.getInstance().setScreen(new HUD编辑界面(this));
-            return true;
+        int baseX = guiLeft + GUI_WIDTH + SIDE_BTN_OFFSET_X;
+        int baseY = guiTop;
+
+        for (int i = 0; i < 右侧按钮列表.size(); i++) {
+            int y = baseY + i * (SIDE_BTN_HEIGHT + SIDE_BTN_GAP);
+
+            if (mx >= baseX && mx < baseX + SIDE_BTN_WIDTH
+                    && my >= y && my < y + SIDE_BTN_HEIGHT) {
+                右侧按钮列表.get(i).点击动作().run();
+                return true;
+            }
         }
         return false;
     }
@@ -693,7 +740,8 @@ public class 技能管理界面 extends Screen {
 
         // 技能拖拽
         if (button == 0) {
-            拖拽.更新拖拽(mouseX, mouseY);}
+            拖拽.更新拖拽(mouseX, mouseY);
+        }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
@@ -710,7 +758,7 @@ public class 技能管理界面 extends Screen {
             拖拽来源类型 来源 = 当前拖拽来源;
             int 来源索引 = 拖拽来源索引;拖拽上下文.松开结果 result = 拖拽.结束拖拽();
 
-            if (result == 拖拽上下文.松开结果.拖拽完成 && content != null) {
+            if (result ==拖拽上下文.松开结果.拖拽完成 && content != null) {
                 boolean 放到了槽位 = false;
 
                 for (GUI槽位 slot : 装备槽位列表) {
@@ -718,7 +766,7 @@ public class 技能管理界面 extends Screen {
                         int 目标索引 = slot.获取索引();
                         放到了槽位 = true;
 
-                        if (来源 == 拖拽来源类型.装备槽位 && 来源索引 != 目标索引) {
+                        if (来源 == 拖拽来源类型.装备槽位 && 来源索引 !=目标索引) {
                             网络工具.发送到服务端(槽位配置请求包.移动(来源索引, 目标索引));
                         } else if (来源 == 拖拽来源类型.网格) {
                             网络工具.发送到服务端(槽位配置请求包.设置(目标索引, content.获取ID()));
@@ -738,7 +786,8 @@ public class 技能管理界面 extends Screen {
                 }
 
                 if (来源 == 拖拽来源类型.装备槽位 && !放到了槽位) {
-                    网络工具.发送到服务端(槽位配置请求包.清空(来源索引));var capOpt = 能力工具.获取技能能力(Minecraft.getInstance().player);
+                    网络工具.发送到服务端(槽位配置请求包.清空(来源索引));
+                    var capOpt = 能力工具.获取技能能力(Minecraft.getInstance().player);
                     capOpt.ifPresent(cap -> {
                         cap.获取当前预设().设置槽位技能(来源索引, null);
                         刷新装备槽位内容();
@@ -758,7 +807,7 @@ public class 技能管理界面 extends Screen {
         int gridTop = guiTop + GRID_Y;
 
         if (滚动条.坐标在滚动区域内(mouseX, mouseY, gridLeft, gridTop,
-                获取网格宽度() + 10, 获取网格高度())) {
+                获取网格宽度() +10, 获取网格高度())) {
             return 滚动条.mouseScrolled(delta);
         }
         return super.mouseScrolled(mouseX, mouseY, delta);

@@ -398,4 +398,40 @@ public final class 渲染工具 {
     public static final int 颜色_槽位选中 = 0xFFFFD700;
     public static final int 颜色_冷却遮罩 = 0x80000000;
     public static final int 颜色_文字阴影 = 0xFF202020;
+
+    // ==================== 层级渲染 ====================
+
+    /**
+     * 预定义z层级常量
+     * 用于解决 fill() 和 drawString() z-level不同导致遮罩被文字穿透的问题
+     *
+     * Minecraft中drawString 的z比 fill 高，
+     * 因此覆盖层必须整体提升z才能盖住底层文字。
+     */
+    public static final int Z_层级_默认 = 0;
+    public static final int Z_层级_浮动面板 = 200;
+    public static final int Z_层级_弹窗 = 400;
+    public static final int Z_层级_提示框 = 600;
+
+/**
+ * 在指定z层级执行渲染
+ * 内部自动 pushPose/popPose，防止遗漏
+ *
+ *使用示例：
+ *渲染工具.在层级渲染(graphics, 渲染工具.Z_层级_弹窗, () -> {
+ *       graphics.fill(...);  // 遮罩
+ *       graphics.drawString(...);  // 文字
+ * 同一层级内的所有渲染都在该z层
+ *   });
+        *
+        * @param gui 绘图上下文
+        * @param zOffset z轴偏移量
+        * @param 渲染动作 要执行的渲染逻辑
+        */
+public static void 在层级渲染(GuiGraphics gui, int zOffset, Runnable 渲染动作) {
+        gui.pose().pushPose();
+        gui.pose().translate(0, 0, zOffset);
+        渲染动作.run();
+        gui.pose().popPose();
+        }
 }

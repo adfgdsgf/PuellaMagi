@@ -4,12 +4,17 @@ package com.v2t.puellamagi.system.ability.timestop;
 
 import com.v2t.puellamagi.api.timestop.TimeStop;
 import com.v2t.puellamagi.api.timestop.时停豁免级别;
+import com.v2t.puellamagi.client.客户端队伍缓存;
 import com.v2t.puellamagi.core.config.时停配置;
 import com.v2t.puellamagi.system.contract.契约管理器;
+import com.v2t.puellamagi.system.team.队伍管理器;
+import com.v2t.puellamagi.system.team.队伍数据;
 import com.v2t.puellamagi.util.资源工具;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -22,6 +27,11 @@ import java.util.List;
  *
  * 统一管理所有时停豁免判断逻辑
  * 按优先级检查各种豁免条件
+ *
+ * 觉醒系统使用自定义队伍（非原版Team）：
+ * - 服务端：通过队伍管理器查询
+ * - 客户端：通过客户端队伍缓存查询
+ * -觉醒受目标玩家个人配置 timestopAwakening 控制
  */
 public final class 时停豁免系统 {
     private 时停豁免系统() {}
@@ -93,10 +103,15 @@ public final class 时停豁免系统 {
         return 获取豁免级别(entity).需要冻结画面();
     }
 
-    //==================== 内部检查方法 ====================
+    // ==================== 内部检查方法 ====================
 
     /**
      * 检查觉醒条件
+     *
+     * 觉醒前置条件：
+     * 1. 觉醒功能已启用
+     * 2. 实体是玩家（如果配置要求仅玩家）
+     * 3. 目标玩家的个人配置 timestopAwakening 为 true
      */
     private static boolean 检查觉醒条件(Entity entity, TimeStop timeStop) {
         boolean shouldDebug = 调试模式 && entity instanceof Player && 可以输出调试();
@@ -135,10 +150,44 @@ public final class 时停豁免系统 {
     }
 
     /**
+     * 检查目标玩家是否允许被觉醒（个人配置）
+     *
+     * @param targetPlayer 被觉醒的目标玩家
+     * @return true = 允许被觉醒
+     */
+    private static boolean 检查觉醒个人配置(Player targetPlayer) {
+        if (targetPlayer.level().isClientSide) {
+            // 客户端：从缓存中获取自己的配置
+            // 客户端队伍缓存中存储的是本机玩家所在队伍的完整数据
+            队伍数据 team = 客户端队伍缓存.获取队伍();
+            if (team == null) {
+                // 没有队伍，不需要队友也能觉醒时返回true
+                return true;
+            }
+            return team.获取成员(targetPlayer.getUUID())
+                    .map(member -> {
+                        var data = (com.v2t.puellamagi.system.team.队伍成员数据) member;
+                        return data.获取配置().获取配置("timestopAwakening");
+                    })
+                    .orElse(true);
+        } else {
+            // 服务端：通过队伍管理器查询
+            MinecraftServer server = targetPlayer.getServer();
+            if (server == null) return true;
+
+            // 没有队伍时，默认允许觉醒（不需要队友时生效）
+            if (!队伍管理器.玩家有队伍(server, targetPlayer.getUUID())) {
+                return true;
+            }
+
+            return 队伍管理器.获取个人配置(server, targetPlayer.getUUID(), "timestopAwakening");
+        }
+    }
+
+    /**
      * 服务端觉醒检查
      */
-    private static boolean 检查觉醒条件_服务端(Entity entity, TimeStop timeStop,
-                                               double rangeSquared, boolean requireTeammate, boolean shouldDebug) {
+    private static boolean 检查觉醒条件_服务端(Entity entity, TimeStop timeStop,double rangeSquared, boolean requireTeammate, boolean shouldDebug) {
         List<LivingEntity> stoppers = timeStop.puellamagi$getTimeStoppers();
 
         if (shouldDebug) {
@@ -174,8 +223,7 @@ public final class 时停豁免系统 {
         }
 
         if (shouldDebug) {
-            调试消息("§7[客户端] 时停者: " + stopperCount);
-            调试消息("§c觉醒失败");
+            调试消息("§7[客户端] 时停者: " + stopperCount);调试消息("§c觉醒失败");
         }
         return false;
     }
@@ -187,6 +235,14 @@ public final class 时停豁免系统 {
         double distSq = entity.distanceToSqr(stopper);
         boolean inRange = distSq <= rangeSquared;
         boolean isTeammate = 是否队友(stopper, entity);
+
+        // 检查时停者的觉醒配置（时停者决定是否唤醒队友）
+        if (stopper instanceof Player stopperPlayer) {
+            if (!检查觉醒个人配置(stopperPlayer)) {
+                if (shouldDebug) 调试消息("§c  时停者 " + stopper.getName().getString() + " 关闭了觉醒");
+                return false;
+            }
+        }
 
         if (shouldDebug) {
             调试消息("§7  - " + stopper.getName().getString() +": 距离²=" + String.format("%.1f", distSq) +
@@ -214,16 +270,53 @@ public final class 时停豁免系统 {
 
     /**
      * 检查两个实体是否是队友
+     *
+     * 使用自定义队伍系统替代原版Team：
+     * - 服务端：通过队伍管理器查询WorldData
+     * - 客户端：通过客户端队伍缓存查询同步数据
+     * - 非玩家实体：不视为队友
      */
     public static boolean 是否队友(Entity a, Entity b) {
         if (a == null || b == null) return false;
         if (a.equals(b)) return true;
 
-        if (a.getTeam() != null && a.getTeam().equals(b.getTeam())) {
-            return true;
+        //仅玩家之间有队伍关系
+        if (!(a instanceof Player) || !(b instanceof Player)) {
+            return false;
         }
 
-        return false;
+        Level level = a.level();
+
+        if (level.isClientSide) {
+            return 是否队友_客户端(a, b);
+        } else {
+            return 是否队友_服务端(a, b);
+        }
+    }
+
+    /**
+     * 服务端队友判断
+     * 通过队伍管理器查询WorldData
+     */
+    private static boolean 是否队友_服务端(Entity a, Entity b) {
+        if (!(a instanceof ServerPlayer playerA)) return false;
+
+        MinecraftServer server = playerA.getServer();
+        if (server == null) return false;
+
+        return 队伍管理器.是否同队(server, a.getUUID(), b.getUUID());
+    }
+
+    /**
+     * 客户端队友判断
+     * 通过客户端队伍缓存检查成员列表
+     */
+    private static boolean 是否队友_客户端(Entity a, Entity b) {
+        队伍数据 team = 客户端队伍缓存.获取队伍();
+        if (team == null) return false;
+
+        // 两个人都在缓存的队伍中即为队友
+        return team.是成员(a.getUUID()) && team.是成员(b.getUUID());
     }
 
     // ==================== 调试工具 ====================

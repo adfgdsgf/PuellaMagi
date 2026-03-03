@@ -3,6 +3,7 @@
 package com.v2t.puellamagi.core.event.client;
 
 import com.v2t.puellamagi.PuellaMagi;
+import com.v2t.puellamagi.client.客户端队伍缓存;
 import com.v2t.puellamagi.client.gui.HUD编辑界面;
 import com.v2t.puellamagi.client.gui.污浊度HUD;
 import com.v2t.puellamagi.client.gui.hud.可编辑HUD注册表;
@@ -24,6 +25,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
@@ -38,7 +40,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
  */
 public class 客户端事件 {
 
-    //==================== 按键状态追踪 ====================
+    // ==================== 按键状态追踪 ====================
 
     private static final boolean[] 技能键按住状态 = new boolean[6];
 
@@ -101,9 +103,6 @@ public class 客户端事件 {
             // 污浊度HUD
             可编辑HUD注册表.注册(污浊度HUD.INSTANCE);
 
-            // 未来可添加更多：
-            // 可编辑HUD注册表.注册(成长度HUD.INSTANCE);
-
             PuellaMagi.LOGGER.info("可编辑HUD注册完成，共 {} 个",
                     可编辑HUD注册表.获取所有().size());
         }
@@ -151,8 +150,7 @@ public class 客户端事件 {
             // 预设切换
             while (按键绑定.下一预设键.consumeClick()) {
                 网络工具.发送到服务端(new 预设切换请求包(true));
-            }
-            while (按键绑定.上一预设键.consumeClick()) {
+            }while (按键绑定.上一预设键.consumeClick()) {
                 网络工具.发送到服务端(new 预设切换请求包(false));
             }
 
@@ -162,17 +160,24 @@ public class 客户端事件 {
             }
         }
 
+        /**
+         * 客户端断开连接时清除所有运行时缓存
+         * 包括队伍数据、邀请等
+         */
+        @SubscribeEvent
+        public static void 客户端断开连接(ClientPlayerNetworkEvent.LoggingOut event) {
+            客户端队伍缓存.清除全部();
+            PuellaMagi.LOGGER.debug("客户端断开连接，已清除队伍缓存");
+        }
+
         private static void 处理技能管理界面按键(Minecraft mc, Player player) {
-            // 如果已经在技能管理界面或HUD编辑界面，关闭它
             if (mc.screen instanceof 技能管理界面 || mc.screen instanceof HUD编辑界面) {
                 mc.setScreen(null);
                 return;
             }
 
-            // 只有已契约才能打开技能管理界面
-            if (!能力工具.是否已契约(player)) {
-                return;
-            }
+            // 已移除契约检查 — 技能管理界面现在是主界面入口（含队伍等功能按钮）
+            //未契约时技能列表和槽位自然为空，不影响其他功能
 
             if (mc.screen == null) {
                 mc.setScreen(new 技能管理界面());
@@ -190,14 +195,12 @@ public class 客户端事件 {
                 boolean 之前按住 = 技能键按住状态[i];
 
                 if (当前按住 && !之前按住) {
-                    // 检查CD（客户端也要检查，避免无效请求和错误的蓄力动画）
                     if (检查技能是否冷却中(player, i)) {
                         continue;
                     }
 
                     技能键按住状态[i] = true;
-                    网络工具.发送到服务端(new 技能按下请求包(i));
-                    蓄力状态管理.尝试开始蓄力(player, i);
+                    网络工具.发送到服务端(new 技能按下请求包(i));蓄力状态管理.尝试开始蓄力(player, i);
                     PuellaMagi.LOGGER.debug("技能键 {} 按下", i);
                 } else if (!当前按住 && 之前按住) {
                     技能键按住状态[i] = false;
@@ -208,9 +211,6 @@ public class 客户端事件 {
             }
         }
 
-        /**
-         * 检查指定槽位的技能是否在冷却中
-         */
         private static boolean 检查技能是否冷却中(Player player, int slotIndex) {
             var capOpt = 能力工具.获取技能能力(player);
             if (capOpt.isEmpty()) return false;
