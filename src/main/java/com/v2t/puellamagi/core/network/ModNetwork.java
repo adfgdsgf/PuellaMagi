@@ -217,6 +217,13 @@ public class ModNetwork {
                 队伍成员更新包::handle
         );
 
+        registerPacket(
+                队友位置同步包.class,
+                队友位置同步包::encode,
+                队友位置同步包::decode,
+                队友位置同步包::handle
+        );
+
     }
 
     public static <T> void registerPacket(

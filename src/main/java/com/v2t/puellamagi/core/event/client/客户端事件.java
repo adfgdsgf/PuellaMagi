@@ -3,6 +3,7 @@
 package com.v2t.puellamagi.core.event.client;
 
 import com.v2t.puellamagi.PuellaMagi;
+import com.v2t.puellamagi.client.gui.hud.队友头像HUD;
 import com.v2t.puellamagi.client.客户端队伍缓存;
 import com.v2t.puellamagi.client.gui.HUD编辑界面;
 import com.v2t.puellamagi.client.gui.污浊度HUD;
@@ -72,6 +73,13 @@ public class 客户端事件 {
                     VanillaGuiOverlay.PLAYER_LIST.id(),
                     "corruption_bar",
                     污浊度HUD.INSTANCE
+            );
+
+            // 队友头像HUD
+            event.registerAbove(
+                    VanillaGuiOverlay.HOTBAR.id(),
+                    "teammate_avatar",
+                    队友头像HUD.INSTANCE
             );
 
             PuellaMagi.LOGGER.info("Puella Magi HUD注册完成");

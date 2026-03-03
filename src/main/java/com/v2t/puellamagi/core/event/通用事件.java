@@ -1,9 +1,8 @@
-// 文件路径: src/main/java/com/v2t/puellamagi/core/event/通用事件.java
-
 package com.v2t.puellamagi.core.event;
 
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.core.command.命令注册器;
+import com.v2t.puellamagi.core.network.packets.s2c.队友位置同步包;
 import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.system.series.系列注册表;
 import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
@@ -11,6 +10,7 @@ import com.v2t.puellamagi.system.soulgem.污浊度管理器;
 import com.v2t.puellamagi.system.soulgem.污浊度能力;
 import com.v2t.puellamagi.system.team.队伍同步工具;
 import com.v2t.puellamagi.system.team.队伍管理器;
+import com.v2t.puellamagi.system.team.队伍数据;
 import com.v2t.puellamagi.system.team.队伍邀请管理器;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.core.network.packets.s2c.技能能力同步包;
@@ -34,12 +34,15 @@ import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
-import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerWakeUpEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * 通用事件处理
@@ -58,14 +61,13 @@ public class 通用事件 {
     /**
      * 清理计数器
      * 用于定期执行缓存清理，防止内存泄漏
-     * 每200 tick（10秒）执行一次
+     * 每200tick（10秒）执行一次
      */
     private static int 清理计数器 = 0;
 
     @SubscribeEvent
     public static void 注册命令(RegisterCommandsEvent event) {
-        命令注册器.register(event.getDispatcher());
-        PuellaMagi.LOGGER.info("Puella Magi 命令注册完成");
+        命令注册器.register(event.getDispatcher());PuellaMagi.LOGGER.info("Puella Magi 命令注册完成");
     }
 
     @SubscribeEvent
@@ -93,7 +95,7 @@ public class 通用事件 {
         原玩家.reviveCaps();
 
         try {
-            //==================== 能力复制 ====================
+            // ==================== 能力复制 ====================
 
             // 复制变身能力
             能力工具.获取变身能力完整(原玩家).ifPresent(旧能力 -> {
@@ -112,8 +114,7 @@ public class 通用事件 {
                 能力工具.获取技能能力(新玩家).ifPresent(新能力 -> {
                     新能力.复制自(旧能力);
                     if (event.isWasDeath()) {
-                        新能力.清除所有冷却();
-                    }
+                        新能力.清除所有冷却();}
                 });
             });
 
@@ -240,8 +241,7 @@ public class 通用事件 {
 
         if (event.wakeImmediately()) return;
 
-        污浊度管理器.玩家睡醒(serverPlayer);
-    }
+        污浊度管理器.玩家睡醒(serverPlayer);}
 
     @SubscribeEvent
     public static void 服务器关闭(ServerStoppingEvent event) {
@@ -262,8 +262,7 @@ public class 通用事件 {
         // ==================== 定期清理（每 200 tick） ====================
         清理计数器++;
         if (清理计数器 >= 200) {
-            清理计数器 = 0;绑定物品工具.清理过期标记();
-        }
+            清理计数器 = 0;绑定物品工具.清理过期标记();}
 
         // ==================== 通用系统 Tick ====================
         能力管理器.tickAll(serverPlayer);
@@ -271,7 +270,13 @@ public class 通用事件 {
         技能管理器.tickAll(serverPlayer);
 
         // ==================== 系列专属 Tick（分发到对应系列） ====================
-        系列注册表.tickPlayer(serverPlayer);}
+        系列注册表.tickPlayer(serverPlayer);
+
+        // ==================== 队友位置同步（每20tick = 1秒） ====================
+        if (serverPlayer.tickCount % 5 == 0) {
+            同步队友位置(serverPlayer);
+        }
+    }
 
     /**
      * 同步技能能力到客户端
@@ -284,38 +289,67 @@ public class 通用事件 {
     }
 
     /**
+     * 同步队友位置到客户端
+     * 每秒一次，只同步同队成员的位置
+     */
+    private static void 同步队友位置(ServerPlayer player) {
+        MinecraftServer server = player.getServer();
+        if (server == null) return;
+
+        var teamOpt = 队伍管理器.获取玩家队伍(server, player.getUUID());
+        if (teamOpt.isEmpty()) return;
+
+        队伍数据 team = teamOpt.get();
+        List<UUID> memberUUIDs = team.获取所有成员UUID();
+
+        List<队友位置同步包.条目> positions = new ArrayList<>();
+
+        for (UUID memberUUID : memberUUIDs) {
+            // 跳过自己
+            if (memberUUID.equals(player.getUUID())) continue;
+
+            // 获取在线玩家
+            ServerPlayer teammate = server.getPlayerList().getPlayer(memberUUID);
+            if (teammate == null) continue;
+
+            positions.add(new 队友位置同步包.条目(
+                    memberUUID,
+                    teammate.getX(),
+                    teammate.getEyeY(),
+                    teammate.getZ(),
+                    teammate.level().dimension().location()
+            ));
+        }
+
+        if (!positions.isEmpty()) {
+            网络工具.发送给玩家(player, new 队友位置同步包(positions));
+        }
+    }
+
+    /**
      * 友伤控制
      *
-     * 使用LivingAttackEvent（而非LivingHurtEvent）在最早阶段拦截
+     * 使用LivingAttackEvent在hurt()最早阶段拦截
      * cancel后完全不触发：伤害、受击动画、击退、音效
      *
      * 检查攻击者的个人配置：
      * - A开友伤、B关友伤 → A打B有伤害，B打A无伤害
-     * - 即：攻击者的friendlyFire=false时，对队友的攻击被取消
      */
     @SubscribeEvent
     public static void 攻击事件(LivingAttackEvent event) {
         if (event.getEntity().level().isClientSide) return;
 
-        // 目标必须是玩家
         if (!(event.getEntity() instanceof ServerPlayer target)) return;
-
-        // 攻击来源必须是玩家
         if (!(event.getSource().getEntity() instanceof ServerPlayer attacker)) return;
-
-        // 不拦截自伤
         if (attacker.equals(target)) return;
 
         MinecraftServer server = attacker.getServer();
         if (server == null) return;
 
-        // 不是队友则不处理
         if (!队伍管理器.是否同队(server, attacker.getUUID(), target.getUUID())) return;
 
-        // 检查攻击者的友伤配置：关闭则完全取消攻击
         if (!队伍管理器.获取个人配置(server, attacker.getUUID(), "friendlyFire")) {
             event.setCanceled(true);
         }
     }
-
 }
