@@ -64,8 +64,6 @@ public class EpitaphReplayKeyboardInputMixin extends Input {
         // ---- 按键注入 ----
         注入按键状态(input);
 
-        //---- 按键注入 ----
-        注入按键状态(input);
 
         // ---- 使用物品状态同步 ----
         // 服务端通过包回放处理使用物品，但客户端不知道（use键没注入）

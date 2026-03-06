@@ -131,10 +131,12 @@ public final class 复刻引擎 {
         LOGGER.info("世界回滚完成：{} 个实体, {} 个方块", result[0], result[1]);
 
 
-        // 清除范围内的掉落物（防止刷物品）
-        int 清除数量 = 清除范围内掉落物(level, recording.录制中心);
+        // 清除录制期间出现的实体（掉落物 + 投射物等）
+        // 快照里有的实体 = 录制前就存在的 → 保留（已被快照恢复）
+        // 快照里没有的实体 = 录制期间出现的 → 删除（防止刷物品/刷箭）
+        int 清除数量 = 清除录制期间出现的实体(level, recording);
         if (清除数量 > 0) {
-            LOGGER.info("清除了 {} 个掉落物", 清除数量);
+            LOGGER.info("清除了 {} 个录制期间出现的实体", 清除数量);
         }
 
         // 3. 恢复玩家快照 + 强制同步到客户端
@@ -146,29 +148,6 @@ public final class 复刻引擎 {
 
                 // 用自己的包强制同步背包（绕过stateId校验）
                 网络工具.发送给玩家(sp, 背包同步包.从玩家构建(sp));
-            }
-        }
-
-        // 恢复录制开始时的使用物品状态
-        // 如果玩家在按录制键之前就在使用物品（吃东西/拉弓等）
-        // 世界回滚会把使用物品状态清掉
-        // 这里从录制第0帧的帧数据里读取使用物品状态，直接在服务端恢复
-        // 服务端恢复后传令兵自动同步给客户端 → 动画自然出现
-        Map<UUID, 实体帧数据> 第一帧 = recording.帧数据.获取帧(0);
-        if (第一帧 != null) {
-            for (Map.Entry<UUID, 实体帧数据> entry : 第一帧.entrySet()) {
-                实体帧数据 data = entry.getValue();
-                if (!data.是否使用物品()) continue;
-
-                Entity entity = findEntityByUUID(level, entry.getKey());
-                if (!(entity instanceof ServerPlayer sp)) continue;
-
-                InteractionHand hand = data.获取使用物品的手();
-                if (hand != null && !sp.getItemInHand(hand).isEmpty()) {
-                    sp.startUsingItem(hand);
-                    LOGGER.debug("恢复玩家 {} 的使用物品状态: hand={}",
-                            sp.getName().getString(), hand);
-                }
             }
         }
 
@@ -446,6 +425,21 @@ public final class 复刻引擎 {
         // 通知客户端清除复刻状态
         通知客户端复刻结束(session);
 
+        // 强制同步所有相关玩家的背包（修复幽灵物品）
+        // 回放期间use键注入导致客户端预测了物品消耗
+        // 但C2S包被FULL拦截→ 服务端没处理 → 客户端显示不对
+       /* for (UUID lockedUUID : session.被锁定玩家) {
+            Entity entity = findEntityByUUID(session.维度, lockedUUID);
+            if (entity instanceof ServerPlayer sp) {
+                网络工具.发送给玩家(sp, 背包同步包.从玩家构建(sp));
+            }
+        }*/
+        // 使用者自己也同步一下
+        Entity userEntity = findEntityByUUID(session.维度, userUUID);
+        if (userEntity instanceof ServerPlayer userPlayer) {
+            网络工具.发送给玩家(userPlayer, 背包同步包.从玩家构建(userPlayer));
+        }
+
         // 释放所有被锁定玩家
         for (UUID lockedUUID : session.被锁定玩家) {
             输入接管器.释放(lockedUUID,接管来源);
@@ -460,6 +454,12 @@ public final class 复刻引擎 {
                 player.setInvulnerable(false);
             }
         }
+
+        // 清理使用物品状态缓存
+        for (UUID lockedUUID : session.被锁定玩家) {
+            上一帧使用状态.remove(lockedUUID);
+        }
+        上一帧使用状态.remove(userUUID);
 
         LOGGER.info("玩家 {} 复刻结束", userUUID);
     }
@@ -682,19 +682,19 @@ public final class 复刻引擎 {
         int frameToUse = Math.max(0, currentFrame - 1);恢复使用物品状态(session, frameToUse);
     }
 
+    /** 上一帧的使用物品状态，用于检测边沿 */
+    private static final Map<UUID, Boolean> 上一帧使用状态 = new HashMap<>();
+
     /**
-     * 每tick恢复使用物品状态
+     * 使用物品状态管理 — 边沿触发
      *
-     * 两个关键点：
-     * 1. 不调startUsingItem（会重置剩余时间→ 永远吃不完/拉不满弓）
-     *    直接设内部字段 → 保持帧数据里录制的精确剩余时间
+     * 不再每tick覆盖remaining（那会导致MC永远吃不完+刷物品）
+     * 改为只在状态变化时触发：
      *
-     * 2. 必须在Level.tick之后执行（END阶段）
-     *    因为Level.tick → player.tick会清掉使用物品状态
-     *    我们在清掉之后设回去→ sendChanges同步给客户端→ 有动画
-     *
-     * 客户端的清除已经被EpitaphReplayMinecraftMixin拦住了
-     * 这里解决的是服务端的清除
+     * false→true（开始使用）：调startUsingItem + 设正确的remaining
+     * true→true（持续使用中）：不管，让MC自己倒计时
+     * true→false（结束使用）：MC还在用→ 调releaseUsingItem触发松手效果
+     * false→false：不管
      */
     private static void 恢复使用物品状态(复刻会话 session, int frameIndex) {
         Map<UUID, 实体帧数据> frame = session.录制.帧数据.获取帧(frameIndex);
@@ -707,32 +707,40 @@ public final class 复刻引擎 {
             Entity entity = findEntityByUUID(session.维度, playerUUID);
             if (!(entity instanceof ServerPlayer sp)) continue;
 
-            if (data.是否使用物品()) {
+            boolean 当前帧在使用 = data.是否使用物品();
+            boolean 上一帧在使用 = 上一帧使用状态.getOrDefault(playerUUID, false);
+
+            if (当前帧在使用 && !上一帧在使用) {
+                // ===== 边沿：开始使用 =====
                 InteractionHand hand = data.获取使用物品的手();
-                if (hand == null) continue;
+                if (hand != null) {
+                    ItemStack useStack = sp.getItemInHand(hand);
+                    if (!useStack.isEmpty()) {
+                        // 调startUsingItem让MC正常开始
+                        sp.startUsingItem(hand);
 
-                ItemStack useStack = sp.getItemInHand(hand);
-                if (useStack.isEmpty()) continue;
-
-                // 直接设内部字段，不调startUsingItem
-                if (sp instanceof com.v2t.puellamagi.api.access.ILivingEntityAccess access) {
-                    access.puellamagi$setUseItem(useStack.copy());
-                    access.puellamagi$setUseItemRemaining(data.获取使用物品剩余时间());
-                    access.puellamagi$setLivingEntityFlag(1, true);
-                    access.puellamagi$setLivingEntityFlag(2,
-                            hand == InteractionHand.OFF_HAND);
-                }
-            } else {
-                // 帧数据说没在使用→ 确保停止
-                if (sp.isUsingItem()) {
-                    if (sp instanceof com.v2t.puellamagi.api.access.ILivingEntityAccess access) {
-                        access.puellamagi$setUseItem(ItemStack.EMPTY);
-                        access.puellamagi$setUseItemRemaining(0);
-                        access.puellamagi$setLivingEntityFlag(1, false);
-                        access.puellamagi$setLivingEntityFlag(2, false);
+                        // 校正remaining为帧数据的值
+                        // startUsingItem设的是最大值，但录制时可能已经吃了一半
+                        if (sp instanceof com.v2t.puellamagi.api.access.ILivingEntityAccess access) {
+                            access.puellamagi$setUseItemRemaining(data.获取使用物品剩余时间());
+                        }LOGGER.debug("[使用物品] 帧{}: 开始使用{}, remaining={}",
+                                frameIndex, useStack.getItem(), data.获取使用物品剩余时间());
                     }
                 }
+            } else if (!当前帧在使用 && 上一帧在使用) {
+                // ===== 边沿：结束使用 =====
+                if (sp.isUsingItem()) {
+                    // MC还在使用 → 触发正常的释放流程
+                    //弓：射出箭 + 消耗箭 + 扣耐久
+                    // 三叉戟：飞出 + 背包扣除
+                    // 食物：如果MC自己倒计时到0了就不会走到这里
+                    sp.releaseUsingItem();LOGGER.debug("[使用物品] 帧{}: 释放使用物品", frameIndex);
+                }
             }
+            // true→true：不管，让MC自己倒计时
+            // false→false：不管
+
+            上一帧使用状态.put(playerUUID, 当前帧在使用);
         }
     }
 
@@ -924,23 +932,37 @@ public final class 复刻引擎 {
     // ==================== 工具方法 ====================
 
     /**
-     * 清除范围内所有掉落物
+     * 清除录制期间出现的实体
      *
-     * 回滚世界时方块恢复了但掉落物还在
-     * 不清除的话回放时再次破坏会多掉一份→ 刷物品
+     * 判断标准：快照里有的保留，没有的删除
+     * 这样既清掉了录制期间的掉落物，也清掉了录制期间的投射物
+     *
+     * 不删除的：
+     * - 玩家（不能删玩家）
+     * - 快照里存在的实体（录制前就有的）
      */
-    private static int 清除范围内掉落物(ServerLevel level, Vec3 center) {
+    private static int 清除录制期间出现的实体(ServerLevel level, 录制管理器.录制会话 recording) {
         double range = 录制管理器.获取录制范围();
+        Vec3 center = recording.录制中心;
         AABB box = AABB.ofSize(center, range * 2, range * 2, range * 2);
-        List<net.minecraft.world.entity.item.ItemEntity> items =
-                level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box);
 
-        int count = 0;
-        for (net.minecraft.world.entity.item.ItemEntity item : items) {
-            item.discard();
-            count++;
+        // 快照里的实体UUID集合
+        Set<UUID> 快照实体 = recording.起点快照.获取所有实体UUID();
+
+        List<Entity> 待删除 = new ArrayList<>();
+        for (Entity entity : level.getEntities().getAll()) {
+            if (entity instanceof ServerPlayer) continue;
+            if (!box.contains(entity.position())) continue;
+            if (快照实体.contains(entity.getUUID())) continue;
+
+            待删除.add(entity);
         }
-        return count;
+
+        for (Entity entity : 待删除) {
+            entity.discard();
+        }
+
+        return 待删除.size();
     }
 
     @Nullable

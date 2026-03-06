@@ -159,4 +159,12 @@ public class 世界快照 {
     public boolean 包含实体(UUID uuid) {
         return 实体表.containsKey(uuid);
     }
+
+    /**
+     * 获取所有实体的UUID集合
+     * 用于判断"录制前就存在的实体"
+     */
+    public Set<UUID> 获取所有实体UUID() {
+        return Collections.unmodifiableSet(实体表.keySet());
+    }
 }

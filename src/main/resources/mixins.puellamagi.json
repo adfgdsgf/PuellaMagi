@@ -48,8 +48,7 @@
     "epitaph.EpitaphReplayServerEntityMixin",
     "epitaph.EpitaphReplayBroadcastMixin",
     "epitaph.EpitaphReplayServerLevelMixin",
-    "epitaph.EpitaphReplayPlayerListMixin",
-    "epitaph.EpitaphReplayServerPlayerMixin"
+    "epitaph.EpitaphReplayPlayerListMixin"
   ],
   "client": [
     "access.AccessParticleMixin",
