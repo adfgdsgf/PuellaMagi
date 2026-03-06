@@ -23,6 +23,7 @@
   "key.puellamagi.preset_next": "Next Preset",
   "key.puellamagi.preset_prev": "Previous Preset",
   "key.puellamagi.skill_bar_toggle": "Toggle Skill Bar",
+  "key.puellamagi.skill_modifier": "Skill Modifier",
   "key.puellamagi.search_modifier": "Search (Hold + Right Click)",
 
   "gui.puellamagi.title.skill_edit": "Skill Bar Editor",
@@ -68,6 +69,8 @@
   "tooltip.puellamagi.ability.time_control.desc": "Innate ability to control the flow of time",
   "tooltip.puellamagi.skill.test.desc": "Skill for testing, heals 2 HP",
   "tooltip.puellamagi.skill.time_stop.desc": "Freeze time, the world stands still",
+  "tooltip.puellamagi.skill.epitaph.desc": "Foresee the future",
+  "tooltip.puellamagi.skill.time_erasure.desc": "Erase your own time, free from fate",
 
   "message.puellamagi.being_searched_teammate": "%s is searching your inventory",
   "message.puellamagi.transform_success": "Transformation complete",
@@ -88,6 +91,7 @@
   "message.puellamagi.preset_delete_failed": "Cannot delete (must keep at least one preset)",
   "message.puellamagi.preset_limit_reached": "Preset limit reached",
   "message.puellamagi.timestop_interrupted": "Charge interrupted",
+  "message.puellamagi.epitaph_fail_timestop": "Cannot use Epitaph during Time Stop",
   "message.puellamagi.soul_gem.received": "Contract established, Soul Gem created",
   "message.puellamagi.soul_gem.regenerated": "Soul Gem has been regenerated",
   "message.puellamagi.grief_seed.purified": "Corruption has been purified",
@@ -115,6 +119,8 @@
 
   "skill.puellamagi.test": "Test Skill",
   "skill.puellamagi.time_stop": "Time Stop",
+  "skill.puellamagi.epitaph": "Epitaph",
+  "skill.puellamagi.time_erasure": "Time Erasure",
 
   "series.puellamagi.soul_gem": "Soul Gem",
   "series.puellamagi.soul_gem.desc": "Magical girls with Soul Gem as their core, possessing immortality but must beware of corruption accumulation.",
@@ -243,6 +249,7 @@
   "gui.puellamagi.team.config.timestopAwakening": "Time Stop Awakening",
   "gui.puellamagi.team.config.lockOnSkipTeammate": "Lock-on Skip Teammate",
   "gui.puellamagi.team.config.allowTeammateSearch": "Allow Teammate Search",
+  "gui.puellamagi.team.config.showTeammateAvatar": "Show Teammate Avatar",
   "gui.puellamagi.title.team": "Team Management",
   "gui.puellamagi.team.no_team_hint": "You are not in a team",
   "gui.puellamagi.team.button.create": "Create Team",

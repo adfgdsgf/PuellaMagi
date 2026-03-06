@@ -4,8 +4,10 @@ package com.v2t.puellamagi.system.restriction;
 
 import com.v2t.puellamagi.api.restriction.I限制来源;
 import com.v2t.puellamagi.api.restriction.限制类型;
+import com.v2t.puellamagi.system.ability.epitaph.预知限制来源;
 import com.v2t.puellamagi.system.ability.timestop.时停限制来源;
 import com.v2t.puellamagi.system.soulgem.effect.假死限制来源;
+import com.v2t.puellamagi.util.network.输入接管器;
 import com.v2t.puellamagi.util.能力工具;
 import net.minecraft.world.entity.player.Player;
 import org.slf4j.Logger;
@@ -50,6 +52,7 @@ public final class 行动限制管理器 {
         // 注册内置限制来源
         注册来源(new 假死限制来源());
         注册来源(new 时停限制来源());
+        注册来源(new 预知限制来源());
         // 未来：注册来源(new 灵魂视角限制来源());
 
         已初始化 = true;
@@ -74,6 +77,8 @@ public final class 行动限制管理器 {
     public static boolean 是否被限制(Player player, 限制类型 类型) {
         if (player == null) return false;
         if (能力工具.应该跳过限制(player)) return false;
+        // 包回放期间放行（复刻引擎正在重放录制的C2S包）
+        if (输入接管器.是否重放中(player.getUUID())) return false;
 
         for (I限制来源 来源 : 限制来源列表) {
             Set<限制类型> 限制集合 = 来源.获取限制(player);
@@ -131,6 +136,10 @@ public final class 行动限制管理器 {
 
     public static boolean 可以释放技能(Player player) {
         return !是否被限制(player, 限制类型.释放技能);
+    }
+
+    public static boolean 可以转动视角(Player player) {
+        return !是否被限制(player, 限制类型.转动视角);
     }
 
     public static boolean 可以交互(Player player) {

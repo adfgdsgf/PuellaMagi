@@ -23,6 +23,7 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
     private boolean 时停觉醒 = true;
     private boolean 锁定跳过队友 = true;
     private boolean 允许队友搜身 = false;
+    private boolean 显示队友头像 = true;
 
     // ==================== 接口实现 ====================
 
@@ -42,9 +43,9 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
     }
 
     @Override
-    public boolean 允许队友搜身() {
-        return 允许队友搜身;
-    }
+    public boolean 允许队友搜身() { return 允许队友搜身; }
+
+    public boolean 显示队友头像() { return 显示队友头像; }
 
     // ==================== 设置方法 ====================
 
@@ -64,6 +65,8 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
         this.允许队友搜身 = value;
     }
 
+    public void 设置显示队友头像(boolean value) { this.显示队友头像 = value; }
+
     /**
      * 通过配置键名设置值
      *用于网络包和UI的通用更新
@@ -78,6 +81,7 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
             case "timestopAwakening" -> { 时停觉醒 = value; yield true; }
             case "lockOnSkipTeammate" -> { 锁定跳过队友 = value; yield true; }
             case "allowTeammateSearch" -> { 允许队友搜身 = value; yield true; }
+            case "showTeammateAvatar" -> { 显示队友头像 = value; yield true; }
             default -> false;
         };
     }
@@ -91,6 +95,7 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
             case "timestopAwakening" -> 时停觉醒;
             case "lockOnSkipTeammate" -> 锁定跳过队友;
             case "allowTeammateSearch" -> 允许队友搜身;
+            case "showTeammateAvatar" -> 显示队友头像;
             default -> false;
         };
     }
@@ -103,7 +108,8 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
                 "friendlyFire",
                 "timestopAwakening",
                 "lockOnSkipTeammate",
-                "allowTeammateSearch"
+                "allowTeammateSearch",
+                "showTeammateAvatar"
         };
     }
 
@@ -122,6 +128,7 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
         tag.putBoolean("timestopAwakening", 时停觉醒);
         tag.putBoolean("lockOnSkipTeammate", 锁定跳过队友);
         tag.putBoolean("allowTeammateSearch", 允许队友搜身);
+        tag.putBoolean("showTeammateAvatar", 显示队友头像);
         return tag;
     }
 
@@ -140,6 +147,9 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
         if (tag.contains("allowTeammateSearch")) {
             允许队友搜身 = tag.getBoolean("allowTeammateSearch");
         }
+        if (tag.contains("showTeammateAvatar")) {
+            显示队友头像 = tag.getBoolean("showTeammateAvatar");
+        }
     }
 
     // ==================== 网络包序列化 ====================
@@ -149,6 +159,7 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
         buf.writeBoolean(时停觉醒);
         buf.writeBoolean(锁定跳过队友);
         buf.writeBoolean(允许队友搜身);
+        buf.writeBoolean(显示队友头像);
     }
 
     public static 队伍个人配置 从Buffer读取(net.minecraft.network.FriendlyByteBuf buf) {
@@ -157,6 +168,7 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
         config.时停觉醒 = buf.readBoolean();
         config.锁定跳过队友 = buf.readBoolean();
         config.允许队友搜身 = buf.readBoolean();
+        config.显示队友头像 = buf.readBoolean();
         return config;
     }
 }

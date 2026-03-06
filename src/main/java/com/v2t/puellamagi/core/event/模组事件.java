@@ -12,7 +12,7 @@ import com.v2t.puellamagi.api.类型定义.魔法少女类型;
 import com.v2t.puellamagi.core.network.ModNetwork;
 import com.v2t.puellamagi.system.ability.能力注册表;
 import com.v2t.puellamagi.system.ability.impl.测试能力;
-import com.v2t.puellamagi.system.ability.impl.时间停止能力;
+import com.v2t.puellamagi.system.ability.impl.时间操控能力;
 import com.v2t.puellamagi.system.adaptation.适应管理器;
 import com.v2t.puellamagi.system.interaction.搜身槽位注册表;
 import com.v2t.puellamagi.system.interaction.搜身管理器;
@@ -27,6 +27,8 @@ import com.v2t.puellamagi.system.skill.技能注册表;
 import com.v2t.puellamagi.system.skill.技能能力;
 import com.v2t.puellamagi.system.skill.impl.测试技能;
 import com.v2t.puellamagi.system.skill.impl.时间停止技能;
+import com.v2t.puellamagi.system.skill.impl.预知技能;
+import com.v2t.puellamagi.system.skill.impl.时间删除技能;
 import com.v2t.puellamagi.system.soulgem.damage.active.主动损坏注册表;
 import com.v2t.puellamagi.system.transformation.魔法少女类型注册表;
 import com.v2t.puellamagi.util.资源工具;
@@ -142,7 +144,7 @@ public class 模组事件 {
         PuellaMagi.LOGGER.debug("开始注册能力...");
 
         能力注册表.注册(资源工具.本mod("test"), 测试能力::new);
-        能力注册表.注册(资源工具.本mod("time_control"), 时间停止能力::new);
+        能力注册表.注册(资源工具.本mod("time_control"), 时间操控能力::new);
 
         PuellaMagi.LOGGER.info("能力注册完成，共 {} 个", 能力注册表.获取能力数量());
     }
@@ -155,6 +157,8 @@ public class 模组事件 {
 
         技能注册表.注册(资源工具.本mod("test_skill"), 测试技能::new);
         技能注册表.注册(资源工具.本mod("time_stop"), 时间停止技能::new);
+        技能注册表.注册(资源工具.本mod("epitaph"), 预知技能::new);
+        技能注册表.注册(资源工具.本mod("time_erasure"), 时间删除技能::new);
 
         PuellaMagi.LOGGER.info("技能注册完成，共 {} 个", 技能注册表.获取技能数量());
     }

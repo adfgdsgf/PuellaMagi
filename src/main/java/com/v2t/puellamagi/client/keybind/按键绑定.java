@@ -106,6 +106,20 @@ public final class 按键绑定 {
             类别
     );
 
+    /**
+     * 技能修饰键
+     * 按住此键 + 技能键 = 技能的组合键操作（如取消录制）
+     * 默认：左Ctrl
+     *玩家可在按键设置中自由更改
+     */
+    public static final KeyMapping 技能修饰键 = new KeyMapping(
+            "key." + 常量.MOD_ID + ".skill_modifier",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_LEFT_CONTROL,
+            类别
+    );
+
     // ==================== 交互相关 ====================
 
     /**
@@ -124,7 +138,7 @@ public final class 按键绑定 {
     // ==================== 获取所有按键 ====================
 
     public static KeyMapping[] 获取所有按键() {
-        KeyMapping[] all = new KeyMapping[技能键.length + 6];
+        KeyMapping[] all = new KeyMapping[技能键.length + 7];
 
         all[0] = 变身键;
         all[1] = 技能栏编辑键;
@@ -132,8 +146,9 @@ public final class 按键绑定 {
         all[3] = 上一预设键;
         all[4] = 技能栏折叠键;
         all[5] = 搜身修饰键;
+        all[6] = 技能修饰键;
 
-        System.arraycopy(技能键, 0, all, 6, 技能键.length);
+        System.arraycopy(技能键, 0, all, 7, 技能键.length);
 
         return all;
     }

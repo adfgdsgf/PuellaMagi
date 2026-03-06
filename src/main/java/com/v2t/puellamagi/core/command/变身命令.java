@@ -249,7 +249,7 @@ public class 变身命令 {
             return 0;
         }
 
-        技能管理器.按键按下(player, skillId);
+        技能管理器.按键按下(player, skillId,false);
         source.sendSuccess(() -> Component.literal("技能触发: " + skillId), true);
         return 1;
     }

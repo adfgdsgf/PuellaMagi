@@ -49,7 +49,7 @@ public final class 技能管理器 {
      * 按键按下 - 所有技能的统一入口
      * 根据技能类型分流处理
      */
-    public static void 按键按下(Player player, ResourceLocation skillId) {
+    public static void 按键按下(Player player, ResourceLocation skillId, boolean 修饰键) {
         if (!(player instanceof ServerPlayer serverPlayer)) return;
 
         // ===== 行动限制检查（新增）=====
@@ -100,6 +100,11 @@ public final class 技能管理器 {
             }
 
             case 切换 -> {
+                if (修饰键) {
+                    skill.修饰键按下时(player, level);
+                    break;
+                }
+
                 if (skill.是否开启(player)) {
                     skill.关闭时(player, level);
                     停止持续消耗(player, skill);
@@ -128,6 +133,10 @@ public final class 技能管理器 {
 
             // ===== 需要按键状态追踪的类型 =====
             case 蓄力切换 -> {
+                if (修饰键) {
+                    skill.修饰键按下时(player, level);
+                    break;
+                }
                 // 已激活且不在保护期：关闭
                 if (skill.是否开启(player) && !skill.是否保护期中(player)) {
                     skill.关闭时(player, level);
@@ -250,6 +259,9 @@ public final class 技能管理器 {
 
         // 处理持续消耗
         处理持续消耗tick(player);
+
+        // 驱动已开启的切换类技能tick
+        驱动切换类技能tick(player);
     }
 
     /**
@@ -440,6 +452,31 @@ public final class 技能管理器 {
                 }
             }
         }
+    }
+
+    /**
+     * 驱动所有已开启的切换类技能的tick
+     *切换类/蓄力切换类技能开启后需要每tick调用开启tick
+     */
+    private static void 驱动切换类技能tick(ServerPlayer player) {
+        能力工具.获取技能能力(player).ifPresent(cap -> {
+            var preset = cap.获取当前预设();
+            if (preset == null) return;
+
+            for (int i = 0; i < preset.获取槽位数量(); i++) {
+                技能槽位数据 slot = preset.获取槽位(i);
+                if (slot == null || slot.是否为空()) continue;
+
+                技能注册表.创建实例(slot.获取技能ID()).ifPresent(skill -> {
+                    I技能.按键类型 type = skill.获取按键类型();
+                    if (type == I技能.按键类型.切换 || type == I技能.按键类型.蓄力切换) {
+                        if (skill.是否开启(player)) {
+                            skill.开启tick(player, player.level());
+                        }
+                    }
+                });
+            }
+        });
     }
 
     // ==================== 状态查询 ====================

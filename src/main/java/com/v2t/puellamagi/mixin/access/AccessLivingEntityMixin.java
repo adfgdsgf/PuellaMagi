@@ -1,5 +1,3 @@
-// 文件路径: src/main/java/com/v2t/puellamagi/mixin/access/AccessLivingEntityMixin.java
-
 package com.v2t.puellamagi.mixin.access;
 
 import com.v2t.puellamagi.api.access.ILivingEntityAccess;
@@ -7,6 +5,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.WalkAnimationState;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Final;
@@ -17,7 +16,7 @@ import org.spongepowered.asm.mixin.Unique;
 /**
  * LivingEntity 访问Mixin
  *
- * 通过继承方式访问 protected 字段
+ * 通过继承方式访问 protected字段
  */
 @Mixin(LivingEntity.class)
 public abstract class AccessLivingEntityMixin extends Entity implements ILivingEntityAccess {
@@ -110,7 +109,7 @@ public abstract class AccessLivingEntityMixin extends Entity implements ILivingE
         this.animStepO = value;
     }
 
-    // ==================== WalkAnimationState（新增！）====================
+    // ==================== WalkAnimationState ====================
 
     @Shadow
     @Final
@@ -131,5 +130,65 @@ public abstract class AccessLivingEntityMixin extends Entity implements ILivingE
     @Override
     public void puellamagi$pushEntities() {
         this.pushEntities();
+    }
+
+    // ==================== 跳跃 ====================
+
+    @Shadow
+    protected boolean jumping;
+
+    @Unique
+    @Override
+    public boolean puellamagi$isJumping() {
+        return this.jumping;
+    }
+
+    @Unique
+    @Override
+    public void puellamagi$setJumping(boolean jumping) {
+        this.jumping = jumping;
+    }
+
+    // ==================== 使用物品（复刻用） ====================
+
+    @Shadow
+    protected ItemStack useItem;
+
+    @Shadow
+    protected int useItemRemaining;
+
+    @Unique
+    @Override
+    public ItemStack puellamagi$getUseItem() {
+        return this.useItem;
+    }
+
+    @Unique
+    @Override
+    public void puellamagi$setUseItem(ItemStack item) {
+        this.useItem = item;
+    }
+
+    @Unique
+    @Override
+    public int puellamagi$getUseItemRemaining() {
+        return this.useItemRemaining;
+    }
+
+    @Unique
+    @Override
+    public void puellamagi$setUseItemRemaining(int ticks) {
+        this.useItemRemaining = ticks;
+    }
+
+    // ==================== EntityData 标志位（复刻用） ====================
+
+    @Shadow
+    protected void setLivingEntityFlag(int flag, boolean value) {}
+
+    @Unique
+    @Override
+    public void puellamagi$setLivingEntityFlag(int flag, boolean value) {
+        this.setLivingEntityFlag(flag, value);
     }
 }

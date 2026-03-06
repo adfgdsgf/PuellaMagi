@@ -3,8 +3,12 @@ package com.v2t.puellamagi.core.event;
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.core.command.命令注册器;
 import com.v2t.puellamagi.core.network.packets.s2c.队友位置同步包;
+import com.v2t.puellamagi.system.ability.epitaph.复刻引擎;
+import com.v2t.puellamagi.system.ability.epitaph.录制管理器;
+import com.v2t.puellamagi.system.ability.epitaph.预知状态管理;
 import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.system.series.系列注册表;
+import com.v2t.puellamagi.system.skill.impl.预知技能;
 import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
 import com.v2t.puellamagi.system.soulgem.污浊度管理器;
 import com.v2t.puellamagi.system.soulgem.污浊度能力;
@@ -12,6 +16,8 @@ import com.v2t.puellamagi.system.team.队伍同步工具;
 import com.v2t.puellamagi.system.team.队伍管理器;
 import com.v2t.puellamagi.system.team.队伍数据;
 import com.v2t.puellamagi.system.team.队伍邀请管理器;
+import com.v2t.puellamagi.util.network.存在屏蔽器;
+import com.v2t.puellamagi.util.network.输入接管器;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.core.network.packets.s2c.技能能力同步包;
 import com.v2t.puellamagi.core.registry.ModCapabilities;
@@ -36,6 +42,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerWakeUpEvent;
+import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -141,6 +148,9 @@ public class 通用事件 {
                 // 清除假死状态
                 假死状态处理器.清除玩家状态(新玩家.getUUID());
 
+                // 强制终止预知能力
+                预知技能.玩家下线(新玩家.getUUID());
+
                 // 同步死亡保留的绑定物品
                 绑定物品工具.同步到新玩家(原玩家,新玩家);}
 
@@ -179,8 +189,15 @@ public class 通用事件 {
                 时停管理器.玩家下线(serverPlayer);
             }
 
+            // 清理预知能力状态
+            预知技能.玩家下线(serverPlayer.getUUID());
+
             // 清理绑定物品缓存（防止内存泄漏）
             绑定物品工具.清理玩家缓存(serverPlayer.getUUID());
+
+            // 清理网络工具状态
+            输入接管器.玩家下线(serverPlayer.getUUID());
+            存在屏蔽器.玩家下线(serverPlayer.getUUID());
 
             // 队伍邀请：保留邀请记录（重连后仍可接受），仅通知管理器
             队伍邀请管理器.onPlayerLogout(serverPlayer.getUUID());
@@ -219,6 +236,9 @@ public class 通用事件 {
                 时停管理器.结束时停(serverPlayer);PuellaMagi.LOGGER.debug("时停者 {} 切换维度，时停结束", serverPlayer.getName().getString());
             }
 
+            // 预知能力终止
+            预知技能.玩家下线(serverPlayer.getUUID());
+
             // 通用同步
             契约管理器.同步契约状态(serverPlayer);
             变身管理器.同步变身数据(serverPlayer);
@@ -247,6 +267,13 @@ public class 通用事件 {
     public static void 服务器关闭(ServerStoppingEvent event) {
         // 通用清理
         假死状态处理器.clearAll();绑定物品工具.清理所有缓存();
+
+        // 预知系统清理
+        录制管理器.清除全部();
+        复刻引擎.清除全部();
+        预知状态管理.清除全部();
+        输入接管器.清除全部();
+        存在屏蔽器.清除全部();
 
         // 队伍邀请清理（非持久化数据）
         队伍邀请管理器.clearAll();
@@ -351,5 +378,88 @@ public class 通用事件 {
         if (!队伍管理器.获取个人配置(server, attacker.getUUID(), "friendlyFire")) {
             event.setCanceled(true);
         }
+    }
+
+    /**
+     * 方块变化事件 — 录制方块变化
+     * 预知能力录制期间追踪方块变化
+     */
+    @SubscribeEvent
+    public static void 方块放置(BlockEvent.EntityPlaceEvent event) {
+        if (!(event.getLevel() instanceof net.minecraft.server.level.ServerLevel serverLevel)) return;
+
+        录制管理器.记录方块变化(serverLevel, event.getPos(),
+                event.getBlockSnapshot().getReplacedBlock(), event.getPlacedBlock());
+    }
+
+    @SubscribeEvent
+    public static void 方块破坏(BlockEvent.BreakEvent event) {
+        if (!(event.getLevel() instanceof net.minecraft.server.level.ServerLevel serverLevel)) return;
+
+        录制管理器.记录方块变化(serverLevel, event.getPos(),
+                event.getState(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+    }
+
+    /**
+     * 服务端Tick — 驱动录制和复刻
+     *
+     * 录制：END阶段采集（Level.tick执行完毕，所有实体状态已更新）
+     * 复刻：START阶段驱动（在Level.tick之前设好位置和重放包）
+     *
+     * 为什么复刻必须在START：
+     * Level.tick → player.tick → ServerPlayerGameMode.tick
+     * → 检查"玩家还在看着那个方块吗？"
+     * → 如果我们还没设好位置/朝向 → 判定"移开了" → 破坏进度中断
+     * → 放在START → 位置/朝向已就位 → 破坏进度正常推进
+     */
+    @SubscribeEvent
+    public static void 服务端Tick(TickEvent.ServerTickEvent event) {
+        MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return;
+
+        if (event.phase == TickEvent.Phase.START) {
+            // ==================== 复刻引擎驱动（Level.tick之前） ====================
+            // 位置/朝向 + 包回放必须在Level.tick之前
+            // 否则破坏进度检查时玩家位置不对
+            for (UUID userUUID : 复刻引擎.获取所有活跃使用者()) {
+                boolean still = 复刻引擎.tick(userUUID);
+                if (!still) {
+                    复刻引擎.结束复刻(userUUID);预知状态管理.结束(userUUID);
+                    PuellaMagi.LOGGER.info("玩家 {} 复刻自然播放完毕", userUUID);
+                }
+            }
+        }
+
+        if (event.phase == TickEvent.Phase.END) {
+            // ==================== 录制帧采集（Level.tick之后） ====================
+            for (UUID userUUID : 录制管理器.获取所有活跃使用者()) {
+                录制管理器.采集帧(userUUID);
+            }
+
+            // ==================== 使用物品状态恢复（Level.tick之后） ====================
+            // Level.tick → player.tick会清掉使用物品状态
+            // 在清掉之后设回去→ sendChanges同步正确状态给客户端
+           /* for (UUID userUUID : 复刻引擎.获取所有活跃使用者()) {
+                复刻引擎.恢复使用物品(userUUID);
+            }*/
+        }
+    }
+
+    @SubscribeEvent
+    public static void 诊断方块变化(net.minecraftforge.event.level.BlockEvent.BreakEvent event) {
+        if (event.getLevel().isClientSide()) return;
+        PuellaMagi.LOGGER.info("[服务端] 方块破坏: pos={}, block={}, player={}",
+                event.getPos(),
+                event.getState().getBlock(),
+                event.getPlayer().getName().getString());
+    }
+
+    @SubscribeEvent
+    public static void 诊断方块放置(net.minecraftforge.event.level.BlockEvent.EntityPlaceEvent event) {
+        if (event.getLevel().isClientSide()) return;
+        PuellaMagi.LOGGER.info("[服务端] 方块放置: pos={}, block={}, entity={}",
+                event.getPos(),
+                event.getPlacedBlock().getBlock(),
+                event.getEntity() != null ? event.getEntity().getName().getString() : "null");
     }
 }

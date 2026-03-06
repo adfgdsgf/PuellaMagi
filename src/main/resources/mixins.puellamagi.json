@@ -10,6 +10,9 @@
     "access.EntityAndDataMixin",
     "access.ChunkMapAccessor",
     "access.ChunkMapInvoker",
+    "access.KeyMappingAccessor",
+    "access.MinecraftAccessor",
+    "access.ServerPlayerGameModeAccessor",
 
     "timestop.TimestopLevelMixin",
     "timestop.TimestopServerLevelMixin",
@@ -38,7 +41,15 @@
     "item.PlayerLogoutDropMixin",
     "item.PlayerDeathKeepMixin",
     "item.ItemEntityProtectionMixin",
-    "item.ItemEntityPickupMixin"
+    "item.ItemEntityPickupMixin",
+
+    "epitaph.EpitaphInputInterceptMixin",
+    "epitaph.EpitaphReplayLevelMixin",
+    "epitaph.EpitaphReplayServerEntityMixin",
+    "epitaph.EpitaphReplayBroadcastMixin",
+    "epitaph.EpitaphReplayServerLevelMixin",
+    "epitaph.EpitaphReplayPlayerListMixin",
+    "epitaph.EpitaphReplayServerPlayerMixin"
   ],
   "client": [
     "access.AccessParticleMixin",
@@ -69,6 +80,13 @@
     "soulgem.client.FeignDeathInputMixin",
     "soulgem.client.SoulGemActiveAttackMixin",
     "soulgem.client.SoulGemActiveUseMixin",
+
+    "epitaph.client.EpitaphReplayClientLevelMixin",
+    "epitaph.client.EpitaphReplayKeyboardInputMixin",
+    "epitaph.client.EpitaphReplayMouseMixin",
+    "epitaph.client.EpitaphKeySnapshotMixin",
+    "epitaph.client.EpitaphReplayMinecraftMixin",
+    "epitaph.client.EpitaphReplayGameModeMixin",
 
     "client.CreativeModeDeleteMixin"
   ]

@@ -7,6 +7,8 @@ import com.v2t.puellamagi.api.I能力;
 import com.v2t.puellamagi.api.I技能;
 import com.v2t.puellamagi.system.ability.timestop.时停管理器;
 import com.v2t.puellamagi.system.skill.impl.时间停止技能;
+import com.v2t.puellamagi.system.skill.impl.时间删除技能;
+import com.v2t.puellamagi.system.skill.impl.预知技能;
 import com.v2t.puellamagi.util.资源工具;
 import com.v2t.puellamagi.util.本地化工具;
 import net.minecraft.nbt.CompoundTag;
@@ -20,9 +22,9 @@ import java.util.List;
 
 /**
  * 时间停止能力
- * 灵魂宝石系的固有能力，允许使用者冻结时间
+ * 灵魂宝石系分支下，时间操纵的能力，允许使用者冻结时间
  */
-public class 时间停止能力 implements I能力 {
+public class 时间操控能力 implements I能力 {
 
     private static final ResourceLocation ID = 资源工具.本mod("time_control");
 
@@ -101,6 +103,8 @@ public class 时间停止能力 implements I能力 {
         if (派生技能缓存 == null) {
             派生技能缓存 = new ArrayList<>();
             派生技能缓存.add(new 时间停止技能());
+            派生技能缓存.add(new 预知技能());
+            派生技能缓存.add(new 时间删除技能());
             // TODO: 后续可能添加更多派生技能，如时间减速等
         }
         return 派生技能缓存;

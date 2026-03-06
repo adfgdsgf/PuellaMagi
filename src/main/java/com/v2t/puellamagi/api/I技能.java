@@ -508,4 +508,13 @@ public interface I技能 {
     default boolean 是否瞄准实体() {
         return false;
     }
+
+    //==================== 修饰键专用 ====================
+
+    /**
+     * 修饰键+技能键按下时调用
+     * 用于组合键操作（如取消录制、切换模式等）
+     * 默认：无操作
+     */
+    default void 修饰键按下时(Player player, Level level) {}
 }

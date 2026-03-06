@@ -4,12 +4,14 @@ package com.v2t.puellamagi.core.event.client;
 
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.client.gui.hud.队友头像HUD;
+import com.v2t.puellamagi.client.客户端复刻管理器;
 import com.v2t.puellamagi.client.客户端队伍缓存;
 import com.v2t.puellamagi.client.gui.HUD编辑界面;
 import com.v2t.puellamagi.client.gui.污浊度HUD;
 import com.v2t.puellamagi.client.gui.hud.可编辑HUD注册表;
 import com.v2t.puellamagi.client.gui.搜身界面;
 import com.v2t.puellamagi.core.registry.ModMenuTypes;
+import com.v2t.puellamagi.system.ability.epitaph.玩家输入帧;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.client.客户端状态管理;
 import com.v2t.puellamagi.client.蓄力状态管理;
@@ -34,6 +36,10 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 客户端事件处理
@@ -122,8 +128,41 @@ public class 客户端事件 {
     @Mod.EventBusSubscriber(modid = 常量.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
     public static class ForgeBus {
 
+        /**
+         * 采集按键状态（从快照读取，读后清零clickCount）
+         *
+         * 一帧内可能有多个tick，但clickCount只应被第一个tick记录
+         * 读完后把快照里的clickCount清零
+         * 后续tick读到的就是clickCount=0 → 不会重复记录
+         */
+        private static List<玩家输入帧.按键状态> 采集按键状态() {
+            List<玩家输入帧.按键状态> result = new ArrayList<>();
+
+            Map<String, int[]> snapshot = 客户端复刻管理器.获取按键快照();
+
+            for (Map.Entry<String, int[]> entry : snapshot.entrySet()) {
+                int[] values = entry.getValue();
+                boolean isDown = values[0] == 1;
+                int clickCount = values[1];
+
+                result.add(new 玩家输入帧.按键状态(entry.getKey(), isDown, clickCount));
+
+                // 读完后清零clickCount（isDown保留）
+                // 同一帧的下一个tick读到的clickCount就是0
+                values[1] = 0;
+            }
+
+            return result;
+        }
+
         @SubscribeEvent
         public static void 客户端Tick(TickEvent.ClientTickEvent event) {
+
+            // === 新增：tick开始时激活缓冲帧 ===
+            if (event.phase == TickEvent.Phase.START) {
+                客户端复刻管理器.tick同步();
+                return;
+            }
             if (event.phase != TickEvent.Phase.END) return;
 
             Minecraft mc = Minecraft.getInstance();
@@ -166,6 +205,27 @@ public class 客户端事件 {
             while (按键绑定.技能栏折叠键.consumeClick()) {
                 切换技能栏折叠();
             }
+
+            // 录制中→ 每tick上报输入 + 按键状态给服务端
+            if (客户端复刻管理器.是否录制中()) {
+                net.minecraft.client.player.LocalPlayer localPlayer = mc.player;
+                net.minecraft.client.player.Input input = localPlayer.input;
+
+                List<玩家输入帧.按键状态> keyStates = 采集按键状态();
+
+                网络工具.发送到服务端(new com.v2t.puellamagi.core.network.packets.c2s.录制输入上报包(
+                                input.forwardImpulse,
+                                input.leftImpulse,
+                                input.jumping,
+                                input.shiftKeyDown,
+                                localPlayer.isSprinting(),
+                                localPlayer.getYRot(),
+                                localPlayer.getXRot(),
+                                localPlayer.getInventory().selected,
+                                keyStates
+                        )
+                );
+            }
         }
 
         /**
@@ -175,6 +235,7 @@ public class 客户端事件 {
         @SubscribeEvent
         public static void 客户端断开连接(ClientPlayerNetworkEvent.LoggingOut event) {
             客户端队伍缓存.清除全部();
+            客户端复刻管理器.清除全部();  // 新增
             PuellaMagi.LOGGER.debug("客户端断开连接，已清除队伍缓存");
         }
 
@@ -207,9 +268,17 @@ public class 客户端事件 {
                         continue;
                     }
 
+                    //录制中按下技能键 = 即将结束录制触发回滚 → 提前启动保护
+                    // 只在录制中才触发，第一次按下（开始录制）时不会触发
+                    if (客户端复刻管理器.是否录制中()) {
+                        客户端复刻管理器.启动过渡保护();
+                    }
+
                     技能键按住状态[i] = true;
-                    网络工具.发送到服务端(new 技能按下请求包(i));蓄力状态管理.尝试开始蓄力(player, i);
-                    PuellaMagi.LOGGER.debug("技能键 {} 按下", i);
+                    boolean 修饰键 = 按键绑定.技能修饰键.isDown();
+                    网络工具.发送到服务端(new 技能按下请求包(i, 修饰键));
+                    蓄力状态管理.尝试开始蓄力(player, i);
+                    PuellaMagi.LOGGER.debug("技能键{} 按下（修饰键: {}）", i, 修饰键);
                 } else if (!当前按住 && 之前按住) {
                     技能键按住状态[i] = false;
                     网络工具.发送到服务端(new 技能松开请求包(i));

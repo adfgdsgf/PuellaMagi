@@ -153,6 +153,14 @@ public class ModNetwork {
                 队伍配置更新包::handle
         );
 
+        registerPacket(
+                录制输入上报包.class,
+                录制输入上报包::encode,
+                录制输入上报包::decode,
+                录制输入上报包::handle
+        );
+
+
         // ==================== S2C 包 ====================
         registerPacket(
                 变身同步包.class,
@@ -222,6 +230,34 @@ public class ModNetwork {
                 队友位置同步包::encode,
                 队友位置同步包::decode,
                 队友位置同步包::handle
+        );
+
+        registerPacket(
+                复刻帧同步包.class,
+                复刻帧同步包::encode,
+                复刻帧同步包::decode,
+                复刻帧同步包::handle
+        );
+
+        registerPacket(
+                录制状态通知包.class,
+                录制状态通知包::encode,
+                录制状态通知包::decode,
+                录制状态通知包::handle
+        );
+
+        registerPacket(
+                方块批量更新包.class,
+                方块批量更新包::encode,
+                方块批量更新包::decode,
+                方块批量更新包::handle
+        );
+
+        registerPacket(
+                背包同步包.class,
+                背包同步包::encode,
+                背包同步包::decode,
+                背包同步包::handle
         );
 
     }

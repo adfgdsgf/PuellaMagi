@@ -23,6 +23,7 @@
   "key.puellamagi.preset_next": "下一个预设",
   "key.puellamagi.preset_prev": "上一个预设",
   "key.puellamagi.skill_bar_toggle": "折叠/展开技能栏",
+  "key.puellamagi.skill_modifier": "技能修饰键",
   "key.puellamagi.search_modifier": "搜身（按住+右键）",
 
   "gui.puellamagi.title.skill_edit": "技能栏编辑",
@@ -68,6 +69,8 @@
   "tooltip.puellamagi.ability.time_control.desc": "操控时间流动的固有能力",
   "tooltip.puellamagi.skill.test.desc": "用于测试的技能，恢复2点生命值",
   "tooltip.puellamagi.skill.time_stop.desc": "冻结时间，世界静止",
+  "tooltip.puellamagi.skill.epitaph.desc": "预知未来",
+  "tooltip.puellamagi.skill.time_erasure.desc": "删除自己的时间，脱离命运的束缚",
 
   "message.puellamagi.being_searched_teammate": "%s 正在查看你的物品",
   "message.puellamagi.transform_success": "变身完成",
@@ -88,6 +91,7 @@
   "message.puellamagi.preset_delete_failed": "无法删除（至少保留一个预设）",
   "message.puellamagi.preset_limit_reached": "预设数量已达上限",
   "message.puellamagi.timestop_interrupted": "蓄力被打断",
+  "message.puellamagi.epitaph_fail_timestop": "时停中无法使用预知",
   "message.puellamagi.soul_gem.received": "契约成立，灵魂宝石已生成",
   "message.puellamagi.soul_gem.regenerated": "灵魂宝石已重新生成",
   "message.puellamagi.grief_seed.purified": "污浊已被净化",
@@ -115,6 +119,8 @@
 
   "skill.puellamagi.test": "测试技能",
   "skill.puellamagi.time_stop": "时间停止",
+  "skill.puellamagi.epitaph": "预知",
+  "skill.puellamagi.time_erasure": "时间删除",
 
   "series.puellamagi.soul_gem": "灵魂宝石",
   "series.puellamagi.soul_gem.desc": "以灵魂宝石为核心的魔法少女，拥有不死之身，但需警惕污浊度的累积。",
@@ -243,6 +249,7 @@
   "gui.puellamagi.team.config.timestopAwakening": "时停时唤醒队友",
   "gui.puellamagi.team.config.lockOnSkipTeammate": "锁定跳过队友",
   "gui.puellamagi.team.config.allowTeammateSearch": "允许队友搜身",
+  "gui.puellamagi.team.config.showTeammateAvatar": "显示队友头像",
   "gui.puellamagi.title.team": "队伍管理",
   "gui.puellamagi.team.no_team_hint": "你还没有队伍",
   "gui.puellamagi.team.button.create": "创建队伍",

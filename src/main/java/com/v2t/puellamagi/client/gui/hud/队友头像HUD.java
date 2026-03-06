@@ -77,6 +77,7 @@ public class 队友头像HUD implements IGuiOverlay {
         if (mc.level == null) return;
         if (!客户端队伍缓存.有队伍()) return;
         if (mc.options.hideGui) return;
+        if (!自己是否显示头像()) return;
         if (!投影工具.矩阵是否有效()) return;
 
         ResourceLocation 当前维度 = mc.player.level().dimension().location();
@@ -138,6 +139,19 @@ public class 队友头像HUD implements IGuiOverlay {
             boolean 高亮 = 客户端队伍缓存.是否高亮(teammateUUID);
             绘制队友标记(graphics, teammateUUID, headX, headY, size, alpha, 高亮, distance, 在边缘);
         }
+    }
+
+    /**
+     * 检查当前玩家是否开启了队友头像显示
+     */
+    private boolean 自己是否显示头像() {
+        var team = 客户端队伍缓存.获取队伍();
+        if (team == null) return false;Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return false;
+
+        return team.获取成员(mc.player.getUUID())
+                .map(member -> ((com.v2t.puellamagi.system.team.队伍成员数据) member).获取配置().显示队友头像())
+                .orElse(true);
     }
 
     // ==================== 可见性判断 ====================
