@@ -70,14 +70,18 @@ public class 客户端复刻管理器 {
          * → 所有mod的按键都恢复
          */
         public static void 恢复初始按键(List<String> keyNames) {
+                Minecraft mc = Minecraft.getInstance();
                 Map<String, net.minecraft.client.KeyMapping> allKeys =
                         com.v2t.puellamagi.mixin.access.KeyMappingAccessor.puellamagi$getAll();
 
                 for (String name : keyNames) {
                         net.minecraft.client.KeyMapping key = allKeys.get(name);
-                        if (key != null) {
-                                key.setDown(true);
-                        }
+                        if (key == null) continue;
+
+                        //跳过MC的攻击和使用键（由初始状态恢复单独管）
+                        if (key == mc.options.keyAttack || key == mc.options.keyUse) continue;
+
+                        key.setDown(true);
                 }
         }
 

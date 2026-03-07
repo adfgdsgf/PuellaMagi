@@ -226,6 +226,7 @@ public final class 复刻引擎 {
         }
     }
 
+
     /**
      * 对比两个容器NBT的Items列表差异 → 从玩家背包扣/加
      */
@@ -351,29 +352,44 @@ public final class 复刻引擎 {
                 level.destroyBlock(pos, true);
             } else if (!expected.isAir()) {
                 // 应该有方块但没有/状态不对
-                //尝试从被锁定玩家的背包扣对应物品
                 net.minecraft.world.item.ItemStack needed =new net.minecraft.world.item.ItemStack(expected.getBlock().asItem());
 
                 if (needed.isEmpty()) {
                     // 没有对应物品的方块（基岩等）→ 直接放
                     level.setBlockAndUpdate(pos, expected);
                 } else {
-                    boolean 已扣除 = false;
+                    // 检查是否有创造模式玩家
+                    boolean 创造模式 = false;
                     for (UUID lockedUUID : session.被锁定玩家) {
                         Entity entity = findEntityByUUID(level, lockedUUID);
-                        if (!(entity instanceof ServerPlayer sp)) continue;
-
-                        int slot = sp.getInventory().findSlotMatchingItem(needed);
-                        if (slot >= 0) {
-                            sp.getInventory().removeItem(slot, 1);
-                            已扣除 = true;
+                        if (entity instanceof ServerPlayer sp && sp.isCreative()) {
+                            创造模式 = true;
                             break;
                         }
                     }
 
-                    if (已扣除) {
+                    if (创造模式) {
+                        // 创造模式不扣背包直接放
                         level.setBlockAndUpdate(pos, expected);
-                    }// 背包没有→ 不放（防刷）
+                    } else {
+                        boolean 已扣除 = false;
+                        for (UUID lockedUUID : session.被锁定玩家) {
+                            Entity entity = findEntityByUUID(level, lockedUUID);
+                            if (!(entity instanceof ServerPlayer sp)) continue;
+
+                            int slot = sp.getInventory().findSlotMatchingItem(needed);
+                            if (slot >= 0) {
+                                sp.getInventory().removeItem(slot, 1);
+                                已扣除 = true;
+                                break;
+                            }
+                        }
+
+                        if (已扣除) {
+                            level.setBlockAndUpdate(pos, expected);
+                        }
+                        // 背包没有→ 不放（防刷）
+                    }
                 }
             }
         }
