@@ -160,6 +160,13 @@ public class ModNetwork {
                 录制输入上报包::handle
         );
 
+        registerPacket(
+                按键状态上报包.class,
+                按键状态上报包::encode,
+                按键状态上报包::decode,
+                按键状态上报包::handle
+        );
+
 
         // ==================== S2C 包 ====================
         registerPacket(

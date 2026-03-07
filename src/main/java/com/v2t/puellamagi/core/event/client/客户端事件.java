@@ -128,32 +128,6 @@ public class 客户端事件 {
     @Mod.EventBusSubscriber(modid = 常量.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
     public static class ForgeBus {
 
-        /**
-         * 采集按键状态（从快照读取，读后清零clickCount）
-         *
-         * 一帧内可能有多个tick，但clickCount只应被第一个tick记录
-         * 读完后把快照里的clickCount清零
-         * 后续tick读到的就是clickCount=0 → 不会重复记录
-         */
-        private static List<玩家输入帧.按键状态> 采集按键状态() {
-            List<玩家输入帧.按键状态> result = new ArrayList<>();
-
-            Map<String, int[]> snapshot = 客户端复刻管理器.获取按键快照();
-
-            for (Map.Entry<String, int[]> entry : snapshot.entrySet()) {
-                int[] values = entry.getValue();
-                boolean isDown = values[0] == 1;
-                int clickCount = values[1];
-
-                result.add(new 玩家输入帧.按键状态(entry.getKey(), isDown, clickCount));
-
-                // 读完后清零clickCount（isDown保留）
-                // 同一帧的下一个tick读到的clickCount就是0
-                values[1] = 0;
-            }
-
-            return result;
-        }
 
         @SubscribeEvent
         public static void 客户端Tick(TickEvent.ClientTickEvent event) {
@@ -206,25 +180,60 @@ public class 客户端事件 {
                 切换技能栏折叠();
             }
 
-            // 录制中→ 每tick上报输入 + 按键状态给服务端
+            // 录制中→ 每tick上报输入 + 键盘/鼠标事件 + 射线结果给服务端
             if (客户端复刻管理器.是否录制中()) {
                 net.minecraft.client.player.LocalPlayer localPlayer = mc.player;
                 net.minecraft.client.player.Input input = localPlayer.input;
 
-                List<玩家输入帧.按键状态> keyStates = 采集按键状态();
+                List<玩家输入帧.键盘事件> keyboardEvents = 客户端复刻管理器.获取并清空键盘事件();
+                List<玩家输入帧.鼠标事件> mouseEvents = 客户端复刻管理器.获取并清空鼠标事件();
+
+                // 采集鼠标光标位置
+                double cursorX = mc.mouseHandler.xpos();
+                double cursorY = mc.mouseHandler.ypos();
+
+                // 从handleKeybinds HEAD缓存获取射线结果
+                int hitType = 0;
+                net.minecraft.core.BlockPos hitBlockPos = null;
+                net.minecraft.core.Direction hitDirection = null;
+                double hitX = 0, hitY = 0, hitZ = 0;
+                boolean hitInside = false;
+                int hitEntityId = -1;
+
+                net.minecraft.world.phys.HitResult hitResult = 客户端复刻管理器.获取并清空射线结果();
+                if (hitResult != null) {
+                    if (hitResult instanceof net.minecraft.world.phys.BlockHitResult blockHit) {
+                        hitType = 1;
+                        hitBlockPos = blockHit.getBlockPos();
+                        hitDirection = blockHit.getDirection();
+                        hitX = blockHit.getLocation().x;
+                        hitY = blockHit.getLocation().y;
+                        hitZ = blockHit.getLocation().z;
+                        hitInside = blockHit.isInside();
+                    } else if (hitResult instanceof net.minecraft.world.phys.EntityHitResult entityHit) {
+                        hitType = 2;
+                        hitEntityId = entityHit.getEntity().getId();
+                        hitX = entityHit.getLocation().x;
+                        hitY = entityHit.getLocation().y;
+                        hitZ = entityHit.getLocation().z;
+                    }
+                }
 
                 网络工具.发送到服务端(new com.v2t.puellamagi.core.network.packets.c2s.录制输入上报包(
-                                input.forwardImpulse,
-                                input.leftImpulse,
-                                input.jumping,
-                                input.shiftKeyDown,
-                                localPlayer.isSprinting(),
-                                localPlayer.getYRot(),
-                                localPlayer.getXRot(),
-                                localPlayer.getInventory().selected,
-                                keyStates
-                        )
-                );
+                        input.forwardImpulse,
+                        input.leftImpulse,
+                        input.jumping,
+                        input.shiftKeyDown,
+                        localPlayer.isSprinting(),
+                        localPlayer.getYRot(),
+                        localPlayer.getXRot(),
+                        localPlayer.getInventory().selected,
+                        keyboardEvents,
+                        mouseEvents,
+                        cursorX, cursorY,
+                        hitType, hitBlockPos, hitDirection,
+                        hitX, hitY, hitZ, hitInside, hitEntityId
+                ));
             }
         }
 

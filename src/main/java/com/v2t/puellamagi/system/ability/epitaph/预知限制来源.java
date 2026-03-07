@@ -34,14 +34,7 @@ public class 预知限制来源 implements I限制来源 {
      * →玩家无法手动操作 → 不需要服务端再限制
      * → 服务端正常处理C2S包 → 动画/音效/背包消耗全正确
      */
-    private static final Set<限制类型> 复刻限制 = EnumSet.of(限制类型.攻击,
-            限制类型.使用物品,
-            限制类型.释放技能,
-            限制类型.交互方块,
-            限制类型.交互实体,
-            限制类型.丢弃物品,
-            限制类型.破坏方块
-    );
+    private static final Set<限制类型> 复刻限制 = EnumSet.noneOf(限制类型.class);
 
     /**
      * Phase 3: 时间删除（使用者自由行动但不能干涉）

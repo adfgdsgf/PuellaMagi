@@ -84,7 +84,7 @@ public final class 输入接管器 {
         }
 
         被接管玩家.put(playerUUID, new 接管信息(sourceId, mode));
-        LOGGER.debug("玩家 {} 输入被{} 接管（模式: {}）", playerUUID, sourceId, mode);
+        //LOGGER.debug("玩家 {} 输入被{} 接管（模式: {}）", playerUUID, sourceId, mode);
         return true;
     }
 
@@ -98,7 +98,7 @@ public final class 输入接管器 {
         接管信息 existing = 被接管玩家.get(playerUUID);
         if (existing != null && existing.来源().equals(sourceId)) {
             被接管玩家.remove(playerUUID);
-            LOGGER.debug("玩家 {} 输入被 {} 释放", playerUUID, sourceId);
+           // LOGGER.debug("玩家 {} 输入被 {} 释放", playerUUID, sourceId);
         }
     }
 

@@ -27,12 +27,14 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * 职责：
  * - 管理预知能力的录制流程（开始/停止/采集）
- * - 存储录制数据（实体帧 + 玩家输入帧 + 鼠标增量 + 方块变化）
+ * - 存储录制数据（实体帧 + 玩家输入帧 + 方块变化）
  * - 管理世界快照（回滚用）
  * - 管理NBT变化检测（每tick比较，只在变化时存储NBT）
  *
- * 每个使用者独立维护一份录制会话
- * 录制在服务端静默执行，不通知任何玩家
+ * 纯输入回放架构：
+ * - 不录制任何C2S包
+ * - 玩家操作由客户端输入注入驱动，MC自己处理
+ * - 结束快照保证最终结果正确
  */
 public final class 录制管理器 {
 
@@ -41,17 +43,10 @@ public final class 录制管理器 {
     /** 默认录制范围（方块） */
     private static final double 录制范围 = 128.0;
 
-    /**
-     * 获取录制范围（方块）
-     * 供其他系统读取，避免硬编码重复值
-     */
     public static double 获取录制范围() {
         return 录制范围;
     }
 
-    /**
-     * 检查玩家是否在任何录制会话中被录制
-     */
     public static boolean 玩家是否在录制中(UUID playerUUID) {
         for (录制会话 session : 活跃会话.values()) {
             if (session.被录制实体.contains(playerUUID)) {
@@ -61,7 +56,7 @@ public final class 录制管理器 {
         return false;
     }
 
-    //==================== 录制会话 ====================
+    // ==================== 录制会话 ====================
 
     /**
      * 单个使用者的录制会话
@@ -70,52 +65,49 @@ public final class 录制管理器 {
         /** 通用帧数据（实体位置/朝向/动画+ 状态NBT） */
         public final 录制数据 帧数据;
 
-        /** 玩家输入帧（epitaph专用，20Hz移动方向） */
+        /** 玩家输入帧（20Hz移动方向） */
         public final Map<UUID, List<玩家输入帧>> 玩家输入表;
 
         /** 方块变化记录 */
         public final List<方块变化帧> 方块变化列表;
 
-        /** 按tick编号 + 玩家UUID存储的交互包帧 */
-        public final Map<Integer, Map<UUID, 交互包帧>> 交互包表 = new HashMap<>();
-
         /** 录制起点世界快照（回滚用） */
         public final 世界快照 起点快照;
 
-        /** 录制范围中心（使用者激活时的位置） */
+        /** 录制范围中心*/
         public final Vec3 录制中心;
 
         /** 所在维度 */
         public final ServerLevel 维度;
 
-        /** 被录制的实体UUID集合（动态扩展，包含录制中新出现的实体） */
+        /** 被录制的实体UUID集合 */
         public final Set<UUID> 被录制实体;
 
-        /**
-         * 每个实体上一次存储的状态NBT（用于变化检测）
-         * key = 实体UUID, value = 上一次存储时的状态NBT
-         * 首次出现的实体没有条目 → 视为"有变化" → 强制存储
-         */
+        /** 每个实体上一次存储的状态NBT（用于变化检测） */
         public final Map<UUID, CompoundTag> 上次状态NBT缓存;
 
-        /**
-         * 玩家鼠标增量数据（扁平列表，所有样本按时间顺序排列）
-         * 不按tick分组，回放时按帧数均匀分配
-         */
-        public final Map<UUID, List<float[]>> 鼠标样本表 = new HashMap<>();
+        /** 玩家鼠标增量数据 */
+        public final Map<UUID, List<float[]>> 鼠标样本表= new HashMap<>();
 
-        /**
-         * 玩家最新输入缓冲区（覆盖式）
-         * 客户端C2S包到达时更新，采集帧时读取
-         * 保证输入帧和实体帧1:1同步
-         */
+        /** 玩家最新输入缓冲区（覆盖式） */
         public final Map<UUID, 玩家输入帧> 最新输入缓冲 = new HashMap<>();
 
-        /** 被录制玩家的快照（录制开始时拍的）*/
-        public final Map<UUID, 玩家快照>玩家快照表;
+        /** 被录制玩家的快照（录制开始时拍的） */
+        public final Map<UUID, 玩家快照> 玩家快照表;
 
-        /** 录制结束时的玩家快照（校验用） */
+        /** 录制结束时的玩家快照（结果驱动恢复用） */
         public Map<UUID, 玩家快照> 结束快照表;
+
+        /** 录制开始时的初始状态 */
+        public 录制初始状态 初始状态 = null;
+
+        /** 方块实体变化记录 */
+        public final List<方块实体变化帧> 方块实体变化列表 = new ArrayList<>();
+
+        /** 方块实体NBT缓存（变化检测用） */
+        public final Map<BlockPos, CompoundTag> 方块实体NBT缓存 = new HashMap<>();
+
+        public final Map<UUID, List<String>> 玩家初始按键 = new HashMap<>();
 
 
 
@@ -141,10 +133,6 @@ public final class 录制管理器 {
 
     /**
      * 开始录制
-     *
-     * @param user 使用者
-     * @param maxFrames 最大帧数
-     * @return 是否成功
      */
     public static boolean 开始录制(ServerPlayer user, int maxFrames) {
         UUID userUUID = user.getUUID();
@@ -164,23 +152,21 @@ public final class 录制管理器 {
         // 拍摄世界快照
         世界快照 snapshot = new 世界快照(gameTime);
         snapshot.采集范围内实体(level, center, 录制范围);
+        snapshot.采集范围内方块实体(level, center, 录制范围);
 
-        // 确保正在被挖的方块被快照记录（即使同一tick被破坏了）
-        // 情况：方块在拍快照的同一tick被破坏 → 快照里是空气
-        // 回滚时恢复的是空气 → 方块凭空消失
+        // 确保正在被挖的方块被快照记录
         for (UUID entityUUID : entities) {
             Entity entity = findEntityByUUID(level, entityUUID);
             if (entity instanceof ServerPlayer sp) {
-                ServerPlayerGameModeAccessor gameMode =(ServerPlayerGameModeAccessor) sp.gameMode;
+                ServerPlayerGameModeAccessor gameMode =
+                        (ServerPlayerGameModeAccessor) sp.gameMode;
 
                 if (gameMode.puellamagi$isDestroyingBlock()) {
                     BlockPos pos = gameMode.puellamagi$getDestroyPos();
                     if (pos != null && !snapshot.包含方块(pos)) {
                         BlockState state = level.getBlockState(pos);
                         if (!state.isAir()) {
-                            snapshot.添加方块(new com.v2t.puellamagi.util.recording
-                                    .方块快照(pos, state, null));
-                            LOGGER.debug("补录正在挖的方块到快照: pos={}, state={}", pos, state);
+                            snapshot.添加方块(new 方块快照(pos, state, null));
                         }
                     }
                 }
@@ -209,63 +195,27 @@ public final class 录制管理器 {
             }
         }
 
-        // 补录正在进行中的状态
-        // 如果玩家在按下录制键之前就已经在使用物品（吃东西/拉弓等）
-        // 录制不会捕获"开始使用"的包（发生在录制之前）
-        // 回放时服务端不知道玩家在使用物品 → 使用失败
-        // 这里手动补一个"开始使用物品"的包到第0帧
-        // 删掉这整段
-        // for (UUID entityUUID : entities) {
-        //     Entity entity = findEntityByUUID(level, entityUUID);
-        //     if (entity instanceof ServerPlayer sp && sp.isUsingItem()) {
-        //         Map<UUID, 交互包帧> tickMap = session.交互包表.computeIfAbsent(0,
-        //                 k -> new HashMap<>());
-        //         交互包帧 firstFrame = tickMap.computeIfAbsent(entityUUID,
-        //                 k -> new交互包帧(0));
-        //         firstFrame.添加(new 交互包帧.使用物品包(
-        //                 sp.getUsedItemHand(),
-        //                 0
-        //         ));
-        //         LOGGER.debug("补录玩家 {} 的使用物品状态: hand={}",
-        //                 sp.getName().getString(), sp.getUsedItemHand());
-        //     }
-        // }
+        // 采集录制开始时的初始状态
+        session.初始状态 = 录制初始状态.从玩家采集(user);
 
         活跃会话.put(userUUID, session);
 
         // 通知被录制的玩家客户端开始录制
-        // 客户端收到后每tick发送录制输入上报包（C2S）
         for (UUID entityUUID : entities) {
             Entity entity = findEntityByUUID(level, entityUUID);
             if (entity instanceof ServerPlayer sp) {
-                网络工具.发送给玩家(
-                        sp,
-                        new com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包(true)
-                );
+                网络工具.发送给玩家(sp,
+                        new com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包(true));
             }
         }
 
-        LOGGER.info("玩家 {} 开始录制（范围内{} 个实体，最大 {} 帧）",
+        LOGGER.info("玩家 {} 开始录制（范围内{} 个实体，最大{} 帧）",
                 user.getName().getString(), entities.size(), maxFrames);
         return true;
     }
 
     /**
      * 采集一帧（每tick调用）
-     *
-     *采集流程：
-     * 1.扫描范围内所有实体
-     * 2. 对每个实体：
-     *    a. 采集手动字段（位置/朝向/动画等）
-     *    b. 采集状态NBT → 与上次比较
-     *    c. 有变化 → 帧数据包含NBT → 更新缓存
-     *    d. 无变化 → 帧数据不包含NBT → 节省存储
-     * 3. 从输入缓冲区读取玩家输入（1:1对齐）
-     *
-     * 注意：鼠标数据不在这里处理（直接追加模式，不按tick对齐）
-     *
-     * @param userUUID 使用者UUID
-     * @return 是否成功（false表示录制已满或不存在）
      */
     public static boolean 采集帧(UUID userUUID) {
         录制会话 session = 活跃会话.get(userUUID);
@@ -273,7 +223,6 @@ public final class 录制管理器 {
 
         ServerLevel level = session.维度;
 
-        // 扫描范围内所有实体
         Map<UUID, 实体帧数据> frameData = new HashMap<>();
         AABB box = AABB.ofSize(session.录制中心, 录制范围 * 2, 录制范围 * 2, 录制范围 * 2);
 
@@ -283,27 +232,21 @@ public final class 录制管理器 {
                         || e instanceof net.minecraft.world.entity.item.ItemEntity)) {
 
             UUID entityUUID = entity.getUUID();
-
-            // 动态扩展被录制实体集合
             session.被录制实体.add(entityUUID);
 
             if (entity instanceof LivingEntity living) {
-                // 手动字段
                 实体帧数据.Builder builder = 从活体采集到Builder(living);
 
-                // NBT变化检测
                 CompoundTag currentNBT = 实体帧数据.采集状态NBT(living);
                 CompoundTag lastNBT = session.上次状态NBT缓存.get(entityUUID);
 
                 if (!实体帧数据.NBT相同(currentNBT, lastNBT)) {
-                    // 有变化 → 存入帧数据 + 更新缓存
                     builder.状态NBT(currentNBT.copy());
                     session.上次状态NBT缓存.put(entityUUID, currentNBT);
                 }
 
                 frameData.put(entityUUID, builder.构建());
             } else {
-                // 非活体实体（投射物等）：同样做NBT变化检测
                 实体帧数据.Builder builder = 从普通实体采集到Builder(entity);
 
                 CompoundTag currentNBT = 实体帧数据.采集状态NBT(entity);
@@ -325,32 +268,70 @@ public final class 录制管理器 {
                 state.增加录制帧();
             }
 
-            // 从缓冲区读取玩家输入，和实体帧 1:1 添加
-            //缓冲区保留当前值（不清除），下次采集帧时如果没有新包就复用上一次的
             for (Map.Entry<UUID, 玩家输入帧> entry : session.最新输入缓冲.entrySet()) {
                 session.玩家输入表.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
                         .add(entry.getValue());
             }
+        }
 
+        // 检测方块实体NBT变化
+        if (added) {
+            检测方块实体变化(session, level);
         }
 
         return added;
     }
 
+    // ==================== 方块变化 ====================
+
     /**
-     * 获取方块实体NBT（如果有的话）
-     *
-     * 注意：只有旧状态也有方块实体时才需要存NBT
-     * 如果旧状态是空气，没有方块实体
+     * 检测范围内方块实体的NBT变化
+     *每tick调用，和方块变化帧同样的模式
      */
+    private static void 检测方块实体变化(录制会话 session, ServerLevel level) {
+        int tickIndex = session.帧数据.获取总帧数() - 1;
+        double range = 录制范围;
+        net.minecraft.world.phys.Vec3 center = session.录制中心;
+
+        int minChunkX = (int) Math.floor(center.x - range) >> 4;
+        int maxChunkX = (int) Math.floor(center.x + range) >> 4;
+        int minChunkZ = (int) Math.floor(center.z - range) >> 4;
+        int maxChunkZ = (int) Math.floor(center.z + range) >> 4;
+
+        for (int cx = minChunkX; cx <= maxChunkX; cx++) {
+            for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
+                if (!level.hasChunk(cx, cz)) continue;
+
+                var chunk = level.getChunk(cx, cz);
+                for (var entry : chunk.getBlockEntities().entrySet()) {
+                    BlockPos pos = entry.getKey();
+
+                    double dx = pos.getX() - center.x;
+                    double dy = pos.getY() - center.y;
+                    double dz = pos.getZ() - center.z;
+                    if (dx * dx + dy * dy + dz * dz > range * range) continue;
+
+                    net.minecraft.world.level.block.entity.BlockEntity be = entry.getValue();
+                    CompoundTag currentNBT = be.saveWithoutMetadata();
+
+                    CompoundTag lastNBT = session.方块实体NBT缓存.get(pos);
+                    if (lastNBT == null) {
+                        // 第一次见→ 存缓存
+                        session.方块实体NBT缓存.put(pos, currentNBT.copy());
+                    } else if (!currentNBT.equals(lastNBT)) {
+                        // 变了→ 记录变化帧
+                        session.方块实体变化列表.add(new 方块实体变化帧(pos, lastNBT.copy(), currentNBT.copy(), tickIndex));session.方块实体NBT缓存.put(pos, currentNBT.copy());
+                    }
+                }
+            }
+        }
+    }
+
     @Nullable
     private static CompoundTag 获取方块实体NBT(ServerLevel level, BlockPos pos, BlockState oldState) {
-        // 如果旧状态没有方块实体，不需要NBT
         if (!oldState.hasBlockEntity()) {
             return null;
         }
-        // 事件触发时方块可能已变，旧状态的NBT已经拿不到了
-        // 但如果当前方块实体还在且类型匹配，可以尝试获取
         BlockEntity be = level.getBlockEntity(pos);
         if (be != null) {
             return be.saveWithoutMetadata();
@@ -366,7 +347,6 @@ public final class 录制管理器 {
         for (Map.Entry<UUID, 录制会话> entry : 活跃会话.entrySet()) {
             录制会话 session = entry.getValue();
 
-            // 只记录同维度且在范围内的变化
             if (session.维度 != level) continue;
             if (pos.distSqr(BlockPos.containing(session.录制中心)) > 录制范围 * 录制范围) {
                 continue;
@@ -375,62 +355,43 @@ public final class 录制管理器 {
             int tickIndex = session.帧数据.获取总帧数();
             session.方块变化列表.add(new 方块变化帧(pos, oldState, newState, tickIndex));
 
-            // 同时记录到起点快照中（如果还没记录过这个位置）
             if (!session.起点快照.包含方块(pos)) {
-                session.起点快照.添加方块(new 方块快照(pos, oldState,获取方块实体NBT(level, pos, oldState)));
+                session.起点快照.添加方块(new 方块快照(pos, oldState,
+                        获取方块实体NBT(level, pos, oldState)));
             }
         }
     }
 
+    // ==================== 停止/取消录制 ====================
+
     /**
      * 停止录制
      *
-     * @param userUUID 使用者UUID
      * @return 录制会话（用于复刻），null表示不存在
      */
     @Nullable
     public static 录制会话 停止录制(UUID userUUID) {
         录制会话 session = 活跃会话.remove(userUUID);
+
         if (session != null) {
-            // 通知被录制的玩家客户端停止录制
+            // 通知客户端停止录制
             for (UUID entityUUID : session.被录制实体) {
                 Entity entity = findEntityByUUID(session.维度, entityUUID);
                 if (entity instanceof ServerPlayer sp) {
-                    网络工具.发送给玩家(
-                            sp,
-                            new com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包(false)
-                    );
+                    网络工具.发送给玩家(sp,
+                            new com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包(false));
                 }
             }
 
-            // 诊断：对比所有帧数
-            int 实体帧数 = session.帧数据.获取总帧数();
-            for (Map.Entry<UUID, List<玩家输入帧>> entry :
-                    session.玩家输入表.entrySet()) {
-                int 输入帧数 = entry.getValue().size();
-
-            }
-
-            // 诊断：鼠标数据
-            for (Map.Entry<UUID, List<float[]>> mouseEntry :
-                    session.鼠标样本表.entrySet()) {
-                int totalSamples = mouseEntry.getValue().size();
-                LOGGER.info("玩家 {} 鼠标: {} 样本, 实体帧: {}",
-                        mouseEntry.getKey(), totalSamples, 实体帧数);
-            }
-
-            //拍录制结束时的玩家快照（校验用）
-            // 回放结束时玩家状态应该和这个一致
-            session.结束快照表= new HashMap<>();
+            // 拍录制结束时的玩家快照（结果驱动恢复用）
+            session.结束快照表 = new HashMap<>();
             for (UUID entityUUID : session.被录制实体) {
                 Entity entity = findEntityByUUID(session.维度, entityUUID);
                 if (entity instanceof ServerPlayer sp) {
                     session.结束快照表.put(entityUUID, 玩家快照.从玩家采集(sp));
                 }
-            }
-
-            LOGGER.info("玩家 {} 停止录制（共{} 帧，{} 个方块变化）",
-                    userUUID, 实体帧数,
+            }LOGGER.info("玩家 {} 停止录制（共{} 帧，{} 个方块变化）",
+                    userUUID, session.帧数据.获取总帧数(),
                     session.方块变化列表.size());
         }
         return session;
@@ -442,17 +403,13 @@ public final class 录制管理器 {
     public static void 取消录制(UUID userUUID) {
         录制会话 removed = 活跃会话.remove(userUUID);
         if (removed != null) {
-            // 通知客户端停止录制
             for (UUID entityUUID : removed.被录制实体) {
                 Entity entity = findEntityByUUID(removed.维度, entityUUID);
                 if (entity instanceof ServerPlayer sp) {
-                    网络工具.发送给玩家(
-                            sp,
-                            new com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包(false)
-                    );
+                    网络工具.发送给玩家(sp,
+                            new com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包(false));
                 }
             }
-            LOGGER.debug("玩家 {} 取消录制", userUUID);
         }
     }
 
@@ -460,53 +417,19 @@ public final class 录制管理器 {
 
     /**
      * 接收客户端上报的输入帧（覆盖式缓冲）
-     *
-     * 客户端每tick发C2S包，但频率可能和服务端tick不一致
-     * 所以不直接添加到列表，而是更新缓冲区
-     * 采集帧时从缓冲区读取 → 保证输入帧和实体帧 1:1
-     *
-     * @param playerUUID 玩家UUID
-     * @param input 客户端上报的输入帧
      */
     public static void 接收客户端输入(UUID playerUUID, 玩家输入帧 input) {
         for (录制会话 session : 活跃会话.values()) {
             if (session.被录制实体.contains(playerUUID)) {
-                session.最新输入缓冲.put(playerUUID, input);
-                return;
+                session.最新输入缓冲.put(playerUUID, input);return;
             }
-        }
-    }
-
-    /**
-     * 接收服务端拦截到的C2S交互包
-     *
-     * 由EpitaphInputInterceptMixin在拦截包时调用
-     *录制中才存，不录制时忽略
-     *
-     * @param playerUUID 发包的玩家
-     * @param record     包记录
-     */
-    public static void 接收交互包(UUID playerUUID, 交互包帧.包记录 record) {
-        for (录制会话 session : 活跃会话.values()) {
-            if (!session.被录制实体.contains(playerUUID)) continue;
-
-            int currentTick = session.帧数据.获取总帧数();
-
-            Map<UUID, 交互包帧> tickMap = session.交互包表.computeIfAbsent(currentTick, k -> new HashMap<>());
-            交互包帧 frame = tickMap.computeIfAbsent(
-                    playerUUID, k -> new 交互包帧(currentTick));
-            frame.添加(record);
-            return;
         }
     }
 
     // ==================== 客户端鼠标接收 ====================
 
     /**
-     * 接收客户端上报的鼠标增量样本（扁平追加）
-     *
-     * 白话：客户端发来多少就直接存多少，不管是哪个tick发的
-     * 回放时按帧数均匀分配
+     * 接收客户端上报的鼠标增量样本
      */
     public static void 接收客户端鼠标样本(UUID playerUUID, List<float[]> samples) {
         for (录制会话 session : 活跃会话.values()) {
@@ -518,6 +441,18 @@ public final class 录制管理器 {
         }
     }
 
+    /**
+     * 接收客户端上报的初始按键状态
+     *录制开始时每个被录制的玩家上报自己按住的键
+     */
+    public static void 接收按键状态上报(UUID playerUUID, List<String> heldKeys) {
+        for (录制会话 session : 活跃会话.values()) {
+            if (session.被录制实体.contains(playerUUID)) {
+                session.玩家初始按键.put(playerUUID, new ArrayList<>(heldKeys));
+                LOGGER.info("收到玩家 {} 的初始按键上报：{} 个键按住", playerUUID, heldKeys.size());
+                return;
+            }
+        }}
 
     // ==================== 查询====================
 
@@ -530,20 +465,12 @@ public final class 录制管理器 {
         return 活跃会话.containsKey(userUUID);
     }
 
-    /**
-     * 获取所有活跃录制会话的使用者UUID
-     * 返回副本，避免遍历时并发修改
-     */
     public static List<UUID> 获取所有活跃使用者() {
         return new ArrayList<>(活跃会话.keySet());
     }
 
     // ==================== Builder构建工具 ====================
 
-    /**
-     * 从活体实体采集手动字段到Builder（不含NBT）
-     * NBT由调用方判断后通过 .状态NBT() 传入
-     */
     private static 实体帧数据.Builder 从活体采集到Builder(LivingEntity entity) {
         return new 实体帧数据.Builder(entity.getUUID())
                 .位置(entity.getX(), entity.getY(), entity.getZ())
@@ -576,9 +503,6 @@ public final class 录制管理器 {
                 .在地面(entity.onGround());
     }
 
-    /**
-     * 从普通实体采集手动字段到Builder（不含NBT）
-     */
     private static 实体帧数据.Builder 从普通实体采集到Builder(Entity entity) {
         return new 实体帧数据.Builder(entity.getUUID())
                 .位置(entity.getX(), entity.getY(), entity.getZ())
@@ -628,7 +552,5 @@ public final class 录制管理器 {
 
     public static void 清除全部() {
         活跃会话.clear();
-
-        LOGGER.debug("录制管理器已清空");
     }
 }

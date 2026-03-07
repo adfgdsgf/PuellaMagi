@@ -13,6 +13,7 @@
     "access.KeyMappingAccessor",
     "access.MinecraftAccessor",
     "access.ServerPlayerGameModeAccessor",
+    "access.MouseHandlerAccessor",
 
     "timestop.TimestopLevelMixin",
     "timestop.TimestopServerLevelMixin",
@@ -43,12 +44,10 @@
     "item.ItemEntityProtectionMixin",
     "item.ItemEntityPickupMixin",
 
-    "epitaph.EpitaphInputInterceptMixin",
+
     "epitaph.EpitaphReplayLevelMixin",
-    "epitaph.EpitaphReplayServerEntityMixin",
-    "epitaph.EpitaphReplayBroadcastMixin",
-    "epitaph.EpitaphReplayServerLevelMixin",
-    "epitaph.EpitaphReplayPlayerListMixin"
+    "epitaph.EpitaphReplayServerEntityMixin"
+
   ],
   "client": [
     "access.AccessParticleMixin",
@@ -83,9 +82,9 @@
     "epitaph.client.EpitaphReplayClientLevelMixin",
     "epitaph.client.EpitaphReplayKeyboardInputMixin",
     "epitaph.client.EpitaphReplayMouseMixin",
-    "epitaph.client.EpitaphKeySnapshotMixin",
-    "epitaph.client.EpitaphReplayMinecraftMixin",
-    "epitaph.client.EpitaphReplayGameModeMixin",
+    "epitaph.client.EpitaphKeyboardRecordMixin",
+    "epitaph.client.EpitaphMouseRecordMixin",
+    "epitaph.client.EpitaphReplayHitResultMixin",
 
     "client.CreativeModeDeleteMixin"
   ]

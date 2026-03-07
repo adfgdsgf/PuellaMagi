@@ -74,6 +74,54 @@ public class 世界快照 {
         }LOGGER.debug("世界快照采集完成：{} 个实体", 实体表.size());
     }
 
+    /**
+     * 采集范围内所有方块实体
+     *
+     * 遍历范围内已加载的区块，保存所有BlockEntity的NBT
+     * 用于回滚时恢复容器内容（箱子/漏斗/熔炉等）
+     */
+    public void 采集范围内方块实体(ServerLevel level, net.minecraft.world.phys.Vec3 center, double range) {
+        int minX = (int) Math.floor(center.x - range);
+        int maxX = (int) Math.floor(center.x + range);
+        int minZ = (int) Math.floor(center.z - range);
+        int maxZ = (int) Math.floor(center.z + range);
+
+        int minChunkX = minX >> 4;
+        int maxChunkX = maxX >> 4;
+        int minChunkZ = minZ >> 4;
+        int maxChunkZ = maxZ >> 4;
+
+        int count = 0;
+        for (int cx = minChunkX; cx <= maxChunkX; cx++) {
+            for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
+                if (!level.hasChunk(cx, cz)) continue;
+
+                var chunk = level.getChunk(cx, cz);
+                for (var entry : chunk.getBlockEntities().entrySet()) {
+                    BlockPos pos = entry.getKey();
+
+                    // 范围检查
+                    double dx = pos.getX() - center.x;
+                    double dy = pos.getY() - center.y;
+                    double dz = pos.getZ() - center.z;
+                    if (dx * dx + dy * dy + dz * dz > range * range) continue;
+
+                    // 已经有了就跳过（可能被方块变化提前记录了）
+                    if (包含方块(pos)) continue;
+
+                    net.minecraft.world.level.block.entity.BlockEntity be = entry.getValue();
+                    net.minecraft.world.level.block.state.BlockState state = level.getBlockState(pos);
+                    net.minecraft.nbt.CompoundTag nbt = be.saveWithoutMetadata();
+
+                    添加方块(new 方块快照(pos, state, nbt));
+                    count++;
+                }
+            }
+        }
+
+        LOGGER.debug("方块实体快照采集完成：{} 个", count);
+    }
+
     // ==================== 回滚 ====================
 
     /**

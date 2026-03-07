@@ -436,30 +436,7 @@ public class 通用事件 {
                 录制管理器.采集帧(userUUID);
             }
 
-            // ==================== 使用物品状态恢复（Level.tick之后） ====================
-            // Level.tick → player.tick会清掉使用物品状态
-            // 在清掉之后设回去→ sendChanges同步正确状态给客户端
-           /* for (UUID userUUID : 复刻引擎.获取所有活跃使用者()) {
-                复刻引擎.恢复使用物品(userUUID);
-            }*/
         }
     }
 
-    @SubscribeEvent
-    public static void 诊断方块变化(net.minecraftforge.event.level.BlockEvent.BreakEvent event) {
-        if (event.getLevel().isClientSide()) return;
-        PuellaMagi.LOGGER.info("[服务端] 方块破坏: pos={}, block={}, player={}",
-                event.getPos(),
-                event.getState().getBlock(),
-                event.getPlayer().getName().getString());
-    }
-
-    @SubscribeEvent
-    public static void 诊断方块放置(net.minecraftforge.event.level.BlockEvent.EntityPlaceEvent event) {
-        if (event.getLevel().isClientSide()) return;
-        PuellaMagi.LOGGER.info("[服务端] 方块放置: pos={}, block={}, entity={}",
-                event.getPos(),
-                event.getPlacedBlock().getBlock(),
-                event.getEntity() != null ? event.getEntity().getName().getString() : "null");
-    }
 }
