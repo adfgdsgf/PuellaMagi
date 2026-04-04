@@ -47,7 +47,8 @@ public final class 时停投射物处理 {
         if (projectile.xRotO == 0.0F && projectile.yRotO == 0.0F) {
             double horizontalDist = delta.horizontalDistance();
             projectile.setYRot((float) (Mth.atan2(delta.x, delta.z) * 180.0F / Math.PI));
-            projectile.setXRot((float) (Mth.atan2(delta.y, horizontalDist) * 180.0F / Math.PI));projectile.yRotO = projectile.getYRot();
+            projectile.setXRot((float) (Mth.atan2(delta.y, horizontalDist) * 180.0F / Math.PI));
+            projectile.yRotO = projectile.getYRot();
             projectile.xRotO = projectile.getXRot();
         }
 

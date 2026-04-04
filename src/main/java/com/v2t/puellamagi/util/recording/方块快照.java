@@ -69,7 +69,8 @@ public class 方块快照 {
             if (方块实体NBT != null) {
                 BlockEntity be = level.getBlockEntity(位置);
                 if (be != null) {
-                    be.load(方块实体NBT);be.setChanged();
+                    be.load(方块实体NBT);
+                    be.setChanged();
                 }
             }
 

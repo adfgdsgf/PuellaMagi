@@ -76,7 +76,8 @@ public class 心之种系列 implements I系列 {
 
     @Override
     public void 离开系列时(Player player) {
-        PuellaMagi.LOGGER.info("玩家 {} 离开心之种系列", player.getName().getString());}
+        PuellaMagi.LOGGER.info("玩家 {} 离开心之种系列", player.getName().getString());
+    }
 
     @Override
     public void 变身时(Player player) {

@@ -138,7 +138,8 @@ public abstract class TimestopProjectileMixin extends Entity implements IProject
             // 在时停范围内 且 发射者是时停者（不会被冻结）
             if (timeStop.puellamagi$inTimeStopRange(owner) &&!timeStop.puellamagi$shouldFreezeEntity(owner)) {
                 puellamagi$isTimeStopCreated = true;
-                puellamagi$invincibilityBypassTicks = INVINCIBILITY_BYPASS_DURATION;puellamagi$speedMultiplier = 0.75F;
+                puellamagi$invincibilityBypassTicks = INVINCIBILITY_BYPASS_DURATION;
+                puellamagi$speedMultiplier = 0.75F;
             }
         }
     }

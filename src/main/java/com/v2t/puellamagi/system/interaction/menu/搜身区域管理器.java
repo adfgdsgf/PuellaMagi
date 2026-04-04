@@ -106,7 +106,8 @@ public class 搜身区域管理器 {
         int 行数 = (int) Math.ceil((double) 容器信息.槽位数量() / 列数);
         int 占用高度 = 标签高度 + 行数 * 槽位尺寸 + 区域间距;
 
-        所有分组.add(new 分组数据(容器信息, 行数, 占用高度));}
+        所有分组.add(new 分组数据(容器信息, 行数, 占用高度));
+    }
 
     public void 计算分页() {
         所有页.clear();
@@ -148,7 +149,8 @@ public class 搜身区域管理器 {
 
         for (int i = 0; i < 页.分组数量(); i++) {
             int 分组索引 = 页.起始分组索引() + i;
-            分组数据 分组 = 所有分组.get(分组索引);搜身容器信息 容器信息 = 分组.容器信息();
+            分组数据 分组 = 所有分组.get(分组索引);
+            搜身容器信息 容器信息 = 分组.容器信息();
 
             int slotsY = currentY + 标签高度;
             int 列数 = 容器信息.列数();
@@ -167,7 +169,8 @@ public class 搜身区域管理器 {
                 int col = j % 列数;
                 int x = 基准X + col * 槽位尺寸 + 1;
                 int y = slotsY + row * 槽位尺寸 + 1;
-                int containerSlotIndex = 容器信息.起始槽位() + j;槽位限制 限制 = 容器信息.获取槽位限制(j);
+                int containerSlotIndex = 容器信息.起始槽位() + j;
+                槽位限制 限制 = 容器信息.获取槽位限制(j);
 
                 当前页槽位.add(new 槽位信息(
                         容器信息.容器(),
@@ -188,7 +191,8 @@ public class 搜身区域管理器 {
 
     public void 上一页() {
         if (当前页 > 0) {
-            当前页--;}
+            当前页--;
+        }
     }
 
     public void 下一页() {

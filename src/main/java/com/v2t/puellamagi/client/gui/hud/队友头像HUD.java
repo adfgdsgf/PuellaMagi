@@ -146,7 +146,8 @@ public class 队友头像HUD implements IGuiOverlay {
      */
     private boolean 自己是否显示头像() {
         var team = 客户端队伍缓存.获取队伍();
-        if (team == null) return false;Minecraft mc = Minecraft.getInstance();
+        if (team == null) return false;
+        Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return false;
 
         return team.获取成员(mc.player.getUUID())

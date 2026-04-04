@@ -51,7 +51,8 @@ public class 队伍数据 implements I队伍 {
     private 队伍数据(UUID teamId, UUID leaderUUID, long createTime) {
         this.队伍ID = teamId;
         this.队长UUID = leaderUUID;
-        this.创建时间 = createTime;}
+        this.创建时间 = createTime;
+    }
 
     // ==================== I队伍 接口实现 ====================
 
@@ -72,7 +73,8 @@ public class 队伍数据 implements I队伍 {
         //旧队长降级为队员
         队伍成员数据 oldLeader = 成员表.get(队长UUID);
         if (oldLeader != null) {
-            oldLeader.设置职位(队伍职位.队员);}
+            oldLeader.设置职位(队伍职位.队员);
+        }
 
         // 新队长升级
         队伍成员数据 newLeader = 成员表.get(playerUUID);

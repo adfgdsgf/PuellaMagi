@@ -58,7 +58,8 @@ public abstract class PlayerLogoutDropMixin {
                             stack.copy()
                     );
                     drop.setPickUpDelay(40); // 2秒拾取延迟
-                    self.level().addFreshEntity(drop);LOGGER.info("玩家 {} 下线，掉落非己绑定物品: {} (所有者: {})",
+                    self.level().addFreshEntity(drop);
+                    LOGGER.info("玩家 {} 下线，掉落非己绑定物品: {} (所有者: {})",
                             self.getName().getString(),
                             item.获取绑定类型(),
                             ownerUUID.toString().substring(0, 8));

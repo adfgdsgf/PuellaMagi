@@ -33,7 +33,9 @@ public final class 能力注册表 {
         if (注册表.containsKey(id)) {
             PuellaMagi.LOGGER.warn("能力 {} 已存在，将被覆盖", id);
         }
-        注册表.put(id, factory);能力ID缓存 = null; // 清除缓存
+        注册表.put(id, factory);
+        // 清除缓存
+        能力ID缓存 = null;
         PuellaMagi.LOGGER.debug("注册能力: {}", id);
     }
 

@@ -131,7 +131,8 @@ public final class 灵魂宝石区块加载器 {
         );
 
         if (success) {
-            加载记录.put(playerUUID, new LoadedChunkInfo(目标维度, newChunkPos));LOGGER.debug("加载区块: 玩家={}, 维度={}, 区块={}",
+            加载记录.put(playerUUID, new LoadedChunkInfo(目标维度, newChunkPos));
+            LOGGER.debug("加载区块: 玩家={}, 维度={}, 区块={}",
                     playerUUID, 目标维度.location(), newChunkPos);
         } else {
             LOGGER.warn("区块加载失败: 玩家={}, 维度={}, 区块={}",
@@ -164,7 +165,8 @@ public final class 灵魂宝石区块加载器 {
                 info.区块坐标().z,
                 false, // remove
                 true
-        );LOGGER.debug("释放区块: 玩家={}, 维度={}, 区块={}",
+        );
+        LOGGER.debug("释放区块: 玩家={}, 维度={}, 区块={}",
                 playerUUID, info.维度().location(), info.区块坐标());
     }
 
@@ -183,7 +185,9 @@ public final class 灵魂宝石区块加载器 {
     public static void clearAll(MinecraftServer server) {
         for (UUID playerUUID : 加载记录.keySet()) {
             释放区块加载(server, playerUUID);
-        }加载记录.clear();LOGGER.info("已释放所有灵魂宝石区块加载");
+        }
+        加载记录.clear();
+        LOGGER.info("已释放所有灵魂宝石区块加载");
     }
 
     // ==================== 查询 ====================

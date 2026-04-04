@@ -26,6 +26,25 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @OnlyIn(Dist.CLIENT)
 public class 客户端复刻管理器 {
 
+        // ==================== 时间删除 ====================
+
+        /** 时间删除中：回放继续但不控制本地玩家 */
+        private static boolean 时间删除自由 = false;
+
+        /**
+         * 进入时间删除自由状态
+         * 回放继续（怪物帧驱动不停）但本地玩家不再被输入回放控制
+         */
+        public static void 进入时间删除() {
+                时间删除自由 = true;
+                时间删除客户端处理器.处理进入时删();
+        }
+
+        public static boolean 是否时间删除自由() {
+                return 时间删除自由;
+        }
+
+
         // ==================== 实体帧数据 ====================
 
         private static final Map<UUID, 实体帧数据> 当前帧表 = new HashMap<>();
@@ -158,7 +177,8 @@ public class 客户端复刻管理器 {
          * → KeyMapping更新、Screen收到按键、mod快捷键触发
          */
         private static void 重放输入事件() {
-                if (!输入回放活跃 || p2帧 == null) return;Minecraft mc = Minecraft.getInstance();
+                if (!输入回放活跃 || p2帧 == null) return;
+                Minecraft mc = Minecraft.getInstance();
                 if (mc.getWindow() == null) return;
                 long window = mc.getWindow().getWindow();
                 // 设置鼠标光标位置（容器操作精确还原）
@@ -201,7 +221,7 @@ public class 客户端复刻管理器 {
 
         public static void 接收帧(UUID 使用者UUID, List<实体帧数据> 帧列表, List<实体帧数据> 上一帧列表param) {
                 if (帧列表.isEmpty()) {
-                        清除全部();
+                        回放结束清理();
                         return;
                 }
 
@@ -231,7 +251,9 @@ public class 客户端复刻管理器 {
 
                 LocalPlayer local = Minecraft.getInstance().player;
                 if (local == null) return;
-                if (!输入帧表.containsKey(local.getUUID())) return;缓冲输入帧 = 输入帧表.get(local.getUUID());}
+                if (!输入帧表.containsKey(local.getUUID())) return;
+                缓冲输入帧 = 输入帧表.get(local.getUUID());
+            }
 
         /**兼容方法 */
         public static void 接收鼠标样本(Map<UUID, List<float[]>> 鼠标样本表) {}
@@ -245,6 +267,12 @@ public class 客户端复刻管理器 {
 
                 if (缓冲输入帧 == null) return;
 
+                // 时间删除中不接受新的输入帧
+                if (时间删除自由) {
+                        缓冲输入帧 = null;
+                        return;
+                }
+
                 p0帧 = p1帧;
                 p1帧 = p2帧;
                 p2帧 = 缓冲输入帧;
@@ -256,7 +284,8 @@ public class 客户端复刻管理器 {
                 }
 
                 // 重放键盘/鼠标事件
-                重放输入事件();}
+                重放输入事件();
+        }
 
         // ==================== 过渡保护 ====================
 
@@ -267,7 +296,9 @@ public class 客户端复刻管理器 {
         // ==================== 状态查询 ====================
 
         public static boolean 是否需要接管() {
-                return 过渡保护 || 输入回放活跃 || 结尾保护剩余 > 0;
+                // 时间删除中不接管
+                if (时间删除自由) return false;
+                return 过渡保护 ||输入回放活跃 ||结尾保护剩余 > 0;
         }
 
         public static boolean 是否过渡保护中() {
@@ -297,8 +328,10 @@ public class 客户端复刻管理器 {
         // ==================== 输入回放查询 ====================
 
         public static boolean 本地玩家是否输入回放中() {
+                //时间删除中不控制本地玩家
+                if (时间删除自由) return false;
                 return 输入回放活跃 && p1帧 != null && p2帧 != null;
-        }
+            }
 
         @Nullable
         public static 玩家输入帧 获取本地玩家输入帧() {
@@ -408,6 +441,41 @@ public class 客户端复刻管理器 {
 
         // ==================== 生命周期 ====================
 
+        /**
+         * 回放结束清理
+         *帧播完或能力结束时调用
+         *时间删除中调用时保留时删标记
+         */
+        public static void 回放结束清理() {boolean was时删= 时间删除自由;
+
+                当前帧表.clear();
+                上一帧表.clear();
+                p0帧 = null;
+                p1帧 = null;
+                p2帧 = null;
+                缓冲输入帧 = null;
+                当前射线结果 = null;
+                输入回放活跃 = false;
+                过渡保护 = false;
+                结尾保护剩余 = 0;
+                活跃 = false;
+                正在重放事件 = false;
+                上一帧鼠标事件 = new ArrayList<>();
+                上一帧键盘事件 = new ArrayList<>();
+
+                // 时删中回放结束：保留时删标记
+                if (was时删) {
+                        时间删除自由 = true;
+                } else {
+                        时间删除自由 = false;
+                }
+        }
+
+        /**
+         * 完全清理
+         * 能力彻底结束时调用（回到待机）
+         * 清除一切状态包括时删标记
+         */
         public static void 清除全部() {
                 当前帧表.clear();
                 上一帧表.clear();
@@ -424,6 +492,7 @@ public class 客户端复刻管理器 {
                 活跃 = false;
                 录制中 = false;
                 正在重放事件 = false;
+                时间删除自由 = false;
                 上一帧鼠标事件 = new ArrayList<>();
                 上一帧键盘事件 = new ArrayList<>();
 

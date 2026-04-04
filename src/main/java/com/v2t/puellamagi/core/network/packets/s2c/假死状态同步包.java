@@ -68,6 +68,7 @@ public class 假死状态同步包 {
                 假死状态处理器.设置客户端假死状态(msg.是否假死);
             }
         });
-        });ctx.get().setPacketHandled(true);
+        });
+        ctx.get().setPacketHandled(true);
     }
 }

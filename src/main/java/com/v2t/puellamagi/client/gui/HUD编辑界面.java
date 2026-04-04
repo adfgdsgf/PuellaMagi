@@ -62,7 +62,8 @@ public class HUD编辑界面 extends Screen {
 
     @Override
     protected void init() {
-        super.init();Minecraft mc = Minecraft.getInstance();
+        super.init();
+        Minecraft mc = Minecraft.getInstance();
         if (mc.player != null) {
             可编辑列表 = 可编辑HUD注册表.获取玩家可见HUD(mc.player);
         } else {
@@ -100,7 +101,8 @@ public class HUD编辑界面 extends Screen {
 
         // 底部：重置全部 + 保存/取消
         height += 按钮高度 + 按钮间距; // 重置全部
-        height += 按钮高度 + 面板边距;// 保存/取消
+        height += 按钮高度 + 面板边距;
+        // 保存/取消
 
         面板高度 = height;
     }
@@ -329,12 +331,14 @@ public class HUD编辑界面 extends Screen {
                 拖动起始鼠标Y = (int) mouseY;
                 int[] pos = hud.获取当前位置();
                 拖动起始X = pos[0];
-                拖动起始Y = pos[1];刷新控制面板();
+                拖动起始Y = pos[1];
+                刷新控制面板();
                 return true;
             }
         }
 
-        选中的HUD = null;刷新控制面板();
+        选中的HUD = null;
+        刷新控制面板();
         return false;
     }
 

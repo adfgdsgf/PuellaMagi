@@ -108,7 +108,8 @@ public class 灵魂宝石世界数据 extends ModWorldData {
         宝石登记信息 info = 登记表.get(玩家UUID);
         if (info != null) {
             info.设置状态(状态);
-            标记已修改();LOGGER.debug("更新灵魂宝石状态: 玩家={}, 状态={}", 玩家UUID, 状态);
+            标记已修改();
+            LOGGER.debug("更新灵魂宝石状态: 玩家={}, 状态={}", 玩家UUID, 状态);
         }
     }
 

@@ -43,7 +43,8 @@ public class 宝石登记信息 extends 绑定物品登记信息 {
      * 从NBT创建（反序列化用）
      */
     private 宝石登记信息() {
-        super();}
+        super();
+    }
 
     // === 特有字段 Getter ===
 

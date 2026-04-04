@@ -121,7 +121,8 @@ public final class 距离效果处理器 {
         MinecraftServer server = player.getServer();
         if (server == null) return;
 
-        灵魂宝石世界数据 worldData = 灵魂宝石世界数据.获取(server);宝石登记信息 info = worldData.获取登记信息(player.getUUID()).orElse(null);
+        灵魂宝石世界数据 worldData = 灵魂宝石世界数据.获取(server);
+        宝石登记信息 info = worldData.获取登记信息(player.getUUID()).orElse(null);
 
         var result = 灵魂宝石距离计算.计算(player, info, server);
 

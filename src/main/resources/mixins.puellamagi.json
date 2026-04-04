@@ -46,7 +46,8 @@
 
 
     "epitaph.EpitaphReplayLevelMixin",
-    "epitaph.EpitaphReplayServerEntityMixin"
+    "epitaph.EpitaphReplayServerEntityMixin",
+    "epitaph.TimeDeletionStackMixin"
 
   ],
   "client": [

@@ -15,7 +15,8 @@ import net.minecraft.client.gui.GuiGraphics;
  *
  * 使用方式：
  *   GUI覆盖层 overlay = new GUI覆盖层(guiLeft, guiTop, GUI_WIDTH, GUI_HEIGHT);
- *   overlay.开始渲染(graphics);// pushPose +遮罩
+ *   overlay.开始渲染(graphics);
+ *   // pushPose +遮罩
  *   // ... 绘制弹窗内容 ...
  *   overlay.结束渲染(graphics);  // popPose
  *
@@ -88,7 +89,8 @@ public class GUI覆盖层 {
         graphics.pose().translate(0, 0, z层级);
 
         //绘制遮罩
-        graphics.fill(遮罩X, 遮罩Y, 遮罩X + 遮罩W, 遮罩Y + 遮罩H, 遮罩色);}
+        graphics.fill(遮罩X, 遮罩Y, 遮罩X + 遮罩W, 遮罩Y + 遮罩H, 遮罩色);
+    }
 
     /**
      * 结束覆盖层渲染

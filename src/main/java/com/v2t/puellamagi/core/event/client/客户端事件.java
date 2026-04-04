@@ -325,7 +325,8 @@ public class 客户端事件 {
 
         private static void 处理变身按键(Player player) {
             if (能力工具.是否已变身(player)) {
-                网络工具.发送到服务端(new 变身请求包());} else {
+                网络工具.发送到服务端(new 变身请求包());
+            } else {
                 if (!能力工具.是否已契约(player)) {
                     return;
                 }

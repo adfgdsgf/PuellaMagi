@@ -129,7 +129,8 @@ public class 客户端交互事件 {
         Entity target = 检测准心物品或投射物(mc);
         if (target instanceof ItemEntity) {
             网络工具.发送到服务端(new 掉落物拾取请求包(target.getId()));
-            event.setCanceled(true);} else if (target instanceof AbstractArrow arrow) {
+            event.setCanceled(true);
+        } else if (target instanceof AbstractArrow arrow) {
             IProjectileAccess access = (IProjectileAccess) arrow;
             double stopThreshold = 时停配置.获取静止阈值();
 

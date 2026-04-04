@@ -122,7 +122,8 @@ public class 预知技能 implements I技能 {
      */
     @Override
     public void 开启时(Player player, Level level) {
-        if (!(player instanceof ServerPlayer sp)) return;阶段 current = 预知状态管理.获取阶段(sp.getUUID());
+        if (!(player instanceof ServerPlayer sp)) return;
+        阶段 current = 预知状态管理.获取阶段(sp.getUUID());
 
         switch (current) {
             case 待机 -> 处理_开始录制(sp);
@@ -181,7 +182,8 @@ public class 预知技能 implements I技能 {
             return;
         }
 
-        PuellaMagi.LOGGER.info("玩家 {} 开始预知录制", player.getName().getString());}
+        PuellaMagi.LOGGER.info("玩家 {} 开始预知录制", player.getName().getString());
+    }
 
     /**
      * Phase 1 → Phase 2：结束录制，回溯+开始复刻
@@ -287,7 +289,8 @@ public class 预知技能 implements I技能 {
             // 录制已满，自动进入复刻
             PuellaMagi.LOGGER.info("玩家 {} 录制已满，自动进入复刻",
                     player.getName().getString());
-            处理_结束录制并复刻(player);}
+            处理_结束录制并复刻(player);
+        }
     }
 
     /**

@@ -173,7 +173,8 @@ public final class 灵魂宝石管理器 {
      * 创建一个新的灵魂宝石物品
      */
     public static ItemStack 创建灵魂宝石(ServerPlayer player, long timestamp) {
-        ItemStack stack = new ItemStack(ModItems.SOUL_GEM.get());灵魂宝石数据.初始化(
+        ItemStack stack = new ItemStack(ModItems.SOUL_GEM.get());
+        灵魂宝石数据.初始化(
                 stack,
                 player.getUUID(),
                 player.getName().getString(),
@@ -236,7 +237,8 @@ public final class 灵魂宝石管理器 {
         MinecraftServer server = player.getServer();
         if (server == null) return null;
 
-        灵魂宝石世界数据 worldData = 灵魂宝石世界数据.获取(server);宝石登记信息 info = worldData.获取登记信息(player.getUUID()).orElse(null);
+        灵魂宝石世界数据 worldData = 灵魂宝石世界数据.获取(server);
+        宝石登记信息 info = worldData.获取登记信息(player.getUUID()).orElse(null);
         if (info == null) return null;
 
         return 宝石清理工具.查找背包中的有效宝石(player, info.获取有效时间戳());

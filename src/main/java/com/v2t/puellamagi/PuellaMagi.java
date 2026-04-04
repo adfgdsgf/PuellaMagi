@@ -34,6 +34,7 @@ public class PuellaMagi {
         ModMenuTypes.register(modEventBus);
 
         // 注册Forge事件总线
-        MinecraftForge.EVENT_BUS.register(this);LOGGER.info("Puella Magi 模组入口初始化完成");
+        MinecraftForge.EVENT_BUS.register(this);
+        LOGGER.info("Puella Magi 模组入口初始化完成");
     }
 }

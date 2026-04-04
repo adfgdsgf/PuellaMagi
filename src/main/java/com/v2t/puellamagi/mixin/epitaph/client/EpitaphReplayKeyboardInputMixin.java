@@ -32,12 +32,14 @@ public class EpitaphReplayKeyboardInputMixin extends Input {
     private void epitaph$replaceWithRecordedInput(boolean sneaking, float sneakSpeed, CallbackInfo ci) {
         if (!客户端复刻管理器.本地玩家是否输入回放中()) {
             return;
-        }玩家输入帧 input = 客户端复刻管理器.获取本地玩家输入帧();
+        }
+
+
+        玩家输入帧 input = 客户端复刻管理器.获取本地玩家输入帧();
         if (input == null) {
             return;
         }
 
-        //---- 移动输入覆盖 ----
         this.forwardImpulse = input.获取前后输入();
         this.leftImpulse = input.获取左右输入();
         this.jumping = input.是否跳跃();
@@ -46,16 +48,14 @@ public class EpitaphReplayKeyboardInputMixin extends Input {
         this.up = input.获取前后输入() > 0.001f;
         this.down = input.获取前后输入() < -0.001f;
         this.left = input.获取左右输入() > 0.001f;
-        this.right = input.获取左右输入() < -0.001f;
-
-        Minecraft mc = Minecraft.getInstance();
+        this.right = input.获取左右输入() < -0.001f;Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         if (player == null) return;
 
-        // ---- 冲刺 +槽位 + 视角 ----
         player.setSprinting(input.是否冲刺());
         player.getInventory().selected = input.获取选中槽位();
         player.setYRot(input.获取YRot());
         player.setXRot(input.获取XRot());}
+
 
 }

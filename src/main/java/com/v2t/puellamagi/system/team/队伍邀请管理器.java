@@ -101,7 +101,8 @@ public final class 队伍邀请管理器 {
         }
 
         // 添加邀请
-        targetInvites.add(new 邀请数据(inviter.getUUID(), teamId, currentTime));LOGGER.info("玩家 {} 邀请 {} 加入队伍 {}",
+        targetInvites.add(new 邀请数据(inviter.getUUID(), teamId, currentTime));
+        LOGGER.info("玩家 {} 邀请 {} 加入队伍 {}",
                 inviter.getName().getString(),
                 target.getName().getString(),
                 teamId.toString().substring(0, 8));

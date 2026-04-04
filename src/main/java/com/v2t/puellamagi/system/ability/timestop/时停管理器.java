@@ -252,7 +252,8 @@ public final class 时停管理器 {
 
     public static void 打断蓄力(Player player) {
         if (是否正在蓄力(player)) {
-            结束蓄力(player);}
+            结束蓄力(player);
+        }
     }
 
     // ==================== 玩家下线/死亡处理 ====================

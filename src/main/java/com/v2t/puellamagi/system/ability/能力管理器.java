@@ -42,7 +42,8 @@ public final class 能力管理器 {
 
         // 如果已有激活的能力，先失效
         if (激活能力表.containsKey(uuid)) {
-            失效能力(player);}
+            失效能力(player);
+        }
 
         // 创建新能力实例
         Optional<I能力> optAbility = 能力注册表.创建实例(abilityId);

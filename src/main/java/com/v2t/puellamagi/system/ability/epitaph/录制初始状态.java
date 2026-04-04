@@ -44,7 +44,8 @@ public class 录制初始状态 {
         if (player.isUsingItem()) {
             state.正在使用物品 = true;
             state.使用的手 = player.getUsedItemHand();
-            state.使用剩余时间 = player.getUseItemRemainingTicks();LOGGER.info("采集初始状态：正在使用物品（手={}, 剩余={}tick）",
+            state.使用剩余时间 = player.getUseItemRemainingTicks();
+            LOGGER.info("采集初始状态：正在使用物品（手={}, 剩余={}tick）",
                     state.使用的手, state.使用剩余时间);
         }
 

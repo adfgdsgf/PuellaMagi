@@ -223,7 +223,8 @@ public final class 时停豁免系统 {
         }
 
         if (shouldDebug) {
-            调试消息("§7[客户端] 时停者: " + stopperCount);调试消息("§c觉醒失败");
+            调试消息("§7[客户端] 时停者: " + stopperCount);
+            调试消息("§c觉醒失败");
         }
         return false;
     }

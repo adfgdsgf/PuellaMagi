@@ -109,7 +109,11 @@ public final class 录制管理器 {
 
         public final Map<UUID, List<String>> 玩家初始按键 = new HashMap<>();
 
+        /** 影响标记表（时间删除用） */
+        public final 影响标记表 标记表 = new 影响标记表();
 
+        /** 影响记录（时间删除用） */
+        public final 影响记录 影响 = new 影响记录();
 
         public 录制会话(录制数据 data, 世界快照 snapshot, Vec3 center,ServerLevel level, Set<UUID> entities) {
             this.帧数据 = data;
@@ -205,7 +209,7 @@ public final class 录制管理器 {
             Entity entity = findEntityByUUID(level, entityUUID);
             if (entity instanceof ServerPlayer sp) {
                 网络工具.发送给玩家(sp,
-                        new com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包(true));
+                        com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.开始录制());
             }
         }
 
@@ -289,7 +293,9 @@ public final class 录制管理器 {
 
     /**
      * 检测范围内方块实体的NBT变化
-     *每tick调用，和方块变化帧同样的模式
+     * 每tick调用，和方块变化帧同样的模式
+     *
+     * 触发者判断：检查哪个被录制的玩家正在打开这个方块实体对应的容器
      */
     private static void 检测方块实体变化(录制会话 session, ServerLevel level) {
         int tickIndex = session.帧数据.获取总帧数() - 1;
@@ -319,16 +325,47 @@ public final class 录制管理器 {
 
                     CompoundTag lastNBT = session.方块实体NBT缓存.get(pos);
                     if (lastNBT == null) {
-                        // 第一次见→ 存缓存
                         session.方块实体NBT缓存.put(pos, currentNBT.copy());
                     } else if (!currentNBT.equals(lastNBT)) {
-                        // 变了→ 记录变化帧
-                        session.方块实体变化列表.add(new 方块实体变化帧(pos, lastNBT.copy(), currentNBT.copy(), tickIndex));session.方块实体NBT缓存.put(pos, currentNBT.copy());
+                        // 判断触发者：谁在打开这个容器
+                        UUID triggerUUID = 查找容器操作者(session, level, pos);
+
+                        session.方块实体变化列表.add(new 方块实体变化帧(
+                                pos, lastNBT.copy(), currentNBT.copy(), tickIndex, triggerUUID));
+                        session.方块实体NBT缓存.put(pos, currentNBT.copy());
                     }
                 }
             }
         }
     }
+    /*
+     * 查找正在操作指定方块实体容器的玩家
+     *
+     * 通过检查被录制玩家的containerMenu是否关联到这个方块位置
+     * 返回第一个匹配的玩家UUID，没有则返回null
+     */
+    @Nullable
+    private static UUID 查找容器操作者(录制会话 session, ServerLevel level, BlockPos pos) {
+        for (UUID playerUUID : session.被录制实体) {
+            Entity entity = findEntityByUUID(level, playerUUID);
+            if (!(entity instanceof ServerPlayer sp)) continue;
+
+            // 检查玩家当前打开的容器是否关联到这个方块位置
+            if (sp.containerMenu != sp.inventoryMenu) {
+                //玩家打开了某个容器
+                // 检查容器的槽位是否来自这个方块实体
+                for (net.minecraft.world.inventory.Slot slot : sp.containerMenu.slots) {
+                    if (slot.container instanceof net.minecraft.world.level.block.entity.BlockEntity slotBE) {
+                        if (slotBE.getBlockPos().equals(pos)) {
+                            return playerUUID;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
 
     @Nullable
     private static CompoundTag 获取方块实体NBT(ServerLevel level, BlockPos pos, BlockState oldState) {
@@ -344,9 +381,12 @@ public final class 录制管理器 {
 
     /**
      * 记录方块变化
-     * 由事件监听器在方块变化时调用
+     *由事件监听器在方块变化时调用
+     *
+     * @param triggerUUID 触发者UUID，null表示非玩家触发
      */
-    public static void 记录方块变化(ServerLevel level, BlockPos pos,BlockState oldState, BlockState newState) {
+    public static void 记录方块变化(ServerLevel level, BlockPos pos,BlockState oldState, BlockState newState,
+                                    @Nullable UUID triggerUUID) {
         for (Map.Entry<UUID, 录制会话> entry : 活跃会话.entrySet()) {
             录制会话 session = entry.getValue();
 
@@ -356,7 +396,7 @@ public final class 录制管理器 {
             }
 
             int tickIndex = session.帧数据.获取总帧数();
-            session.方块变化列表.add(new 方块变化帧(pos, oldState, newState, tickIndex));
+            session.方块变化列表.add(new 方块变化帧(pos, oldState, newState, tickIndex, triggerUUID));
 
             if (!session.起点快照.包含方块(pos)) {
                 session.起点快照.添加方块(new 方块快照(pos, oldState,
@@ -382,7 +422,7 @@ public final class 录制管理器 {
                 Entity entity = findEntityByUUID(session.维度, entityUUID);
                 if (entity instanceof ServerPlayer sp) {
                     网络工具.发送给玩家(sp,
-                            new com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包(false));
+                            com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.停止录制());
                 }
             }
 
@@ -410,7 +450,7 @@ public final class 录制管理器 {
                 Entity entity = findEntityByUUID(removed.维度, entityUUID);
                 if (entity instanceof ServerPlayer sp) {
                     网络工具.发送给玩家(sp,
-                            new com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包(false));
+                            com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.停止录制());
                 }
             }
         }
@@ -424,7 +464,8 @@ public final class 录制管理器 {
     public static void 接收客户端输入(UUID playerUUID, 玩家输入帧 input) {
         for (录制会话 session : 活跃会话.values()) {
             if (session.被录制实体.contains(playerUUID)) {
-                session.最新输入缓冲.put(playerUUID, input);return;
+                session.最新输入缓冲.put(playerUUID, input);
+                return;
             }
         }
     }
@@ -551,7 +592,8 @@ public final class 录制管理器 {
     // ==================== 生命周期 ====================
 
     public static void 玩家下线(UUID playerUUID) {
-        取消录制(playerUUID);}
+        取消录制(playerUUID);
+    }
 
     public static void 清除全部() {
         活跃会话.clear();

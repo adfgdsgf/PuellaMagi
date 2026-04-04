@@ -72,7 +72,9 @@ public class 灵魂宝石系列 implements I系列 {
 
     @Override
     public void 加入系列时(Player player) {
-        PuellaMagi.LOGGER.info("玩家 {} 加入灵魂宝石系列", player.getName().getString());//灵魂宝石发放由契约管理器调用 灵魂宝石管理器.尝试发放灵魂宝石() 处理// 污浊度初始化由Capability自动处理
+        PuellaMagi.LOGGER.info("玩家 {} 加入灵魂宝石系列", player.getName().getString());
+        // 灵魂宝石发放由契约管理器调用 灵魂宝石管理器.尝试发放灵魂宝石() 处理
+        // 污浊度初始化由Capability自动处理
     }
 
     @Override

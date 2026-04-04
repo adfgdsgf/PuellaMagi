@@ -335,7 +335,8 @@ public class 实体帧数据 {
         buf.writeVarInt(使用物品剩余时间);
         buf.writeBoolean(使用物品的手!= null);
         if (使用物品的手 != null) {
-            buf.writeEnum(使用物品的手);}
+            buf.writeEnum(使用物品的手);
+        }
 
         // 姿态
         buf.writeEnum(姿态);

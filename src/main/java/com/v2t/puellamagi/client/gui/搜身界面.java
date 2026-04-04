@@ -120,7 +120,8 @@ public class 搜身界面 extends AbstractContainerScreen<搜身菜单> {
         ModNetwork.getChannel().sendToServer(
                 new 搜身翻页请求包(搜身翻页请求包.区域.主区域, page)
         );
-        menu.主区域跳转到页(page);刷新界面();
+        menu.主区域跳转到页(page);
+        刷新界面();
     }
 
     private void 侧边区域翻页回调(int page) {
@@ -165,7 +166,8 @@ public class 搜身界面 extends AbstractContainerScreen<搜身菜单> {
             int panelX = 获取侧边面板X();
             int panelY = 获取侧边面板Y();
             int panelW = 获取侧边面板宽度();
-            int panelH = 获取侧边面板高度();绘制面板(gui, panelX, panelY, panelW, panelH);
+            int panelH = 获取侧边面板高度();
+            绘制面板(gui, panelX, panelY, panelW, panelH);
             绘制区域槽位背景(gui, 侧边区域);
 
             if (侧边区域翻页 != null) {
@@ -217,7 +219,8 @@ public class 搜身界面 extends AbstractContainerScreen<搜身菜单> {
         gui.fill(x, y, x + 槽位尺寸, y + 1, 0xFF373737);
         gui.fill(x, y, x + 1, y + 槽位尺寸, 0xFF373737);
         gui.fill(x + 槽位尺寸 - 1, y, x +槽位尺寸, y + 槽位尺寸, 0xFFFFFFFF);
-        gui.fill(x, y + 槽位尺寸 - 1, x + 槽位尺寸, y + 槽位尺寸, 0xFFFFFFFF);gui.fill(x + 1, y + 1, x + 槽位尺寸 - 1, y + 槽位尺寸 - 1, 0xFF8B8B8B);
+        gui.fill(x, y + 槽位尺寸 - 1, x + 槽位尺寸, y + 槽位尺寸, 0xFFFFFFFF);
+        gui.fill(x + 1, y + 1, x + 槽位尺寸 - 1, y + 槽位尺寸 - 1, 0xFF8B8B8B);
     }
 
     @Override

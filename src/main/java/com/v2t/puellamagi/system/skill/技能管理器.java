@@ -23,13 +23,15 @@ import java.util.UUID;
  * 技能管理器
  * 技能释放的统一入口
  *
- * 设计：
- * - 按键按下()是唯一入口，根据技能类型分流处理
- * - 瞬发/切换/充能：按下即释放
- * - 蓄力/引导/蓄力切换：进入状态追踪，松开时处理
- * - 污浊度消耗：根据技能的消耗时机在正确位置处理
- * - 创造模式：通过 能力工具.应该跳过限制() 统一跳过CD、消耗等
- * - 行动限制：通过 行动限制管理器 统一检查（假死、灵魂视角等）
+ * 设计（行为驱动）：
+ * - 不使用switch(按键类型)分发
+ * - 通过调用技能的行为声明方法（需要按键追踪()、支持开关状态()等）决定行为
+ * - 技能自己知道自己的行为，管理器只是统一调度
+ *
+ * 流程：
+ * 1. 按键按下() → 统一前置检查 → 根据行为方法分流
+ * 2. 按键松开() → 查找追踪状态 → 通知技能
+ * 3. tickAll() → 更新按键状态 + 持续消耗 + 驱动开启tick
  */
 public final class 技能管理器 {
     private 技能管理器() {}
@@ -37,25 +39,23 @@ public final class 技能管理器 {
     // 玩家按键状态：UUID -> 技能ID -> 按住时间(tick)
     private static final Map<UUID, Map<ResourceLocation, Integer>> 按键状态表 = new HashMap<>();
 
-    //玩家语音播放时间：UUID -> 技能ID -> 上次播放时间戳
+    // 玩家语音播放时间：UUID -> 技能ID -> 上次播放时间戳
     private static final Map<UUID, Map<ResourceLocation, Long>> 语音时间表 = new HashMap<>();
 
     // 持续消耗计时：UUID -> 技能ID -> 上次消耗时间(tick)
     private static final Map<UUID, Map<ResourceLocation, Integer>> 持续消耗计时表 = new HashMap<>();
 
-    //==================== 按键按下（统一入口）====================
+    // ==================== 按键按下（统一入口） ====================
 
     /**
      * 按键按下 - 所有技能的统一入口
-     * 根据技能类型分流处理
+     * 通过技能的行为声明方法决定处理方式
      */
     public static void 按键按下(Player player, ResourceLocation skillId, boolean 修饰键) {
         if (!(player instanceof ServerPlayer serverPlayer)) return;
 
-        // ===== 行动限制检查（新增）=====
-        // 统一入口，被假死/灵魂视角等状态限制时无法释放技能
+        // ===== 行动限制检查 =====
         if (行动限制管理器.是否被限制(player, 限制类型.释放技能)) {
-            // 不显示提示，避免刷屏（玩家应该知道自己在假死）
             PuellaMagi.LOGGER.debug("玩家 {} 被限制释放技能", player.getName().getString());
             return;
         }
@@ -74,107 +74,63 @@ public final class 技能管理器 {
 
         I技能 skill = optSkill.get();
 
-        // 检查冷却（创造模式跳过）
-        if (!能力工具.应该跳过限制(player) && 能力工具.技能是否冷却中(player, skillId)) {
-            // 不显示文字提示，技能栏HUD已经有冷却遮罩
+        // 不响应按键的技能直接返回（如被动技能）
+        if (!skill.响应按键按下()) {
+            PuellaMagi.LOGGER.debug("技能不响应按键: {}", skillId);
             return;
         }
 
-        // 检查可用性（包含污浊度检查，技能内部会检查创造模式）
+        // 修饰键处理：优先级最高
+        if (修饰键 && skill.支持修饰键()) {
+            skill.修饰键按下时(player, player.level());
+            return;
+        }
+
+        // 检查冷却（创造模式跳过）
+        if (!能力工具.应该跳过限制(player) && 能力工具.技能是否冷却中(player, skillId)) {
+            return;
+        }
+
+        // 检查可用性
         if (!skill.可以使用(player)) {
             serverPlayer.displayClientMessage(本地化工具.消息("skill_fail_cannot_use"), true);
             return;
         }
 
-        // 根据类型分流
-        I技能.按键类型 type = skill.获取按键类型();
         Level level = player.level();
 
-        switch (type) {
-            //===== 按下即释放的类型 =====
-            case 瞬发 -> {
-                skill.执行(player, level);
-                消耗污浊度_激活(serverPlayer, skill);
-                应用冷却(serverPlayer, skill);PuellaMagi.LOGGER.debug("玩家 {} 释放瞬发技能: {}",
-                        player.getName().getString(), skillId);
-            }
-
-            case 切换 -> {
-                if (修饰键) {
-                    skill.修饰键按下时(player, level);
-                    break;
-                }
-
-                if (skill.是否开启(player)) {
-                    skill.关闭时(player, level);
-                    停止持续消耗(player, skill);
-                    应用冷却(serverPlayer, skill);
-                } else {
-                    skill.开启时(player, level);
-                    skill.执行(player, level);
-                    消耗污浊度_激活(serverPlayer, skill);
-                    开始持续消耗(player, skill);
-                }
-                PuellaMagi.LOGGER.debug("玩家 {} 切换技能: {}",
-                        player.getName().getString(), skillId);
-            }
-
-            case 充能 -> {
-                if (skill.获取当前充能层数(player) > 0) {
-                    skill.消耗充能(player);
-                    skill.执行(player, level);
-                    消耗污浊度_激活(serverPlayer, skill);
-                    PuellaMagi.LOGGER.debug("玩家 {} 释放充能技能: {}",
-                            player.getName().getString(), skillId);
-                } else {
-                    serverPlayer.displayClientMessage(本地化工具.消息("skill_fail_no_charge"), true);
-                }
-            }
-
-            // ===== 需要按键状态追踪的类型 =====
-            case 蓄力切换 -> {
-                if (修饰键) {
-                    skill.修饰键按下时(player, level);
-                    break;
-                }
-                // 已激活且不在保护期：关闭
-                if (skill.是否开启(player) && !skill.是否保护期中(player)) {
-                    skill.关闭时(player, level);
-                    停止持续消耗(player, skill);
-                    应用冷却(serverPlayer, skill);
-                    PuellaMagi.LOGGER.debug("玩家 {} 关闭蓄力切换技能: {}",
-                            player.getName().getString(), skillId);
-                    return;
-                }
-                // 保护期内：忽略
-                if (skill.是否保护期中(player)) {
-                    return;
-                }
-                // 未激活：开始蓄力
-                开始按键追踪(player, skill);尝试播放蓄力语音(serverPlayer, skill);
-            }
-
-            case 蓄力, 引导 -> {
-                开始按键追踪(player, skill);
-                if (type == I技能.按键类型.引导) {
-                    开始持续消耗(player, skill);
-                }
-            }
-
-            case 被动 -> {
-                // 被动技能不响应按键
-                PuellaMagi.LOGGER.debug("被动技能不响应按键: {}", skillId);
-            }
-
-            // ===== 其他类型暂时按瞬发处理 =====
-            default -> {
-                skill.执行(player, level);
-                消耗污浊度_激活(serverPlayer, skill);
-                应用冷却(serverPlayer, skill);
-                PuellaMagi.LOGGER.debug("玩家 {} 释放技能: {}",
-                        player.getName().getString(), skillId);
+        // ===== 支持开关状态的技能：检查是否需要关闭 =====
+        if (skill.支持开关状态()) {
+            if (处理开关状态按下(serverPlayer, skill, level)) {
+                return;
             }
         }
+
+        // ===== 支持充能的技能：检查充能层数 =====
+        if (skill.支持充能()) {
+            处理充能按下(serverPlayer, skill, level);
+            return;
+        }
+
+        // ===== 需要按键追踪的技能：进入追踪模式 =====
+        if (skill.需要按键追踪()) {
+            开始按键追踪(player, skill);
+            if (skill.支持蓄力()) {
+                尝试播放蓄力语音(serverPlayer, skill);
+            }
+            // 引导类技能按下时开始持续消耗
+            if (!skill.支持蓄力()) {
+                开始持续消耗(player, skill);
+            }
+            return;
+        }
+
+        // ===== 默认行为：直接执行（瞬发类及其他） =====
+        skill.执行(player, level);
+        消耗污浊度_激活(serverPlayer, skill);
+        应用冷却(serverPlayer, skill);
+        PuellaMagi.LOGGER.debug("玩家 {} 释放技能: {}",
+                player.getName().getString(), skillId);
     }
 
     // ==================== 按键松开 ====================
@@ -196,41 +152,21 @@ public final class 技能管理器 {
         if (optSkill.isEmpty()) return;
 
         I技能 skill = optSkill.get();
-        I技能.按键类型 type = skill.获取按键类型();
         Level level = player.level();
 
         // 通知技能松开
         skill.松开时(player, level, holdTime);
 
-        switch (type) {
-            case 蓄力 -> {
-                if (holdTime >= skill.获取最小蓄力时间()) {
-                    // 蓄力足够，释放
-                    skill.执行(player, level);
-                    消耗污浊度_蓄力(serverPlayer, skill, holdTime);
-                    应用冷却(serverPlayer, skill);
-                } else {
-                    // 蓄力不足，取消
-                    skill.蓄力取消时(player, level);
-                }
-            }
+        // 蓄力类技能的松开逻辑
+        if (skill.支持蓄力()) {
+            处理蓄力松开(serverPlayer, skill, level, holdTime);
+        }
 
-            case 蓄力切换 -> {
-                if (skill.是否保护期中(player)) {
-                    // 保护期内松开，退出保护期进入正常激活状态
-                    skill.退出保护期(player);
-                } else if (holdTime < skill.获取最小蓄力时间()) {
-                    // 未蓄满松开，取消
-                    skill.蓄力取消时(player, level);
-                }
-            }
-
-            case 引导 -> {
-                // 引导结束
-                skill.引导打断时(player, level);
-                停止持续消耗(player, skill);
-                应用冷却(serverPlayer, skill);
-            }
+        // 引导类技能的松开逻辑（不支持蓄力但需要按键追踪）
+        if (!skill.支持蓄力() && skill.需要按键追踪()) {
+            skill.引导打断时(player, level);
+            停止持续消耗(player, skill);
+            应用冷却(serverPlayer, skill);
         }
 
         PuellaMagi.LOGGER.debug("玩家 {} 松开技能: {}，按住: {}tick",
@@ -260,8 +196,8 @@ public final class 技能管理器 {
         // 处理持续消耗
         处理持续消耗tick(player);
 
-        // 驱动已开启的切换类技能tick
-        驱动切换类技能tick(player);
+        // 驱动需要tick的技能
+        驱动开启技能tick(player);
     }
 
     /**
@@ -271,10 +207,8 @@ public final class 技能管理器 {
         Map<ResourceLocation, Integer> playerStates = 按键状态表.get(player.getUUID());
         if (playerStates == null || playerStates.isEmpty()) return;
 
-        // ===== 新增：检查是否被限制释放技能 =====
-        // 如果玩家在蓄力过程中进入假死等限制状态，应该取消蓄力
+        // 检查是否被限制释放技能
         if (行动限制管理器.是否被限制(player, 限制类型.释放技能)) {
-            // 通知所有正在蓄力的技能取消
             for (var entry : playerStates.entrySet()) {
                 ResourceLocation skillId = entry.getKey();
                 Optional<I技能> optSkill = 技能注册表.创建实例(skillId);
@@ -285,11 +219,9 @@ public final class 技能管理器 {
                 PuellaMagi.LOGGER.debug("玩家 {} 被限制，取消蓄力: {}",
                         player.getName().getString(), skillId);
             }
-            // 清空该玩家的所有按键状态
             playerStates.clear();
             return;
         }
-        // ===== 新增结束 =====
 
         Level level = player.level();
 
@@ -306,33 +238,126 @@ public final class 技能管理器 {
             I技能 skill = optSkill.get();
             skill.按住tick(player, level, holdTime);
 
-            // 获取实际蓄力时间（创造模式可能为0）
-            int 实际蓄力时间 = skill.获取实际蓄力时间(player);
-
-            // 检查蓄满自动释放
-            boolean 已蓄满 = 实际蓄力时间 <= 0|| holdTime >= 实际蓄力时间;
-
-            if (已蓄满&& skill.蓄满自动释放()) {
-                I技能.按键类型 type = skill.获取按键类型();
-
-                if (type == I技能.按键类型.蓄力切换) {
-                    if (!skill.是否开启(player) && !skill.是否保护期中(player)) {
-                        skill.蓄力完成激活时(player, level);
-                        skill.进入保护期(player);
-                        消耗污浊度_激活(player, skill);
-                        开始持续消耗(player, skill);
-                        PuellaMagi.LOGGER.debug("玩家 {} 蓄力切换技能蓄满激活: {}",
-                                player.getName().getString(), skillId);
-                    }
-                } else if (type == I技能.按键类型.蓄力) {
-                    skill.执行(player, level);
-                    消耗污浊度_蓄力(player, skill, holdTime);
-                    应用冷却(player, skill);
-                    iterator.remove();
-                    PuellaMagi.LOGGER.debug("玩家 {} 蓄力技能蓄满释放: {}",
-                            player.getName().getString(), skillId);
-                }
+            // 蓄力类技能的蓄满检查
+            if (skill.支持蓄力()) {
+                处理蓄满检查(player, skill, level, holdTime, iterator);
             }
+        }
+    }
+
+    // ==================== 行为处理方法 ====================
+
+    /**
+     * 处理支持开关状态的技能按下
+     * @return true表示已处理（不需要后续逻辑），false表示继续
+     */
+    private static boolean 处理开关状态按下(ServerPlayer player, I技能 skill, Level level) {
+        // 蓄力切换类：已激活且不在保护期时关闭
+        if (skill.支持蓄力()) {
+            if (skill.是否开启(player) && !skill.是否保护期中(player)) {
+                skill.关闭时(player, level);
+                停止持续消耗(player, skill);
+                应用冷却(player, skill);
+                PuellaMagi.LOGGER.debug("玩家 {} 关闭蓄力切换技能: {}",
+                        player.getName().getString(), skill.获取ID());
+                return true;
+            }
+            // 保护期内：忽略
+            if (skill.是否保护期中(player)) {
+                return true;
+            }
+            // 未激活：继续（走按键追踪流程）
+            return false;
+        }
+
+        // 纯切换类：已开启则关闭，否则开启
+        if (skill.是否开启(player)) {
+            skill.关闭时(player, level);
+            停止持续消耗(player, skill);
+            应用冷却(player, skill);
+        } else {
+            skill.开启时(player, level);
+            skill.执行(player, level);
+            消耗污浊度_激活(player, skill);
+            开始持续消耗(player, skill);
+        }
+        PuellaMagi.LOGGER.debug("玩家 {} 切换技能: {}",
+                player.getName().getString(), skill.获取ID());
+        return true;
+    }
+
+    /**
+     * 处理充能类技能按下
+     */
+    private static void 处理充能按下(ServerPlayer player, I技能 skill, Level level) {
+        if (skill.获取当前充能层数(player) > 0) {
+            skill.消耗充能(player);
+            skill.执行(player, level);
+            消耗污浊度_激活(player, skill);
+            PuellaMagi.LOGGER.debug("玩家 {} 释放充能技能: {}",
+                    player.getName().getString(), skill.获取ID());
+        } else {
+            player.displayClientMessage(本地化工具.消息("skill_fail_no_charge"), true);
+        }
+    }
+
+    /**
+     * 处理蓄力类技能松开
+     */
+    private static void 处理蓄力松开(ServerPlayer player, I技能 skill, Level level, int holdTime) {
+        // 蓄力切换类：保护期内松开退出保护期
+        if (skill.支持开关状态()) {
+            if (skill.是否保护期中(player)) {
+                skill.退出保护期(player);
+                return;
+            }
+            if (holdTime < skill.获取最小蓄力时间()) {
+                skill.蓄力取消时(player, level);
+                return;
+            }
+            return;
+        }
+
+        // 纯蓄力类：检查是否蓄够
+        if (holdTime >= skill.获取最小蓄力时间()) {
+            skill.执行(player, level);
+            消耗污浊度_蓄力(player, skill, holdTime);
+            应用冷却(player, skill);
+        } else {
+            skill.蓄力取消时(player, level);
+        }
+    }
+
+    /**
+     * 处理蓄满自动释放检查
+     */
+    private static void 处理蓄满检查(
+            ServerPlayer player, I技能 skill, Level level, int holdTime,
+            java.util.Iterator<Map.Entry<ResourceLocation, Integer>> iterator) {
+
+        int 实际蓄力时间 = skill.获取实际蓄力时间(player);
+        boolean 已蓄满 = 实际蓄力时间 <= 0 || holdTime >= 实际蓄力时间;
+
+        if (!已蓄满 || !skill.蓄满自动释放()) return;
+
+        // 蓄力切换类：蓄满后激活
+        if (skill.支持开关状态()) {
+            if (!skill.是否开启(player) && !skill.是否保护期中(player)) {
+                skill.蓄力完成激活时(player, level);
+                skill.进入保护期(player);
+                消耗污浊度_激活(player, skill);
+                开始持续消耗(player, skill);
+                PuellaMagi.LOGGER.debug("玩家 {} 蓄力切换技能蓄满激活: {}",
+                        player.getName().getString(), skill.获取ID());
+            }
+        } else {
+            // 纯蓄力类：蓄满自动释放
+            skill.执行(player, level);
+            消耗污浊度_蓄力(player, skill, holdTime);
+            应用冷却(player, skill);
+            iterator.remove();
+            PuellaMagi.LOGGER.debug("玩家 {} 蓄力技能蓄满释放: {}",
+                    player.getName().getString(), skill.获取ID());
         }
     }
 
@@ -405,7 +430,6 @@ public final class 技能管理器 {
         Map<ResourceLocation, Integer> timers = 持续消耗计时表.get(player.getUUID());
         if (timers == null || timers.isEmpty()) return;
 
-        // 创造模式跳过持续消耗
         boolean skipConsume = 能力工具.应该跳过限制(player);
 
         var iterator = timers.entrySet().iterator();
@@ -424,12 +448,11 @@ public final class 技能管理器 {
             I技能 skill = optSkill.get();
 
             // 检查技能是否仍在激活状态
-            if (!skill.是否开启(player)) {
+            if (skill.支持开关状态() && !skill.是否开启(player)) {
                 iterator.remove();
                 continue;
             }
 
-            // 创造模式跳过消耗但保留追踪
             if (skipConsume) continue;
 
             I技能.消耗时机 timing = skill.获取消耗时机();
@@ -438,16 +461,14 @@ public final class 技能管理器 {
             if (amount <= 0) continue;
 
             if (timing == I技能.消耗时机.持续_每tick) {
-                // 每tick消耗
                 污浊度管理器.增加(player, amount, false);
-                // 每秒同步一次
                 if (tickCount % 20 == 0) {
                     污浊度管理器.同步污浊度(player);
                 }
             } else if (timing == I技能.消耗时机.持续_每秒) {
-                // 每秒消耗
                 if (tickCount % 20 == 0) {
-                    污浊度管理器.增加(player, amount);PuellaMagi.LOGGER.debug("技能 {} 持续消耗污浊度: {}",
+                    污浊度管理器.增加(player, amount);
+                    PuellaMagi.LOGGER.debug("技能 {} 持续消耗污浊度: {}",
                             skillId, amount);
                 }
             }
@@ -455,10 +476,10 @@ public final class 技能管理器 {
     }
 
     /**
-     * 驱动所有已开启的切换类技能的tick
-     *切换类/蓄力切换类技能开启后需要每tick调用开启tick
+     * 驱动所有需要tick的已开启技能
+     * 通过 需要开启tick() 行为方法判断，不使用类型判断
      */
-    private static void 驱动切换类技能tick(ServerPlayer player) {
+    private static void 驱动开启技能tick(ServerPlayer player) {
         能力工具.获取技能能力(player).ifPresent(cap -> {
             var preset = cap.获取当前预设();
             if (preset == null) return;
@@ -468,11 +489,9 @@ public final class 技能管理器 {
                 if (slot == null || slot.是否为空()) continue;
 
                 技能注册表.创建实例(slot.获取技能ID()).ifPresent(skill -> {
-                    I技能.按键类型 type = skill.获取按键类型();
-                    if (type == I技能.按键类型.切换 || type == I技能.按键类型.蓄力切换) {
-                        if (skill.是否开启(player)) {
-                            skill.开启tick(player, player.level());
-                        }
+                    // 通过行为方法判断，不使用 instanceof 或 switch(类型)
+                    if (skill.需要开启tick() && skill.是否开启(player)) {
+                        skill.开启tick(player, player.level());
                     }
                 });
             }
@@ -483,7 +502,6 @@ public final class 技能管理器 {
 
     /**
      * 检查玩家是否有正在进行的持续消耗
-     * 用于污浊度管理器判断是否暂停自然恢复
      */
     public static boolean 是否有持续消耗中(Player player) {
         if (player == null) return false;
@@ -502,12 +520,14 @@ public final class 技能管理器 {
         int cooldown = skill.获取冷却时间();
         if (cooldown > 0) {
             能力工具.获取技能能力(player).ifPresent(cap -> {
-                cap.设置冷却(skill.获取ID(), cooldown);});
-            com.v2t.puellamagi.core.event.通用事件.同步技能能力(player);}
+                cap.设置冷却(skill.获取ID(), cooldown);
+            });
+            com.v2t.puellamagi.core.event.通用事件.同步技能能力(player);
+        }
     }
 
     private static void 尝试播放蓄力语音(ServerPlayer player, I技能 skill) {
-        ResourceLocation[]语音列表 = skill.获取蓄力语音列表();
+        ResourceLocation[] 语音列表 = skill.获取蓄力语音列表();
         if (语音列表 == null || 语音列表.length == 0) return;
 
         UUID uuid = player.getUUID();

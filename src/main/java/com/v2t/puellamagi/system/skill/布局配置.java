@@ -118,7 +118,8 @@ public class 布局配置 {
             return new 布局配置();
         }
 
-        方向[]方向值 = 方向.values();锚点[] 锚点值 = 锚点.values();
+        方向[] 方向值 = 方向.values();
+        锚点[] 锚点值 = 锚点.values();
 
         int orientationIdx = tag.getInt(KEY_ORIENTATION);
         int anchorIdx = tag.getInt(KEY_ANCHOR);
@@ -155,7 +156,8 @@ public class 布局配置 {
         int x = switch (屏幕锚点) {
             case 左上, 左中, 左下 -> 0;
             case 上中, 正中, 下中 -> screenWidth / 2;
-            case 右上, 右中, 右下 -> screenWidth;};
+            case 右上, 右中, 右下 -> screenWidth;
+        };
         int y = switch (屏幕锚点) {
             case 左上, 上中, 右上 -> 0;
             case 左中, 正中, 右中 -> screenHeight / 2;

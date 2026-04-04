@@ -179,7 +179,8 @@ public class 技能栏HUD implements IGuiOverlay, I可编辑HUD {
 
     @Override
     public void 重置为默认() {
-        布局.重置为默认();}
+        布局.重置为默认();
+    }
 
     @Override
     public boolean 坐标在HUD上(double x, double y) {
@@ -196,7 +197,8 @@ public class 技能栏HUD implements IGuiOverlay, I可编辑HUD {
     // ==================== 旧接口兼容 ====================
 
     public void 触发预设显示() {
-        预设切换时间戳 = System.currentTimeMillis();}
+        预设切换时间戳 = System.currentTimeMillis();
+    }
 
     // ==================== 渲染 ====================
 
@@ -358,7 +360,8 @@ public class 技能栏HUD implements IGuiOverlay, I可编辑HUD {
         } else {
             int bgColor = 渲染工具.调整透明度(渲染工具.颜色_槽位背景, alpha);
             int borderColor = 渲染工具.调整透明度(渲染工具.颜色_槽位边框, alpha);
-            graphics.fill(x, y, x + size, y + size, bgColor);渲染工具.绘制边框矩形(graphics, x, y, size, size, borderColor);
+            graphics.fill(x, y, x + size, y + size, bgColor);
+            渲染工具.绘制边框矩形(graphics, x, y, size, size, borderColor);
         }
 
         // 绘制技能图标
@@ -380,7 +383,8 @@ public class 技能栏HUD implements IGuiOverlay, I可编辑HUD {
                 int textY = scaledY + (scaledSize - font.lineHeight) / 2;
 
                 graphics.drawString(font, initial, textX, textY, iconColor, false);
-                graphics.pose().popPose();绘制冷却遮罩(graphics, font, player, skillId, x, y, size, scale, alpha);
+                graphics.pose().popPose();
+                绘制冷却遮罩(graphics, font, player, skillId, x, y, size, scale, alpha);
                 绘制蓄力进度(graphics, x, y, size, index, alpha);
                 绘制开启状态边框(graphics, player, skillId, x, y, size, index, alpha);
             }
@@ -510,6 +514,7 @@ public class 技能栏HUD implements IGuiOverlay, I可编辑HUD {
 
         long time = System.currentTimeMillis();
         float breathe = 0.7f +0.3f * (float) Math.sin(time / 300.0);
-        int highlightColor = 渲染工具.调整透明度(0xFFFFD700, alpha * breathe);渲染工具.绘制边框矩形(graphics, x, y, size, size, highlightColor, 0, 2);
+        int highlightColor = 渲染工具.调整透明度(0xFFFFD700, alpha * breathe);
+        渲染工具.绘制边框矩形(graphics, x, y, size, size, highlightColor, 0, 2);
     }
 }

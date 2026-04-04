@@ -91,7 +91,8 @@ public class 拖拽上下文<T extends I槽位内容> {
     public 松开结果 结束拖拽() {
         松开结果 result;
         if (正在拖拽) {
-            result = 松开结果.拖拽完成;} else if (鼠标按下中) {
+            result = 松开结果.拖拽完成;
+        } else if (鼠标按下中) {
             result = 松开结果.点击;
         } else {
             result = 松开结果.无操作;

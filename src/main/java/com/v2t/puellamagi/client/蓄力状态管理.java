@@ -62,17 +62,14 @@ public final class 蓄力状态管理 {
         }
 
         I技能 skill = skillInfo.get();
-        I技能.按键类型 type = skill.获取按键类型();
 
-        //切换类/蓄力切换类：已开启时按下是关闭，不开始蓄力
-        if (type == I技能.按键类型.切换 || type == I技能.按键类型.蓄力切换) {
-            if (skill.是否开启(player)) {
-                return false;
-            }
+        // 支持开关状态的技能：已开启时按下是关闭，不开始蓄力
+        if (skill.支持开关状态() && skill.是否开启(player)) {
+            return false;
         }
 
-        // 只有蓄力类和蓄力切换类需要显示蓄力进度
-        if (type != I技能.按键类型.蓄力 && type != I技能.按键类型.蓄力切换) {
+        // 只有支持蓄力的技能需要显示蓄力进度
+        if (!skill.支持蓄力()) {
             return false;
         }
 
@@ -222,9 +219,9 @@ public final class 蓄力状态管理 {
         }
 
         I技能 skill = skillInfo.get();
-        I技能.按键类型 type = skill.获取按键类型();
 
-        if (type == I技能.按键类型.切换 || type == I技能.按键类型.蓄力切换) {
+        // 只有支持开关状态的技能才有"开启"概念
+        if (skill.支持开关状态()) {
             return skill.是否开启(player);
         }
 

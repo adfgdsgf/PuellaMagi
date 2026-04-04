@@ -44,6 +44,11 @@ public class EpitaphReplayMouseMixin {
             return;
         }
 
+        //时间删除中：放行鼠标，让玩家自由转视角
+        if (客户端复刻管理器.是否时间删除自由()) {
+            return;
+        }
+
         ci.cancel();
         this.accumulatedDX = 0;
         this.accumulatedDY = 0;
@@ -76,7 +81,8 @@ public class EpitaphReplayMouseMixin {
             player.xRotO = player.getXRot();
             player.yHeadRotO = player.getYHeadRot();
 
-            客户端复刻管理器.同步位置旧值(player);} else if (客户端复刻管理器.是否结尾保护中()) {
+            客户端复刻管理器.同步位置旧值(player);
+        } else if (客户端复刻管理器.是否结尾保护中()) {
             // === 结尾保护：锁定最后角度 + 同步位置旧值 ===
             player.setYRot(最后YRot);
             player.yRotO = 最后YRot;

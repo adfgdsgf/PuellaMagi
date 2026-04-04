@@ -233,7 +233,8 @@ public class 玩家输入帧 {
             buf.writeDouble(hitZ);
             buf.writeBoolean(hitInside);
         } else if (hitType == 2) {
-            buf.writeVarInt(hitEntityId);buf.writeDouble(hitX);
+            buf.writeVarInt(hitEntityId);
+            buf.writeDouble(hitX);
             buf.writeDouble(hitY);
             buf.writeDouble(hitZ);
         }

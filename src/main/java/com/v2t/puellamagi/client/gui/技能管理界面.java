@@ -144,7 +144,8 @@ public class 技能管理界面 extends Screen {
         super.init();
 
         this.guiLeft = (this.width - GUI_WIDTH) / 2;
-        this.guiTop = (this.height - GUI_HEIGHT) / 2;刷新技能列表();
+        this.guiTop = (this.height - GUI_HEIGHT) / 2;
+        刷新技能列表();
         初始化滚动条();
         初始化网格槽位();
         初始化装备槽位();
@@ -320,7 +321,8 @@ public class 技能管理界面 extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        更新悬停状态(mouseX, mouseY);绘制背景(graphics);
+        更新悬停状态(mouseX, mouseY);
+        绘制背景(graphics);
         绘制预设标签(graphics, mouseX, mouseY);
         绘制技能网格(graphics, mouseX, mouseY);
         绘制装备槽位(graphics);
@@ -411,7 +413,8 @@ public class 技能管理界面 extends Screen {
             资源工具.纹理信息 tex = isHover ? 资源工具.技能管理_按钮悬停 : 资源工具.技能管理_按钮普通;
             渲染工具.绘制纹理(graphics, tex, baseX, y, SIDE_BTN_WIDTH, SIDE_BTN_HEIGHT);
 
-            Component text = Component.translatable(btn.翻译键());渲染工具.绘制居中文本(graphics, this.font, text,
+            Component text = Component.translatable(btn.翻译键());
+            渲染工具.绘制居中文本(graphics, this.font, text,
                     baseX + SIDE_BTN_WIDTH / 2, y + 4, 0xFFFFFF);
         }
     }
@@ -756,7 +759,8 @@ public class 技能管理界面 extends Screen {
         if (button == 0 && 拖拽.是否鼠标按下中()) {
             技能槽位内容 content = 当前拖拽内容;
             拖拽来源类型 来源 = 当前拖拽来源;
-            int 来源索引 = 拖拽来源索引;拖拽上下文.松开结果 result = 拖拽.结束拖拽();
+            int 来源索引 = 拖拽来源索引;
+            拖拽上下文.松开结果 result = 拖拽.结束拖拽();
 
             if (result ==拖拽上下文.松开结果.拖拽完成 && content != null) {
                 boolean 放到了槽位 = false;
@@ -797,7 +801,8 @@ public class 技能管理界面 extends Screen {
 
             当前拖拽内容 = null;
             当前拖拽来源 = 拖拽来源类型.无;
-            拖拽来源索引 = -1;}
+            拖拽来源索引 = -1;
+        }
         return super.mouseReleased(mouseX, mouseY, button);
     }
 

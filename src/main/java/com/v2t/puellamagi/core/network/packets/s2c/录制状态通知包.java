@@ -1,6 +1,7 @@
 package com.v2t.puellamagi.core.network.packets.s2c;
 
 import com.v2t.puellamagi.client.客户端复刻管理器;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 
@@ -11,54 +12,126 @@ import java.util.function.Supplier;
 /**
  * 录制状态通知包（S2C）
  *
- * 三种用途：
- * 1. 录制开始/停止：开始=true/false
- * 2. 回放初始按键恢复：按住的键名列表
+ * 通过枚举区分用途，每种类型携带各自需要的数据：
+ * - 开始录制：无附加数据，客户端开始上报按键
+ * - 停止录制：无附加数据
+ * - 恢复按键：初始按键列表 + 初始左右键状态
+ * - 时间删除：无附加数据，客户端进入时删自由状态
  */
-public class 录制状态通知包 {
+public class 录制状态通知包 {/**
+ * 通知类型枚举
+ */
+public enum 通知类型 {
+        开始录制,
+        停止录制,
+        恢复按键,
+        时间删除;
 
-        private final boolean 开始;
+        public static 通知类型 fromOrdinal(int ordinal) {
+                通知类型[] values = values();
+                return (ordinal >= 0 && ordinal < values.length) ? values[ordinal] : 停止录制;
+        }
+}
+
+        private final 通知类型 类型;
         private final List<String> 初始按键列表;
+        private final boolean 初始左键;
+        private final boolean 初始右键;
 
-        public 录制状态通知包(boolean start) {
-                this(start, new ArrayList<>());
+        //==================== 构造器 ====================
+
+        /**
+         * 通用构造器
+         */
+        private 录制状态通知包(通知类型 type, List<String> keys, boolean leftHeld, boolean rightHeld) {
+                this.类型 = type;
+                this.初始按键列表 = keys != null ? keys : new ArrayList<>();
+                this.初始左键 = leftHeld;
+                this.初始右键 = rightHeld;
         }
 
-        public 录制状态通知包(boolean start, List<String> initialKeys) {
-                this.开始 = start;
-                this.初始按键列表 = initialKeys != null ? initialKeys : new ArrayList<>();
+        /**
+         * 开始录制
+         */
+        public static 录制状态通知包 开始录制() {
+                return new 录制状态通知包(通知类型.开始录制, new ArrayList<>(), false, false);
         }
+
+        /**
+         * 停止录制
+         */
+        public static 录制状态通知包 停止录制() {
+                return new 录制状态通知包(通知类型.停止录制, new ArrayList<>(), false, false);
+        }
+
+        /**
+         * 恢复按键状态
+         */
+        public static 录制状态通知包 恢复按键(List<String> keys, boolean leftHeld, boolean rightHeld) {
+                return new 录制状态通知包(通知类型.恢复按键, keys, leftHeld, rightHeld);
+        }
+
+        /**
+         * 时间删除通知
+         */
+        public static 录制状态通知包 时间删除() {
+                return new 录制状态通知包(通知类型.时间删除, new ArrayList<>(), false, false);
+        }
+
+        // ==================== 编解码 ====================
 
         public static void encode(录制状态通知包 packet, FriendlyByteBuf buf) {
-                buf.writeBoolean(packet.开始);
+                buf.writeVarInt(packet.类型.ordinal());
+
                 buf.writeVarInt(packet.初始按键列表.size());
                 for (String key : packet.初始按键列表) {
                         buf.writeUtf(key);
                 }
+                buf.writeBoolean(packet.初始左键);
+                buf.writeBoolean(packet.初始右键);
         }
 
         public static 录制状态通知包 decode(FriendlyByteBuf buf) {
-                boolean start = buf.readBoolean();
+                通知类型 type = 通知类型.fromOrdinal(buf.readVarInt());
+
                 int count = buf.readVarInt();
                 List<String> keys = new ArrayList<>(count);
                 for (int i = 0; i < count; i++) {
                         keys.add(buf.readUtf());
                 }
-                return new 录制状态通知包(start, keys);
+                boolean left = buf.readBoolean();
+                boolean right = buf.readBoolean();
+
+                return new 录制状态通知包(type, keys, left, right);
         }
+
+        // ==================== 处理 ====================
 
         public static void handle(录制状态通知包 packet, Supplier<NetworkEvent.Context> ctx) {
                 ctx.get().enqueueWork(() -> {
-                        if (!packet.初始按键列表.isEmpty()) {
-                                // 回放初始按键恢复
-                                客户端复刻管理器.恢复初始按键(packet.初始按键列表);
-                        } else if (packet.开始) {
-                                // 录制开始 → 扫描当前按住的键 → 上报服务端
-                                客户端复刻管理器.设置录制中(true);
-                                上报按住的键();
-                        } else {
-                                // 录制停止
-                                客户端复刻管理器.设置录制中(false);
+                        switch (packet.类型) {
+                                case 开始录制 -> {
+                                        客户端复刻管理器.设置录制中(true);
+                                        上报按住的键();
+                                }
+                                case 停止录制 -> {
+                                        客户端复刻管理器.设置录制中(false);
+                                }
+                                case 恢复按键 -> {
+                                        if (!packet.初始按键列表.isEmpty()) {
+                                                客户端复刻管理器.恢复初始按键(packet.初始按键列表);
+                                        }
+                                        Minecraft mc = Minecraft.getInstance();
+                                        if (packet.初始左键) {
+                                                mc.options.keyAttack.setDown(true);
+                                        }
+                                        if (packet.初始右键) {
+                                                mc.options.keyUse.setDown(true);
+                                        }
+                                }
+                                case 时间删除 -> {
+                                        客户端复刻管理器.进入时间删除();
+                                }
                         }
                 });
                 ctx.get().setPacketHandled(true);

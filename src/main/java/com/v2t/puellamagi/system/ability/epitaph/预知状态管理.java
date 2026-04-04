@@ -55,11 +55,16 @@ public final class 预知状态管理 {
         private int 当前复刻帧 = 0;
         private int 总复刻帧数 = 0;
 
+        // Phase 3: 时间删除相关
+        private int 时删激活帧 = 0;
+
         public 阶段 获取阶段() { return 当前阶段; }
         public long 获取阶段开始时间() { return 阶段开始时间; }
         public int 获取已录制帧数() { return 已录制帧数; }
         public int 获取当前复刻帧() { return 当前复刻帧; }
         public int 获取总复刻帧数() { return 总复刻帧数; }
+
+        public int 获取时删激活帧() { return 时删激活帧; }
 
         public void 增加录制帧() { 已录制帧数++; }
         public void 推进复刻帧() { 当前复刻帧++; }
@@ -130,8 +135,9 @@ public final class 预知状态管理 {
         玩家预知状态 state = 状态表.get(playerUUID);
         state.当前阶段 = 阶段.时间删除;
         state.阶段开始时间 = gameTime;
+        state.时删激活帧 = state.当前复刻帧;
 
-        LOGGER.debug("玩家 {} 进入时间删除", playerUUID);
+        LOGGER.debug("玩家 {} 进入时间删除（激活帧={}）", playerUUID, state.时删激活帧);
         return true;
     }
 

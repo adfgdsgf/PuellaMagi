@@ -198,7 +198,8 @@ public class 时间停止技能 implements I技能 {
 
     @Override
     public void 进入保护期(Player player) {
-        保护期玩家.add(player.getUUID());PuellaMagi.LOGGER.debug("玩家 {} 进入时停保护期", player.getName().getString());
+        保护期玩家.add(player.getUUID());
+        PuellaMagi.LOGGER.debug("玩家 {} 进入时停保护期", player.getName().getString());
     }
 
     @Override
@@ -231,7 +232,8 @@ public class 时间停止技能 implements I技能 {
             时停管理器.开始时停(serverPlayer);
             进入保护期(player);
             PuellaMagi.LOGGER.debug("创造模式玩家 {} 瞬发时停",
-                    player.getName().getString());return;
+                    player.getName().getString());
+            return;
         }
 
         // 普通模式开始蓄力
@@ -254,5 +256,6 @@ public class 时间停止技能 implements I技能 {
      * 玩家下线时清理
      */
     public static void 玩家下线(UUID uuid) {
-        保护期玩家.remove(uuid);}
+        保护期玩家.remove(uuid);
+    }
 }

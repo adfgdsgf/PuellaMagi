@@ -124,7 +124,8 @@ public class 污浊度HUD implements IGuiOverlay, I可编辑HUD {
         int baseH = horizontal ? 基础高度 : 基础宽度;
 
         渲染宽度 = (int) (baseW * scale);
-        渲染高度 = (int) (baseH * scale);渲染X = 布局.获取X();
+        渲染高度 = (int) (baseH * scale);
+        渲染X = 布局.获取X();
         渲染Y = 布局.获取Y();
 
         // 限制在屏幕内渲染X = Math.max(0, Math.min(渲染X, screenWidth - 渲染宽度));
@@ -158,7 +159,8 @@ public class 污浊度HUD implements IGuiOverlay, I可编辑HUD {
         if (alpha< 0.01f) return;
 
         // 外边框
-        int borderColor = 渲染工具.调整透明度(颜色_边框, alpha);渲染工具.绘制边框矩形(graphics, x, y, width, height, borderColor, 0, 1);
+        int borderColor = 渲染工具.调整透明度(颜色_边框, alpha);
+        渲染工具.绘制边框矩形(graphics, x, y, width, height, borderColor, 0, 1);
 
         // 进度条
         if (percent > 0) {
@@ -333,7 +335,8 @@ public class 污浊度HUD implements IGuiOverlay, I可编辑HUD {
 
     @Override
     public void 重置为默认() {
-        布局.重置为默认();}
+        布局.重置为默认();
+    }
 
     @Override
     public boolean 坐标在HUD上(double mouseX, double mouseY) {

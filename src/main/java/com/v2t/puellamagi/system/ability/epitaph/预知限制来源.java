@@ -37,15 +37,16 @@ public class 预知限制来源 implements I限制来源 {
     private static final Set<限制类型> 复刻限制 = EnumSet.noneOf(限制类型.class);
 
     /**
-     * Phase 3: 时间删除（使用者自由行动但不能干涉）
+     * Phase 3: 时间删除（使用者自由行动）
+     *
+     * 自己对自己的操作允许（吃东西/喝药水/丢物品）
+     * 自己对外部的操作禁止（放方块/破坏/交互/攻击）
      */
     private static final Set<限制类型> 时间删除限制 = EnumSet.of(
             限制类型.攻击,
-            限制类型.使用物品,
             限制类型.释放技能,
             限制类型.交互方块,
             限制类型.交互实体,
-            限制类型.丢弃物品,
             限制类型.破坏方块
     );
 
@@ -66,6 +67,7 @@ public class 预知限制来源 implements I限制来源 {
             case 待机 -> 无限制;
             case 录制中 -> 无限制;
             case 复刻中 -> 复刻限制;
-            case 时间删除 -> 时间删除限制;};
+            case 时间删除 -> 时间删除限制;
+        };
     }
 }

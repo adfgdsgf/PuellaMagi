@@ -156,6 +156,7 @@ public final class 主动损坏注册表 {
         // 注册内置方式
         注册(new com.v2t.puellamagi.system.soulgem.damage.active.impl.掉落物攻击方式());
         注册(new com.v2t.puellamagi.system.soulgem.damage.active.impl.主副手组合方式());
-        注册(new com.v2t.puellamagi.system.soulgem.damage.active.impl.撞击方块方式());LOGGER.info("主动损坏注册表初始化完成，共 {} 种方式", 已注册方式.size());
+        注册(new com.v2t.puellamagi.system.soulgem.damage.active.impl.撞击方块方式());
+        LOGGER.info("主动损坏注册表初始化完成，共 {} 种方式", 已注册方式.size());
     }
 }

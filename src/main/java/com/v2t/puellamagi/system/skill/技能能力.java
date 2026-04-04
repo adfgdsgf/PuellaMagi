@@ -40,7 +40,8 @@ public class 技能能力 implements ICapabilitySerializable<CompoundTag> {
 
     public 技能能力() {
         // 创建默认预设
-        预设列表.add(new 技能预设("预设1"));}
+        预设列表.add(new 技能预设("预设1"));
+    }
 
     // ==================== 预设管理 ====================
 

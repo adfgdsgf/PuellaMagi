@@ -202,6 +202,16 @@ public class 世界快照 {
     }
 
     /**
+     * 获取实体的完整NBT（时间删除结算用，复活被杀实体）
+     */
+    @Nullable
+    public net.minecraft.nbt.CompoundTag 获取实体NBT(UUID uuid) {
+        实体快照 snapshot = 实体表.get(uuid);
+        if (snapshot == null) return null;
+        return snapshot.获取NBT();
+    }
+
+    /**
      * 检查是否包含指定实体的快照
      */
     public boolean 包含实体(UUID uuid) {

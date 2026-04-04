@@ -266,7 +266,8 @@ public class 队伍界面 extends Screen {
         队伍数据 team = 客户端队伍缓存.获取队伍();
         if (team == null || !team.是成员(选中的成员UUID)) {
             选中的成员UUID = null;
-            重置上下文确认();}
+            重置上下文确认();
+        }
     }
 
     private void 检查所有确认超时() {
@@ -294,7 +295,8 @@ public class 队伍界面 extends Screen {
 
     private void 绘制无队伍状态(GuiGraphics graphics, int mouseX, int mouseY) {
         int centerX = guiLeft + GUI_WIDTH / 2;
-        int contentY = guiTop + CONTENT_Y_OFFSET;渲染工具.绘制居中文本(graphics, font,
+        int contentY = guiTop + CONTENT_Y_OFFSET;
+        渲染工具.绘制居中文本(graphics, font,
                 Component.translatable("gui.puellamagi.team.no_team_hint"),
                 centerX, contentY + 15, 文字灰);
 
@@ -440,7 +442,8 @@ public class 队伍界面 extends Screen {
             }
             name = name + "..";
         }
-        graphics.drawString(font, name, drawX, y + 6, nameColor, false);}
+        graphics.drawString(font, name, drawX, y + 6, nameColor, false);
+    }
 
     private void 绘制配置列表(GuiGraphics graphics, int mouseX, int mouseY) {
         队伍数据 team = 客户端队伍缓存.获取队伍();
@@ -480,7 +483,8 @@ public class 队伍界面 extends Screen {
             int toggleX = listX + listW - TOGGLE_WIDTH - 4;
             int toggleY = rowY + (CONFIG_ROW_HEIGHT - TOGGLE_HEIGHT) / 2;
             GUI开关.绘制(graphics, font, toggleX, toggleY, TOGGLE_WIDTH, TOGGLE_HEIGHT,
-                    currentValue, mouseX, mouseY);}
+                    currentValue, mouseX, mouseY);
+            }
 
         配置滚动条.绘制(graphics, mouseX, mouseY);
     }
@@ -545,7 +549,9 @@ public class 队伍界面 extends Screen {
                         40, true, () -> {
                     if (踢出按钮.点击()) {
                         网络工具.发送到服务端(new 队伍操作请求包(
-                                队伍操作请求包.操作类型.踢出, 选中的成员UUID));选中的成员UUID = null;} else {
+                                队伍操作请求包.操作类型.踢出, 选中的成员UUID));
+                        选中的成员UUID = null;
+                    } else {
                         重置其他确认(踢出按钮);
                     }
                 }));
@@ -652,7 +658,8 @@ public class 队伍界面 extends Screen {
                     ? Component.translatable("gui.puellamagi.team.button.force_add")
                     : Component.translatable("gui.puellamagi.team.button.send_invite");
             GUI按钮.绘制(graphics, font, panelX +10, btnAreaY, 60, BTN_HEIGHT,
-                    sendText, mouseX, mouseY);GUI按钮.绘制(graphics, font, panelX + INVITE_WIDTH - 60, btnAreaY, 50, BTN_HEIGHT,
+                    sendText, mouseX, mouseY);
+            GUI按钮.绘制(graphics, font, panelX + INVITE_WIDTH - 60, btnAreaY, 50, BTN_HEIGHT,
                     Component.translatable("gui.puellamagi.button.cancel"), mouseX, mouseY);
         });
     }
@@ -881,7 +888,8 @@ public class 队伍界面 extends Screen {
                 return true;
         } else if (客户端队伍缓存.有队伍()) {
             if (成员滚动条 != null && 成员滚动条.mouseDragged(mouseX, mouseY, button, dragX, dragY))
-                return true;if (配置滚动条 != null && 配置滚动条.mouseDragged(mouseX, mouseY, button, dragX, dragY))
+                return true;
+            if (配置滚动条 != null && 配置滚动条.mouseDragged(mouseX, mouseY, button, dragX, dragY))
                 return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
@@ -951,7 +959,8 @@ public class 队伍界面 extends Screen {
             邀请输入框.setFocused(true);
             邀请输入框.setValue("");
         }
-        刷新过滤后的在线玩家();}
+        刷新过滤后的在线玩家();
+    }
 
     private void 关闭邀请面板() {
         邀请面板打开 = false;
@@ -960,7 +969,8 @@ public class 队伍界面 extends Screen {
             邀请输入框.setVisible(false);
             邀请输入框.setFocused(false);
         }
-        保存的输入文本 = "";}
+        保存的输入文本 = "";
+    }
 
     private void 发送邀请() {
         if (邀请输入框 == null) return;
@@ -985,7 +995,8 @@ public class 队伍界面 extends Screen {
         if (keep !=离开按钮) 离开按钮.重置();
         if (keep != 解散按钮) 解散按钮.重置();
         if (keep != 踢出按钮) 踢出按钮.重置();
-        if (keep != 转移按钮) 转移按钮.重置();}
+        if (keep != 转移按钮) 转移按钮.重置();
+    }
 
     private void 重置上下文确认() {踢出按钮.重置();
         转移按钮.重置();
@@ -1018,8 +1029,10 @@ public class 队伍界面 extends Screen {
             过滤后的在线玩家.add(info);
         }
 
-        过滤后的在线玩家.sort(Comparator.comparing(a -> a.getProfile().getName()));if (在线玩家滚动条 != null) {
-            在线玩家滚动条.设置总行数(过滤后的在线玩家.size());}
+        过滤后的在线玩家.sort(Comparator.comparing(a -> a.getProfile().getName()));
+        if (在线玩家滚动条 != null) {
+            在线玩家滚动条.设置总行数(过滤后的在线玩家.size());
+        }
     }
 
     @Nullable

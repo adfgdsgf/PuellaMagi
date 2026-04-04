@@ -192,7 +192,8 @@ public final class 回放校验器 {
             // 强制同步背包到客户端
             网络工具.发送给玩家(sp, 背包同步包.从玩家构建(sp));
 
-            修正数量++;LOGGER.debug("玩家校验：{} 状态已恢复", sp.getName().getString());
+            修正数量++;
+            LOGGER.debug("玩家校验：{} 状态已恢复", sp.getName().getString());
         }
 
         return 修正数量;

@@ -132,7 +132,8 @@ public class 变身数据 {
      * 保留类型、模型、系列、成长进度
      */
     public void 重置() {
-        this.已变身 = false;}
+        this.已变身 = false;
+    }
 
     /**
      * 完全清空（切换角色类型时调用）

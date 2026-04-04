@@ -47,7 +47,8 @@ public class 变身同步包 {
             if (player == null) return;
 
             能力工具.获取变身能力(player).ifPresent(cap -> {
-                cap.从NBT读取(packet.数据);});
+                cap.从NBT读取(packet.数据);
+            });
         });
         ctx.setPacketHandled(true);
     }

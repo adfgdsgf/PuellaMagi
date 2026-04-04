@@ -106,7 +106,8 @@ public class 复刻帧同步包 {
         int inputCount = buf.readVarInt();
         Map<UUID, 玩家输入帧> inputFrames = new HashMap<>(inputCount);
         for (int i = 0; i < inputCount; i++) {
-            UUID uuid = buf.readUUID();玩家输入帧 input = 玩家输入帧.decode(buf);
+            UUID uuid = buf.readUUID();
+            玩家输入帧 input = 玩家输入帧.decode(buf);
             inputFrames.put(uuid, input);
         }
 
@@ -130,7 +131,8 @@ public class 复刻帧同步包 {
 
     public static void handle(复刻帧同步包 packet, Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
-            客户端复刻管理器.接收帧(packet.使用者UUID, packet.帧列表, packet.上一帧列表);客户端复刻管理器.接收输入帧(packet.输入帧表);
+            客户端复刻管理器.接收帧(packet.使用者UUID, packet.帧列表, packet.上一帧列表);
+            客户端复刻管理器.接收输入帧(packet.输入帧表);
             客户端复刻管理器.接收鼠标样本(packet.鼠标样本表);
         });
         ctx.get().setPacketHandled(true);

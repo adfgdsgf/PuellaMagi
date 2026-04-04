@@ -107,7 +107,8 @@ public final class 复刻引擎 {
         发送方块预更新包(recording.起点快照, level);
 
         // 2. 回滚世界
-        int[] result = recording.起点快照.恢复到(level);LOGGER.info("世界回滚完成：{}个实体, {} 个方块", result[0], result[1]);
+        int[] result = recording.起点快照.恢复到(level);
+        LOGGER.info("世界回滚完成：{}个实体, {} 个方块", result[0], result[1]);
 
         // 3. 清除录制期间出现的实体（防刷物品/刷箭）
         int 清除数量 = 清除录制期间出现的实体(level, recording);
@@ -119,7 +120,8 @@ public final class 复刻引擎 {
         for (Map.Entry<UUID, 玩家快照> entry : recording.玩家快照表.entrySet()) {
             Entity entity = findEntityByUUID(level, entry.getKey());
             if (entity instanceof ServerPlayer sp) {
-                entry.getValue().恢复到(sp);网络工具.发送给玩家(sp, 背包同步包.从玩家构建(sp));
+                entry.getValue().恢复到(sp);
+                网络工具.发送给玩家(sp, 背包同步包.从玩家构建(sp));
             }
         }
 
@@ -142,10 +144,17 @@ public final class 复刻引擎 {
 
                 // 通知客户端恢复按键状态（通用，覆盖所有mod）
                 List<String> heldKeys = recording.玩家初始按键.get(entityUUID);
-                if (heldKeys != null && !heldKeys.isEmpty()) {
+                boolean leftHeld = recording.初始状态 != null
+                        && recording.初始状态.是否正在破坏方块();
+                boolean rightHeld = recording.初始状态 != null
+                        && recording.初始状态.是否正在使用物品();
+
+                if ((heldKeys != null && !heldKeys.isEmpty()) || leftHeld || rightHeld) {
                     网络工具.发送给玩家(sp,
-                            new com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包(
-                                    false, heldKeys));
+                            com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.恢复按键(
+                                    heldKeys != null ? heldKeys : new ArrayList<>(),
+                                    leftHeld,
+                                    rightHeld));
                 }
             }
         }
@@ -168,7 +177,6 @@ public final class 复刻引擎 {
     public static boolean tick(UUID userUUID) {
         复刻会话 session = 活跃会话.get(userUUID);
         if (session == null) return false;
-
         预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(userUUID);
         if (state == null) return false;
 
@@ -217,10 +225,11 @@ public final class 复刻引擎 {
 
             if (actual.equals(expected)) continue;
 
-            // 对比物品差异 → 扣/加背包
+            // 时间删除期间且来源是使用者 → 记录旧NBT用于结算恢复
+            // 但仍然执行修正（B的录制世界需要）
+
             调整玩家背包(session, level, change.获取旧NBT(), expected);
 
-            // 强制设NBT
             be.load(expected);
             be.setChanged();
         }
@@ -348,17 +357,19 @@ public final class 复刻引擎 {
             if (actual.equals(expected)) continue;
 
             if (expected.isAir() && !actual.isAir()) {
-                // 应该被破坏但还在→ 破坏（有掉落物）
                 level.destroyBlock(pos, true);
             } else if (!expected.isAir()) {
-                // 应该有方块但没有/状态不对
-                net.minecraft.world.item.ItemStack needed =new net.minecraft.world.item.ItemStack(expected.getBlock().asItem());
+                net.minecraft.world.item.ItemStack needed =
+                        new net.minecraft.world.item.ItemStack(expected.getBlock().asItem());
 
                 if (needed.isEmpty()) {
-                    // 没有对应物品的方块（基岩等）→ 直接放
                     level.setBlockAndUpdate(pos, expected);
+                    // 时间删除期间：写方块标记
+                    if (session.时间删除中 && change.获取触发者UUID() != null
+                            && change.获取触发者UUID().equals(session.使用者UUID)) {
+                        session.录制.标记表.标记方块(pos, session.使用者UUID);
+                    }
                 } else {
-                    // 检查是否有创造模式玩家
                     boolean 创造模式 = false;
                     for (UUID lockedUUID : session.被锁定玩家) {
                         Entity entity = findEntityByUUID(level, lockedUUID);
@@ -369,8 +380,11 @@ public final class 复刻引擎 {
                     }
 
                     if (创造模式) {
-                        // 创造模式不扣背包直接放
                         level.setBlockAndUpdate(pos, expected);
+                        if (session.时间删除中 && change.获取触发者UUID() != null
+                                && change.获取触发者UUID().equals(session.使用者UUID)) {
+                            session.录制.标记表.标记方块(pos, session.使用者UUID);
+                        }
                     } else {
                         boolean 已扣除 = false;
                         for (UUID lockedUUID : session.被锁定玩家) {
@@ -387,8 +401,11 @@ public final class 复刻引擎 {
 
                         if (已扣除) {
                             level.setBlockAndUpdate(pos, expected);
+                            if (session.时间删除中 && change.获取触发者UUID() != null
+                                    && change.获取触发者UUID().equals(session.使用者UUID)) {
+                                session.录制.标记表.标记方块(pos, session.使用者UUID);
+                            }
                         }
-                        // 背包没有→ 不放（防刷）
                     }
                 }
             }
@@ -407,9 +424,12 @@ public final class 复刻引擎 {
         session.被控制实体.remove(userUUID);
 
         存在屏蔽器.屏蔽除外(userUUID,屏蔽来源, userUUID);
-        session.时间删除中 = true;
-        user.setInvulnerable(true);
+        session.时间删除中= true;
 
+        // 通知客户端进入时间删除自由状态
+        网络工具.发送给玩家(user,
+                com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.时间删除());
+        // 不设无敌 → 已有持续影响正常生效 → 通用事件拦截新的外部伤害
         LOGGER.info("玩家 {} 进入时间删除", user.getName().getString());
         return true;
     }
@@ -454,13 +474,19 @@ public final class 复刻引擎 {
         预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(userUUID);
         int lastFrame = -1;
         if (state != null) {
-            lastFrame = state.获取总复刻帧数() - 1;if (lastFrame >= 0) {
+            lastFrame = state.获取总复刻帧数() - 1;
+            if (lastFrame >= 0) {
                 驱动实体帧(session, session.维度, lastFrame);
             }
         }
 
         // 2. 通知客户端
         通知客户端复刻结束(session);
+
+        // 时间删除结算（撤销使用者的影响）
+        if (session.时间删除中) {
+            时间删除结算(session);
+        }
 
         // 4. 强制同步位置到录制结束时的位置
         if (lastFrame >= 0) {
@@ -480,6 +506,14 @@ public final class 复刻引擎 {
             }
         }
 
+        // 强制同步背包（清除幽灵物品）
+        for (UUID lockedUUID : session.被锁定玩家) {
+            Entity entity = findEntityByUUID(session.维度, lockedUUID);
+            if (entity instanceof ServerPlayer sp) {
+                网络工具.发送给玩家(sp, 背包同步包.从玩家构建(sp));
+            }
+        }
+
         // 5. 释放输入锁定
         for (UUID lockedUUID : session.被锁定玩家) {
             输入接管器.释放(lockedUUID,接管来源);
@@ -488,10 +522,6 @@ public final class 复刻引擎 {
         // 6. 解除使用者隐身/无敌
         if (session.时间删除中) {
             存在屏蔽器.解除屏蔽(userUUID, 屏蔽来源);
-
-            Entity user = findEntityByUUID(session.维度, userUUID);
-            if (user instanceof ServerPlayer player) {
-                player.setInvulnerable(false);}
         }
 
         LOGGER.info("玩家 {} 复刻结束", userUUID);
@@ -573,7 +603,8 @@ public final class 复刻引擎 {
             if (!(entity instanceof ServerPlayer sp)) continue;
 
             sp.absMoveTo(data.获取X(), data.获取Y(), data.获取Z(),
-                    data.获取YRot(), data.获取XRot());sp.connection.resetPosition();
+                    data.获取YRot(), data.获取XRot());
+            sp.connection.resetPosition();
         }
     }
 
@@ -627,10 +658,15 @@ public final class 复刻引擎 {
             }
         }
 
-        Map<UUID, 玩家输入帧>输入帧 = new HashMap<>();
+        Map<UUID, 玩家输入帧> 输入帧 = new HashMap<>();
         for (Map.Entry<UUID, List<玩家输入帧>> entry : session.录制.玩家输入表.entrySet()) {
+            // 时间删除中：不发送使用者的输入帧
+            if (session.时间删除中 && entry.getKey().equals(session.使用者UUID)) {
+                continue;
+            }
+
             List<玩家输入帧> inputs = entry.getValue();
-            if (frameIndex < inputs.size()) {
+            if (frameIndex< inputs.size()) {
                 输入帧.put(entry.getKey(), inputs.get(frameIndex));
             }
         }
@@ -658,6 +694,186 @@ public final class 复刻引擎 {
             网络工具.发送给玩家(player, packet);
         }
     }
+
+    // ==================== 时删结束方法 ===================
+
+    /**
+     * 时间删除结算
+     *
+     * 撤销使用者在时删激活帧之后造成的所有影响
+     *从后往前撤销，避免依赖问题
+     *
+     * 结算顺序：
+     * 1. 回血（撤销伤害）
+     * 2. 移除效果
+     * 3. 清除方块（标记表）
+     * 4. 恢复容器（方块实体变化帧来源=使用者的）
+     * 5. 清除掉落物（标记表）
+     * 6. 清除玩家背包中标记物品
+     * 7. 清除容器内标记物品
+     * 8. 复活被杀实体
+     * 9. 强制同步
+     */
+    private static void 时间删除结算(复刻会话 session) {
+        UUID 使用者 = session.使用者UUID;
+        ServerLevel level = session.维度;
+        影响记录 影响 = session.录制.影响;
+        影响标记表 标记表 = session.录制.标记表;
+
+        // 获取时删激活帧
+        预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(使用者);
+        int 激活帧 = (state != null) ? state.获取时删激活帧() : 0;
+        LOGGER.info("时间删除结算开始：使用者={}, 激活帧={}", 使用者, 激活帧);
+
+        // 1. 回血（撤销使用者造成的伤害）
+        List<影响记录.伤害条目> 伤害列表 = 影响.获取来源伤害(使用者, 激活帧);
+        for (影响记录.伤害条目 entry : 伤害列表) {
+            Entity target = findEntityByUUID(level, entry.被攻击者);
+            if (target instanceof LivingEntity living) {
+                living.heal(entry.伤害量);
+                LOGGER.debug("结算回血：{} +{}", entry.被攻击者, entry.伤害量);
+            }
+        }
+
+        // 2. 移除效果（撤销使用者施加的效果）
+        List<影响记录.效果条目> 效果列表 = 影响.获取来源效果(使用者, 激活帧);
+        for (影响记录.效果条目 entry : 效果列表) {
+            Entity target = findEntityByUUID(level, entry.目标);
+            if (target instanceof LivingEntity living) {
+                net.minecraft.world.effect.MobEffect effect =
+                        net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT
+                                .get(new net.minecraft.resources.ResourceLocation(entry.效果ID));
+                if (effect != null) {
+                    living.removeEffect(effect);
+                    //恢复到施加效果时的血量（处理debuff持续伤害）
+                    if (living.getHealth() < entry.施加时血量) {
+                        living.setHealth(entry.施加时血量);
+                    }
+                    LOGGER.debug("结算移除效果：{} 移除{}, 血量恢复到{}",
+                            entry.目标, entry.效果ID, entry.施加时血量);
+                }
+            }
+        }
+
+        // 3. 清除方块（标记表中来源=使用者的）
+        List<BlockPos> 标记方块 = 标记表.获取来源方块(使用者);
+        for (BlockPos pos : 标记方块) {
+            if (!level.getBlockState(pos).isAir()) {
+                level.removeBlock(pos, false);
+                // 触发方块更新（水流/红石/沙子等连锁反应）
+                level.updateNeighborsAt(pos, net.minecraft.world.level.block.Blocks.AIR);
+                LOGGER.debug("结算清除方块：{}", pos);
+            }
+            标记表.清除方块标记(pos);
+        }
+
+        // 4. 恢复容器（方块实体变化帧来源=使用者且tick>=激活帧）
+        for (方块实体变化帧 change : session.录制.方块实体变化列表) {
+            if (change.获取触发者UUID() == null) continue;
+            if (!change.获取触发者UUID().equals(使用者)) continue;
+            if (change.获取tick序号() < 激活帧) continue;
+
+            BlockPos pos = change.获取位置();
+            net.minecraft.world.level.block.entity.BlockEntity be = level.getBlockEntity(pos);
+            if (be != null) {
+                be.load(change.获取旧NBT());
+                be.setChanged();
+                LOGGER.debug("结算恢复容器：{}", pos);
+            }
+        }
+
+        // 5. 清除掉落物（范围内标记=使用者的）
+        double range = 录制管理器.获取录制范围();
+        net.minecraft.world.phys.AABB box = net.minecraft.world.phys.AABB.ofSize(
+                session.录制.录制中心, range * 2, range * 2, range * 2);
+        List<Entity> 待删除掉落物 = new ArrayList<>();
+        for (Entity entity : level.getEntities((Entity) null, box,
+                e -> e instanceof net.minecraft.world.entity.item.ItemEntity)) {
+            // 检查掉落物标记
+            if (标记表.掉落物有标记(entity.getId())) {
+                UUID 来源 = 标记表.获取掉落物来源(entity.getId());
+                if (来源 != null && 来源.equals(使用者)) {
+                    待删除掉落物.add(entity);
+                }
+            }// 检查物品NBT标记
+            net.minecraft.world.entity.item.ItemEntity itemEntity =
+                    (net.minecraft.world.entity.item.ItemEntity) entity;
+            if (影响标记表.物品来自(itemEntity.getItem(), 使用者)) {
+                待删除掉落物.add(entity);
+            }
+        }
+        for (Entity entity : 待删除掉落物) {
+            entity.discard();
+        }
+        if (!待删除掉落物.isEmpty()) {
+            LOGGER.debug("结算清除掉落物：{}个", 待删除掉落物.size());
+        }
+
+        // 6. 清除玩家背包中标记=使用者的物品
+        for (ServerPlayer player : level.players()) {
+            boolean 有清除 = false;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack stack = player.getInventory().getItem(i);
+                if (影响标记表.物品来自(stack, 使用者)) {
+                    player.getInventory().setItem(i, net.minecraft.world.item.ItemStack.EMPTY);
+                    有清除 = true;
+                }
+            }
+            if (有清除) {
+                网络工具.发送给玩家(player, 背包同步包.从玩家构建(player));
+                LOGGER.debug("结算清除玩家 {} 背包中的标记物品", player.getName().getString());
+            }
+        }
+
+        // 7. 清除容器内标记=使用者的物品
+        int minChunkX = (int) Math.floor(session.录制.录制中心.x - range) >> 4;
+        int maxChunkX = (int) Math.floor(session.录制.录制中心.x + range) >> 4;
+        int minChunkZ = (int) Math.floor(session.录制.录制中心.z - range) >> 4;
+        int maxChunkZ = (int) Math.floor(session.录制.录制中心.z + range) >> 4;
+
+        for (int cx = minChunkX; cx <= maxChunkX; cx++) {
+            for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
+                if (!level.hasChunk(cx, cz)) continue;
+                var chunk = level.getChunk(cx, cz);
+                for (var entry : chunk.getBlockEntities().entrySet()) {
+                    net.minecraft.world.level.block.entity.BlockEntity be = entry.getValue();
+                    if (be instanceof net.minecraft.world.Container container) {
+                        for (int i = 0; i < container.getContainerSize(); i++) {
+                            net.minecraft.world.item.ItemStack stack = container.getItem(i);
+                            if (影响标记表.物品来自(stack, 使用者)) {
+                                container.setItem(i, net.minecraft.world.item.ItemStack.EMPTY);
+                            }
+                        }be.setChanged();
+                    }
+                }
+            }
+        }
+
+        // 8. 复活被杀实体
+        List<影响记录.击杀条目> 击杀列表 = 影响.获取来源击杀(使用者, 激活帧);
+        for (影响记录.击杀条目 entry : 击杀列表) {
+            // 从世界快照恢复实体
+            CompoundTag entityNBT = session.录制.起点快照.获取实体NBT(entry.被杀者);
+            if (entityNBT != null) {
+                Entity restored = net.minecraft.world.entity.EntityType.loadEntityRecursive(
+                        entityNBT, level, e -> {
+                            e.moveTo(e.getX(), e.getY(), e.getZ());
+                            return e;
+                        });
+                if (restored != null) {
+                    level.addFreshEntity(restored);
+                    LOGGER.debug("结算复活实体：{}", entry.被杀者);
+                }
+            }
+        }
+
+        // 9. 清理标记表
+        标记表.清除全部();
+        影响.清除全部();
+        LOGGER.info("时间删除结算完成：回血{}条, 效果{}条, 方块{}个, 击杀{}条",
+                伤害列表.size(), 效果列表.size(), 标记方块.size(), 击杀列表.size());
+    }
+
 
     // ==================== 查询接口 ====================
 
@@ -715,6 +931,8 @@ public final class 复刻引擎 {
         }
         return null;
     }
+
+    // ==================== 查询方法 ====================
 
     // ==================== 工具方法 ====================
 

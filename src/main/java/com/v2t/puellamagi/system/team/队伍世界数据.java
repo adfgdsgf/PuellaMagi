@@ -139,7 +139,8 @@ public class 队伍世界数据 extends ModWorldData {
 
         // 队伍空了则删除
         if (team.是否为空()) {
-            队伍表.remove(teamId);LOGGER.info("队伍 {} 已空，自动删除", teamId);
+            队伍表.remove(teamId);
+            LOGGER.info("队伍 {} 已空，自动删除", teamId);
         }
 
         标记已修改();

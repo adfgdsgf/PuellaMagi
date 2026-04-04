@@ -160,7 +160,8 @@ public final class 契约管理器 {
 
         能力工具.获取变身能力完整(player).ifPresent(cap -> {
             cap.设置所属系列(seriesId);
-            cap.设置少女类型(typeId);});
+            cap.设置少女类型(typeId);
+        });
 
         I系列 series = seriesOpt.get();
         series.加入系列时(player);
@@ -248,14 +249,16 @@ public final class 契约管理器 {
         // 设置重签冷却
         if (setCooldown &&契约配置.是否启用重签冷却()) {
             long gameTime = player.level().getGameTime();
-            contract.设置重签冷却(gameTime);PuellaMagi.LOGGER.info("玩家 {} 设置重签冷却", player.getName().getString());
+            contract.设置重签冷却(gameTime);
+            PuellaMagi.LOGGER.info("玩家 {} 设置重签冷却", player.getName().getString());
         }
 
         PuellaMagi.LOGGER.info("玩家 {} 解除契约", player.getName().getString());
 
         // 同步状态到客户端
         if (sendSync) {
-            同步契约状态(player);同步技能状态(player);
+            同步契约状态(player);
+            同步技能状态(player);
             // 确保客户端清除假死状态
             网络工具.发送给玩家(player, new 假死状态同步包(false));
         }

@@ -62,7 +62,8 @@ public class 时间删除技能 implements I技能 {
 
     @Override
     public boolean 可以使用(Player player) {
-        if (能力工具.应该跳过限制(player)) return true;阶段 current = 预知状态管理.获取阶段(player.getUUID());
+        if (能力工具.应该跳过限制(player)) return true;
+        阶段 current = 预知状态管理.获取阶段(player.getUUID());
         return current == 阶段.复刻中|| current == 阶段.时间删除;
     }
 
@@ -82,7 +83,8 @@ public class 时间删除技能 implements I技能 {
 
     @Override
     public void 开启时(Player player, Level level) {
-        if (!(player instanceof ServerPlayer sp)) return;阶段 current = 预知状态管理.获取阶段(sp.getUUID());
+        if (!(player instanceof ServerPlayer sp)) return;
+        阶段 current = 预知状态管理.获取阶段(sp.getUUID());
 
         if (current == 阶段.复刻中) {
             处理_进入时间删除(sp);

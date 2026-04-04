@@ -44,11 +44,7 @@ public abstract class EpitaphReplayClientLevelMixin {
         LocalPlayer localPlayer = Minecraft.getInstance().player;
         if (localPlayer != null &&
                 entity.getUUID().equals(localPlayer.getUUID()) &&
-                客户端复刻管理器.本地玩家是否输入回放中()) {
-            // tick执行前清lerpSteps
-            // LivingEntity.tick()里如果lerpSteps>0会把yRot拉向旧目标
-            // 覆盖MouseMixin设的delta → 转得少/慢
-            // 必须在tick之前清，在KeyboardInput.tick()里清太晚了
+                (客户端复刻管理器.本地玩家是否输入回放中() || 客户端复刻管理器.是否时间删除自由())) {
             if (localPlayer instanceof ILivingEntityAccess access) {
                 access.puellamagi$setLerpSteps(0);
             }
