@@ -10,6 +10,8 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -25,6 +27,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 @OnlyIn(Dist.CLIENT)
 public class 客户端复刻管理器 {
+
+        private static final Logger LOGGER = LoggerFactory.getLogger("PuellaMagi/ClientReplay");
 
         // ==================== 时间删除 ====================
 
@@ -113,6 +117,17 @@ public class 客户端复刻管理器 {
         private static final List<玩家输入帧.鼠标事件> 鼠标事件队列 = new CopyOnWriteArrayList<>();
 
         /**
+         * 延迟事件队列
+         *
+         * 回放注入键盘事件时，如果某个事件导致Screen状态变化（如E键打开背包），
+         * 剩余事件不能在同一帧注入（Screen会消费掉），需要延迟到下一帧。
+         *
+         * 同理鼠标事件也需要延迟队列。
+         */
+        private static final List<玩家输入帧.键盘事件> 延迟键盘事件 = new ArrayList<>();
+        private static final List<玩家输入帧.鼠标事件> 延迟鼠标事件 = new ArrayList<>();
+
+        /**
          * 重放标记：回放注入的事件不要被Mixin拦截
          */
         private static boolean 正在重放事件 = false;
@@ -121,8 +136,6 @@ public class 客户端复刻管理器 {
 
         // ==================== 键盘/鼠标事件录制 ====================
 
-        private static List<玩家输入帧.鼠标事件> 上一帧鼠标事件 = new ArrayList<>();
-        private static List<玩家输入帧.键盘事件> 上一帧键盘事件 = new ArrayList<>();
 
         /**
          * 录制键盘事件（由Mixin在GLFW回调时调用）
@@ -170,48 +183,162 @@ public class 客户端复刻管理器 {
 
 
         /**
-         * 回放键盘和鼠标事件
+         * 重放指定帧的键盘和鼠标事件
          *
-         * 在tick开始时调用（tick同步里）
          * 直接调MC的处理方法→ 和真实按键一模一样
          * → KeyMapping更新、Screen收到按键、mod快捷键触发
+         *
+         * Screen状态变化保护机制：
+         * 注入每个事件后检查Screen是否发生变化（如E键打开/关闭背包）
+         * 如果变化了，剩余事件存入延迟队列，下一帧再注入
+         * → 防止同一帧内Screen消费后续事件导致行为不一致
+         *
+         * @param frame 要重放的输入帧
          */
-        private static void 重放输入事件() {
-                if (!输入回放活跃 || p2帧 == null) return;
+        private static void 重放帧事件(玩家输入帧 frame) {
                 Minecraft mc = Minecraft.getInstance();
                 if (mc.getWindow() == null) return;
                 long window = mc.getWindow().getWindow();
+
                 // 设置鼠标光标位置（容器操作精确还原）
-                // 直接设MouseHandler内部值，不经过onMove回调
-                // → 不触发视角旋转 → 不被Mixin拦截 → Screen读到正确坐标
-                MouseHandlerAccessor mouseAccessor = (MouseHandlerAccessor) mc.mouseHandler;
-                mouseAccessor.puellamagi$setXPos(p2帧.获取光标X());
-                mouseAccessor.puellamagi$setYPos(p2帧.获取光标Y());
+                // 仅在没有鼠标事件时设帧级光标位置
+                // 有鼠标事件时，每个事件自带精确的事件发生时刻的光标坐标
+                // → 在注入鼠标事件列表()中逐个设置，比帧级光标更精确
+                if (frame.获取鼠标事件列表().isEmpty()) {
+                        MouseHandlerAccessor mouseAccessor = (MouseHandlerAccessor) mc.mouseHandler;
+                        mouseAccessor.puellamagi$setXPos(frame.获取光标X());
+                        mouseAccessor.puellamagi$setYPos(frame.获取光标Y());
+                }
 
                 正在重放事件 = true;
                 try {
-                        // 键盘事件去重
-                        List<玩家输入帧.键盘事件> thisKeys = p2帧.获取键盘事件列表();
-                        if (!thisKeys.equals(上一帧键盘事件)) {
-                                KeyboardHandler keyboard = mc.keyboardHandler;
-                                for (玩家输入帧.键盘事件 event : thisKeys) {
-                                        keyboard.keyPress(window, event.keyCode(), event.scanCode(),
-                                                event.action(), event.modifiers());
-                                }
-                        }
-                        上一帧键盘事件 = new ArrayList<>(thisKeys);
+                        List<玩家输入帧.键盘事件> thisKeys = frame.获取键盘事件列表();
+                        注入键盘事件列表(mc, window, thisKeys);
 
-                        // 鼠标事件去重
-                        List<玩家输入帧.鼠标事件> thisMouse = p2帧.获取鼠标事件列表();
-                        if (!thisMouse.equals(上一帧鼠标事件)) {
-                                com.v2t.puellamagi.mixin.access.MouseHandlerAccessor mouse =(com.v2t.puellamagi.mixin.access.MouseHandlerAccessor) mc.mouseHandler;
-                                for (玩家输入帧.鼠标事件 event : thisMouse) {
-                                        mouse.puellamagi$setXPos(event.cursorX());
-                                        mouse.puellamagi$setYPos(event.cursorY());
-                                        mouse.puellamagi$invokeOnPress(window, event.button(), event.action(), event.modifiers());
+                        List<玩家输入帧.鼠标事件> thisMouse = frame.获取鼠标事件列表();
+                        注入鼠标事件列表(mc, window, thisMouse);
+                } finally {
+                        正在重放事件 = false;
+                }
+        }
+
+        /**
+         * 注入键盘事件列表（带Screen变化检测）
+         *
+         * 每注入一个事件后，检查Screen是否变化
+         * 变化则将剩余事件存入延迟队列，下一帧继续注入
+         */
+        private static void 注入键盘事件列表(Minecraft mc, long window, List<玩家输入帧.键盘事件> events) {
+                if (events.isEmpty()) return;
+
+                KeyboardHandler keyboard = mc.keyboardHandler;
+                net.minecraft.client.gui.screens.Screen 注入前Screen = mc.screen;
+
+                for (int i = 0; i < events.size(); i++) {
+                        玩家输入帧.键盘事件 event = events.get(i);
+                        keyboard.keyPress(window, event.keyCode(), event.scanCode(),
+                                event.action(), event.modifiers());
+
+                        // 检查Screen状态是否变化
+                        if (mc.screen != 注入前Screen) {
+                                // 暂停类Screen保护：回放中出现的暂停Screen会冻结游戏tick
+                                // 导致回放系统死锁（tick停了→延迟队列无法处理→关不掉）
+                                // 暂停菜单不影响游戏世界状态，直接关闭即可
+                                if (mc.screen != null && mc.screen.isPauseScreen()
+                                        && mc.hasSingleplayerServer()) {
+                                        mc.setScreen(null);
+                                        LOGGER.debug("回放中关闭暂停Screen（防止单人模式死锁）");
+                                        // 不return，继续注入后续事件
+                                        注入前Screen = mc.screen;
+                                        continue;
                                 }
+
+                                // Screen变化了 → 剩余事件延迟到下一帧
+                                if (i + 1 < events.size()) {
+                                        延迟键盘事件.addAll(events.subList(i + 1, events.size()));
+                                        LOGGER.debug("Screen变化: {} → {}, 延迟{}个键盘事件到下一帧",
+                                                注入前Screen == null ? "null" : 注入前Screen.getClass().getSimpleName(),
+                                                mc.screen == null ? "null" : mc.screen.getClass().getSimpleName(),
+                                                events.size() - i - 1);
+                                }
+                                return;
                         }
-                        上一帧鼠标事件 = new ArrayList<>(thisMouse);
+                }
+        }
+
+        /**
+         * 注入鼠标事件列表（带Screen变化检测）
+         *
+         * 同键盘事件，每注入一个后检查Screen状态
+         */
+        private static void 注入鼠标事件列表(Minecraft mc, long window, List<玩家输入帧.鼠标事件> events) {
+                if (events.isEmpty()) return;
+
+                com.v2t.puellamagi.mixin.access.MouseHandlerAccessor mouse =
+                        (com.v2t.puellamagi.mixin.access.MouseHandlerAccessor) mc.mouseHandler;
+                net.minecraft.client.gui.screens.Screen 注入前Screen = mc.screen;
+
+                for (int i = 0; i < events.size(); i++) {
+                        玩家输入帧.鼠标事件 event = events.get(i);
+                        mouse.puellamagi$setXPos(event.cursorX());
+                        mouse.puellamagi$setYPos(event.cursorY());
+                        mouse.puellamagi$invokeOnPress(window, event.button(), event.action(), event.modifiers());
+
+                        // 检查Screen状态是否变化
+                        if (mc.screen != 注入前Screen) {
+                                if (i + 1 < events.size()) {
+                                        延迟鼠标事件.addAll(events.subList(i + 1, events.size()));
+                                        LOGGER.debug("Screen变化: {} → {}, 延迟{}个鼠标事件到下一帧",
+                                                注入前Screen == null ? "null" : 注入前Screen.getClass().getSimpleName(),
+                                                mc.screen == null ? "null" : mc.screen.getClass().getSimpleName(),
+                                                events.size() - i - 1);
+                                }
+                                return;
+                        }
+                }
+        }
+
+        /**
+         * 回放键盘和鼠标事件（当前帧p2）
+         *
+         * 在tick开始时调用（tick同步里）
+         * 先处理上一帧因Screen变化而延迟的事件，再处理当前帧
+         */
+        private static void 重放输入事件() {
+                if (!输入回放活跃 || p2帧 == null) return;
+
+                // 先处理延迟的事件（上一帧因Screen变化而暂存的）
+                处理延迟事件();
+
+                重放帧事件(p2帧);
+        }
+
+        /**
+         * 处理延迟事件队列
+         *
+         * 延迟队列中的事件在下一帧注入
+         * 注入时同样检测Screen变化，如果再次变化则继续延迟
+         */
+        private static void 处理延迟事件() {
+                Minecraft mc = Minecraft.getInstance();
+                if (mc.getWindow() == null) return;
+                long window = mc.getWindow().getWindow();
+
+                if (延迟键盘事件.isEmpty() && 延迟鼠标事件.isEmpty()) return;
+
+                正在重放事件 = true;
+                try {
+                        if (!延迟键盘事件.isEmpty()) {
+                                List<玩家输入帧.键盘事件> pending = new ArrayList<>(延迟键盘事件);
+                                延迟键盘事件.clear();
+                                注入键盘事件列表(mc, window, pending);
+                        }
+
+                        if (!延迟鼠标事件.isEmpty()) {
+                                List<玩家输入帧.鼠标事件> pending = new ArrayList<>(延迟鼠标事件);
+                                延迟鼠标事件.clear();
+                                注入鼠标事件列表(mc, window, pending);
+                        }
                 } finally {
                         正在重放事件 = false;
                 }
@@ -252,6 +379,7 @@ public class 客户端复刻管理器 {
                 LocalPlayer local = Minecraft.getInstance().player;
                 if (local == null) return;
                 if (!输入帧表.containsKey(local.getUUID())) return;
+
                 缓冲输入帧 = 输入帧表.get(local.getUUID());
             }
 
@@ -273,17 +401,24 @@ public class 客户端复刻管理器 {
                         return;
                 }
 
+                boolean 之前未激活 = !输入回放活跃;
+
                 p0帧 = p1帧;
                 p1帧 = p2帧;
                 p2帧 = 缓冲输入帧;
                 缓冲输入帧 = null;
 
-                if (p1帧 != null) {
+                if (p1帧 != null && 之前未激活) {
+                        // 首次激活：p1是被跳过的第一帧，先补放它的事件
+                        输入回放活跃 = true;
+                        过渡保护 = false;
+                        重放帧事件(p1帧);
+                } else if (p1帧 != null) {
                         输入回放活跃 = true;
                         过渡保护 = false;
                 }
 
-                // 重放键盘/鼠标事件
+                // 重放当前帧（p2）的键盘/鼠标事件
                 重放输入事件();
         }
 
@@ -298,7 +433,7 @@ public class 客户端复刻管理器 {
         public static boolean 是否需要接管() {
                 // 时间删除中不接管
                 if (时间删除自由) return false;
-                return 过渡保护 ||输入回放活跃 ||结尾保护剩余 > 0;
+                return 过渡保护 || 输入回放活跃 || 结尾保护剩余 > 0;
         }
 
         public static boolean 是否过渡保护中() {
@@ -430,6 +565,10 @@ public class 客户端复刻管理器 {
         public static void 设置录制中(boolean active) {
                 录制中 = active;
                 if (!active) {
+                        // 停止录制时，如果队列里还有未上报的事件
+                        // 说明这些事件在最后一个tick END上报之后、停止录制通知到达之前进入了队列
+                        // 这些事件需要被丢弃，因为服务端已经停止了录制采集
+                        // 不能在这里上报（服务端不再接受输入帧）
                         键盘事件队列.clear();
                         鼠标事件队列.clear();
                 }
@@ -443,11 +582,10 @@ public class 客户端复刻管理器 {
 
         /**
          * 回放结束清理
-         *帧播完或能力结束时调用
-         *时间删除中调用时保留时删标记
+         * 帧播完或能力结束时调用
+         * 无条件清除所有状态（包括时删标记）
          */
-        public static void 回放结束清理() {boolean was时删= 时间删除自由;
-
+        public static void 回放结束清理() {
                 当前帧表.clear();
                 上一帧表.clear();
                 p0帧 = null;
@@ -460,15 +598,20 @@ public class 客户端复刻管理器 {
                 结尾保护剩余 = 0;
                 活跃 = false;
                 正在重放事件 = false;
-                上一帧鼠标事件 = new ArrayList<>();
-                上一帧键盘事件 = new ArrayList<>();
+                延迟键盘事件.clear();
+                延迟鼠标事件.clear();
 
-                // 时删中回放结束：保留时删标记
-                if (was时删) {
-                        时间删除自由 = true;
-                } else {
-                        时间删除自由 = false;
+                // 清空所有按键状态（防止回放注入的按键残留）
+                Map<String, net.minecraft.client.KeyMapping> allKeys =
+                        com.v2t.puellamagi.mixin.access.KeyMappingAccessor.puellamagi$getAll();
+                for (net.minecraft.client.KeyMapping key : allKeys.values()) {
+                        key.setDown(false);
+                        ((com.v2t.puellamagi.mixin.access.KeyMappingAccessor) key).puellamagi$setClickCount(0);
                 }
+
+                // 无条件清除时删标记
+                // 回放结束 = 预知流程完全结束，下次使用应从干净状态开始
+                时间删除自由 = false;
         }
 
         /**
@@ -493,8 +636,8 @@ public class 客户端复刻管理器 {
                 录制中 = false;
                 正在重放事件 = false;
                 时间删除自由 = false;
-                上一帧鼠标事件 = new ArrayList<>();
-                上一帧键盘事件 = new ArrayList<>();
+                延迟键盘事件.clear();
+                延迟鼠标事件.clear();
 
                 Map<String, net.minecraft.client.KeyMapping> allKeys =
                         com.v2t.puellamagi.mixin.access.KeyMappingAccessor.puellamagi$getAll();

@@ -3,7 +3,7 @@
 package com.v2t.puellamagi.core.event.client;
 
 import com.v2t.puellamagi.api.access.IProjectileAccess;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.client.keybind.按键绑定;
 import com.v2t.puellamagi.core.config.时停配置;
 import com.v2t.puellamagi.core.network.packets.c2s.掉落物拾取请求包;
@@ -119,11 +119,11 @@ public class 客户端交互事件 {
      * 处理时停中的拾取
      */
     private static void 处理时停拾取(Minecraft mc, InputEvent.MouseButton.Pre event) {
-        TimeStop timeStop = (TimeStop) mc.level;
+        时停 时停 = (时停) mc.level;
 
         // 只有时停者需要右键拾取
-        if (!timeStop.puellamagi$isTimeStopper(mc.player)) return;
-        if (!timeStop.puellamagi$hasActiveTimeStop()) return;
+        if (!时停.puellamagi$isTimeStopper(mc.player)) return;
+        if (!时停.puellamagi$hasActiveTimeStop()) return;
 
         // 检测准心指向的实体
         Entity target = 检测准心物品或投射物(mc);

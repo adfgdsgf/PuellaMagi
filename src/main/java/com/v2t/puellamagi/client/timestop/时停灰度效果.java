@@ -4,7 +4,7 @@ package com.v2t.puellamagi.client.timestop;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.v2t.puellamagi.PuellaMagi;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.util.资源工具;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.PostChain;
@@ -38,14 +38,14 @@ public class 时停灰度效果 {
             return;
         }
 
-        TimeStop timeStop = (TimeStop) mc.level;
+        时停 时停 = (时停) mc.level;
 
         boolean shouldGray = false;
 
-        if (timeStop.puellamagi$hasActiveTimeStop()) {
-            if (timeStop.puellamagi$isTimeStopper(mc.player)) {
+        if (时停.puellamagi$hasActiveTimeStop()) {
+            if (时停.puellamagi$isTimeStopper(mc.player)) {
                 shouldGray = true;
-            } else if (timeStop.puellamagi$inTimeStopRange(mc.player)) {
+            } else if (时停.puellamagi$inTimeStopRange(mc.player)) {
                 shouldGray = true;
             }
         }

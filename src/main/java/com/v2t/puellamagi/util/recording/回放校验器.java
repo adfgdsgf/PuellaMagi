@@ -3,6 +3,7 @@ package com.v2t.puellamagi.util.recording;
 import com.v2t.puellamagi.core.network.packets.s2c.方块批量更新包;
 import com.v2t.puellamagi.core.network.packets.s2c.背包同步包;
 import com.v2t.puellamagi.system.ability.epitaph.方块变化帧;
+import com.v2t.puellamagi.util.实体工具;
 import com.v2t.puellamagi.util.网络工具;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -183,7 +184,7 @@ public final class 回放校验器 {
             UUID playerUUID = entry.getKey();
             玩家快照 snapshot = entry.getValue();
 
-            Entity entity = findEntityByUUID(level, playerUUID);
+            Entity entity = 实体工具.按UUID查找实体(level, playerUUID);
             if (!(entity instanceof ServerPlayer sp)) continue;
 
             // 直接恢复快照（背包/血量/经验/药水效果）
@@ -199,15 +200,4 @@ public final class 回放校验器 {
         return 修正数量;
     }
 
-    // ==================== 工具方法 ====================
-
-    @javax.annotation.Nullable
-    private static Entity findEntityByUUID(ServerLevel level, UUID uuid) {
-        for (Entity entity : level.getAllEntities()) {
-            if (entity.getUUID().equals(uuid)) {
-                return entity;
-            }
-        }
-        return null;
-    }
 }

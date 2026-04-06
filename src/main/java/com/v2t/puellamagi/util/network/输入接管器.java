@@ -34,10 +34,12 @@ public final class 输入接管器 {
      * 接管模式
      */
     public enum 接管模式 {
-        /**拦截所有C2S包 */
+        /** 拦截所有C2S包 */
         FULL,
         /** 不拦截任何C2S包（纯输入回放） */
-        REPLAY
+        REPLAY,
+        /** 拦截操作包但不拦截移动包（时间删除：A可以走但不能操作） */
+        MOVE_ONLY
     }
 
     /**
@@ -141,10 +143,32 @@ public final class 输入接管器 {
      *
      * Mixin中调用此方法决定是否cancel包处理
      */
+    /**
+     * 检查是否应该拦截该玩家的C2S包
+     *
+     * FULL模式：拦截所有（返回true）
+     * MOVE_ONLY模式：只拦截操作包（由 是否拦截操作() 单独判断）
+     * REPLAY模式：不拦截（返回false）
+     * 未被接管：不拦截（返回false）
+     */
     public static boolean 是否拦截(UUID playerUUID) {
         接管信息 info = 被接管玩家.get(playerUUID);
         if (info == null) return false;
         return info.模式() == 接管模式.FULL;
+    }
+
+    /**
+     * 检查是否应该拦截该玩家的操作类C2S包（不含移动包）
+     *
+     * FULL / MOVE_ONLY 模式：拦截操作包
+     * REPLAY / 未被接管：不拦截
+     *
+     * 适用于：攻击/交互/使用物品/破坏方块等操作包
+     */
+    public static boolean 是否拦截操作(UUID playerUUID) {
+        接管信息 info = 被接管玩家.get(playerUUID);
+        if (info == null) return false;
+        return info.模式() == 接管模式.FULL || info.模式() == 接管模式.MOVE_ONLY;
     }
 
     /**

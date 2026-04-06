@@ -323,9 +323,19 @@ public class 玩家输入帧 {
     @Nullable
     public HitResult 重建射线结果() {
         return switch (hitType) {
-            case 1 -> new BlockHitResult(
-                    new Vec3(hitX, hitY, hitZ),
-                    hitDirection, hitBlockPos, hitInside);
+            case 1 -> {
+                // 防御性检查：如果关键数据缺失，降级为MISS
+                // 兼容旧录制数据中MISS被错误录制为hitType=1的情况
+                if (hitBlockPos == null || hitDirection == null) {
+                    yield BlockHitResult.miss(
+                            new Vec3(hitX, hitY, hitZ),
+                            Direction.UP,
+                            BlockPos.ZERO);
+                }
+                yield new BlockHitResult(
+                        new Vec3(hitX, hitY, hitZ),
+                        hitDirection, hitBlockPos, hitInside);
+            }
             case 2 -> null;
             default -> BlockHitResult.miss(
                     new Vec3(hitX, hitY, hitZ),

@@ -2,7 +2,7 @@
 
 package com.v2t.puellamagi.mixin.timestop.client;
 
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import net.minecraft.client.multiplayer.ClientLevel;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -22,8 +22,8 @@ public abstract class TimestopClientLevelTimeMixin {
      */
     @Inject(method = "setDayTime", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onSetDayTime(long dayTime, CallbackInfo ci) {
-        TimeStop timeStop = (TimeStop) this;
-        if (timeStop.puellamagi$hasActiveTimeStop()) {
+        时停 时停 = (时停) this;
+        if (时停.puellamagi$hasActiveTimeStop()) {
             ci.cancel();
         }
     }

@@ -2,7 +2,7 @@
 
 package com.v2t.puellamagi.mixin.timestop.client;
 
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
@@ -44,9 +44,9 @@ public class TimestopWeatherMixin {
             return;
         }
 
-        TimeStop timeStop = (TimeStop) mc.level;
+        时停 时停 = (时停) mc.level;
 
-        if (timeStop.puellamagi$inTimeStopRange(mc.player)) {
+        if (时停.puellamagi$inTimeStopRange(mc.player)) {
             if (puellamagi$frozenTicks < 0) {
                 puellamagi$frozenTicks = this.ticks;
             }
@@ -67,9 +67,9 @@ public class TimestopWeatherMixin {
             return;
         }
 
-        TimeStop timeStop = (TimeStop) mc.level;
+        时停 时停 = (时停) mc.level;
 
-        if (timeStop.puellamagi$inTimeStopRange(mc.player) && puellamagi$frozenTicks >= 0) {
+        if (时停.puellamagi$inTimeStopRange(mc.player) && puellamagi$frozenTicks >= 0) {
             this.ticks = puellamagi$realTicks;
         }
     }
@@ -86,8 +86,8 @@ public class TimestopWeatherMixin {
         Minecraft mc = Minecraft.getInstance();
 
         if (mc.level != null && mc.player != null) {
-            TimeStop timeStop = (TimeStop) mc.level;
-            if (timeStop.puellamagi$inTimeStopRange(mc.player) && puellamagi$frozenTicks >= 0) {
+            时停 时停 = (时停) mc.level;
+            if (时停.puellamagi$inTimeStopRange(mc.player) && puellamagi$frozenTicks >= 0) {
                 return 0.0f;
             }
         }

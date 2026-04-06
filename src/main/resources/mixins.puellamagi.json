@@ -47,6 +47,7 @@
 
     "epitaph.EpitaphReplayLevelMixin",
     "epitaph.EpitaphReplayServerEntityMixin",
+    "epitaph.EpitaphExistenceBlockerTrackMixin",
     "epitaph.TimeDeletionStackMixin"
 
   ],
@@ -86,6 +87,9 @@
     "epitaph.client.EpitaphKeyboardRecordMixin",
     "epitaph.client.EpitaphMouseRecordMixin",
     "epitaph.client.EpitaphReplayHitResultMixin",
+    "epitaph.client.EpitaphTimeDeletionPacketMixin",
+    "epitaph.client.EpitaphTimeDeletionBlockMixin",
+    "epitaph.client.EpitaphTimeDeletionLevelEventMixin",
 
     "client.CreativeModeDeleteMixin"
   ]

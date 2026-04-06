@@ -5,7 +5,6 @@ package com.v2t.puellamagi.api.timestop;
 import net.minecraft.core.Vec3i;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 
 import java.util.List;
 import java.util.UUID;
@@ -15,7 +14,7 @@ import java.util.UUID;
  *
  * 参考Roundabout mod 的设计，将时停状态绑定到 Level 而非外部管理器
  */
-public interface TimeStop {
+public interface 时停 {
 
     //==================== 时停者管理 ====================
 

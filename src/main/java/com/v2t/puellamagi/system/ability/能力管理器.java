@@ -7,10 +7,10 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 能力管理器
@@ -25,7 +25,7 @@ public final class 能力管理器 {
     private 能力管理器() {}
 
     //玩家UUID -> 当前激活的能力实例
-    private static final Map<UUID, I能力> 激活能力表 = new HashMap<>();
+    private static final Map<UUID, I能力> 激活能力表 = new ConcurrentHashMap<>();
 
     /**
      * 激活玩家的能力

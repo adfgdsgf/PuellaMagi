@@ -16,9 +16,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
-import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 时间停止技能
@@ -56,7 +56,7 @@ public class 时间停止技能 implements I技能 {
     // ==================== 状态管理 ====================
 
     // 处于保护期的玩家
-    private static final Set<UUID> 保护期玩家 = new HashSet<>();
+    private static final Set<UUID> 保护期玩家 = ConcurrentHashMap.newKeySet();
 
     // ==================== 基础信息 ====================
 

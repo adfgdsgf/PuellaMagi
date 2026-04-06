@@ -3,7 +3,7 @@
 package com.v2t.puellamagi.mixin.timestop;
 
 import com.v2t.puellamagi.api.access.IProjectileAccess;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.system.ability.timestop.时停管理器;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -47,18 +47,19 @@ public abstract class TimestopLivingEntityMixin {
                 self.invulnerableTime = 0;}
         }
 
-        TimeStop timeStop = (TimeStop) self.level();
+        时停 时停 = (时停) self.level();
 
         // 没有时停则正常处理
-        if (!timeStop.puellamagi$hasActiveTimeStop()) {
+        if (!时停.puellamagi$hasActiveTimeStop()) {
             return;
         }
 
         Entity attacker = source.getEntity();
 
-        // 被冻结实体受到时停者攻击 -> 累计伤害
-        if (timeStop.puellamagi$shouldFreezeEntity(self)) {
-            if (attacker instanceof Player player && timeStop.puellamagi$isTimeStopper(player)) {
+        // 被冻结实体受到时停者（或其投射物/召唤物）攻击 -> 累计伤害
+        if (时停.puellamagi$shouldFreezeEntity(self)) {
+            // 检查攻击来源是否为时停者（直接攻击或通过投射物/召唤物间接攻击）
+            if (attacker != null && 是否时停者攻击(attacker, 时停)) {
                 时停管理器.存储伤害(self, source, amount);
                 cir.setReturnValue(false);
                 return;
@@ -66,8 +67,8 @@ public abstract class TimestopLivingEntityMixin {
         }
 
         // 时停者受到被冻结实体攻击 -> 免疫
-        if (self instanceof Player player && timeStop.puellamagi$isTimeStopper(player)) {
-            if (attacker != null && timeStop.puellamagi$shouldFreezeEntity(attacker)) {
+        if (self instanceof Player player && 时停.puellamagi$isTimeStopper(player)) {
+            if (attacker != null && 时停.puellamagi$shouldFreezeEntity(attacker)) {
                 cir.setReturnValue(false);}
         }
     }
@@ -77,9 +78,9 @@ public abstract class TimestopLivingEntityMixin {
     @Inject(method = "setYHeadRot", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onSetYHeadRot(float rotation, CallbackInfo ci) {
         LivingEntity self = (LivingEntity) (Object) this;
-        TimeStop timeStop = (TimeStop) self.level();
+        时停 时停 = (时停) self.level();
 
-        if (timeStop.puellamagi$shouldFreezeEntity(self)) {
+        if (时停.puellamagi$shouldFreezeEntity(self)) {
             ci.cancel();
         }
     }
@@ -87,10 +88,38 @@ public abstract class TimestopLivingEntityMixin {
     @Inject(method = "setYBodyRot", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onSetYBodyRot(float rotation, CallbackInfo ci) {
         LivingEntity self = (LivingEntity) (Object) this;
-        TimeStop timeStop = (TimeStop) self.level();
+        时停 时停 = (时停) self.level();
 
-        if (timeStop.puellamagi$shouldFreezeEntity(self)) {
+        if (时停.puellamagi$shouldFreezeEntity(self)) {
             ci.cancel();
         }
+    }
+
+    // ==================== 辅助方法 ====================
+
+    /**
+     * 判断攻击者是否为时停者或时停者的投射物/召唤物
+     *
+     * 检查链：
+     * 1. 攻击者本身是时停者Player → true
+     * 2. 攻击者是投射物 → 检查owner是否为时停者
+     * 3. 其他情况 → false
+     */
+    @org.spongepowered.asm.mixin.Unique
+    private static boolean 是否时停者攻击(Entity attacker, 时停 时停) {
+        // 直接是时停者Player
+        if (attacker instanceof Player player && 时停.puellamagi$isTimeStopper(player)) {
+            return true;
+        }
+
+        // 投射物：检查其owner
+        if (attacker instanceof Projectile projectile) {
+            Entity owner = projectile.getOwner();
+            if (owner instanceof Player player && 时停.puellamagi$isTimeStopper(player)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

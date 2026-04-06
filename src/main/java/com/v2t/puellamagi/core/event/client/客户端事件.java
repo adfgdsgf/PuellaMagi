@@ -147,6 +147,12 @@ public class 客户端事件 {
             // 客户端冷却tick
             能力工具.获取技能能力(player).ifPresent(cap -> cap.tick());
 
+            // 录制中→ 无论Screen状态如何，每tick都必须上报输入
+            // 不能放在 mc.screen != null 的 return 之后，否则背包打开期间的事件丢失
+            if (客户端复刻管理器.是否录制中()) {
+                上报录制输入(mc);
+            }
+
             // K键：技能管理界面切换
             while (按键绑定.技能栏编辑键.consumeClick()) {
                 处理技能管理界面按键(mc, player);
@@ -179,62 +185,72 @@ public class 客户端事件 {
             while (按键绑定.技能栏折叠键.consumeClick()) {
                 切换技能栏折叠();
             }
+        }
 
-            // 录制中→ 每tick上报输入 + 键盘/鼠标事件 + 射线结果给服务端
-            if (客户端复刻管理器.是否录制中()) {
-                net.minecraft.client.player.LocalPlayer localPlayer = mc.player;
-                net.minecraft.client.player.Input input = localPlayer.input;
+        /**
+         * 录制中上报输入数据（键盘/鼠标事件 + 移动/视角/射线）
+         *
+         * 必须在 mc.screen 检查之前调用
+         * 否则背包打开期间的键盘事件（如E键关闭背包）不会被上报
+         * → 回放时丢失这些事件
+         */
+        private static void 上报录制输入(Minecraft mc) {
+            net.minecraft.client.player.LocalPlayer localPlayer = mc.player;
+            if (localPlayer == null) return;
+            net.minecraft.client.player.Input input = localPlayer.input;
 
-                List<玩家输入帧.键盘事件> keyboardEvents = 客户端复刻管理器.获取并清空键盘事件();
-                List<玩家输入帧.鼠标事件> mouseEvents = 客户端复刻管理器.获取并清空鼠标事件();
+            List<玩家输入帧.键盘事件> keyboardEvents = 客户端复刻管理器.获取并清空键盘事件();
+            List<玩家输入帧.鼠标事件> mouseEvents = 客户端复刻管理器.获取并清空鼠标事件();
 
-                // 采集鼠标光标位置
-                double cursorX = mc.mouseHandler.xpos();
-                double cursorY = mc.mouseHandler.ypos();
+            // 采集鼠标光标位置
+            double cursorX = mc.mouseHandler.xpos();
+            double cursorY = mc.mouseHandler.ypos();
 
-                // 从handleKeybinds HEAD缓存获取射线结果
-                int hitType = 0;
-                net.minecraft.core.BlockPos hitBlockPos = null;
-                net.minecraft.core.Direction hitDirection = null;
-                double hitX = 0, hitY = 0, hitZ = 0;
-                boolean hitInside = false;
-                int hitEntityId = -1;
+            // 从handleKeybinds HEAD缓存获取射线结果
+            int hitType = 0;
+            net.minecraft.core.BlockPos hitBlockPos = null;
+            net.minecraft.core.Direction hitDirection = null;
+            double hitX = 0, hitY = 0, hitZ = 0;
+            boolean hitInside = false;
+            int hitEntityId = -1;
 
-                net.minecraft.world.phys.HitResult hitResult = 客户端复刻管理器.获取并清空射线结果();
-                if (hitResult != null) {
-                    if (hitResult instanceof net.minecraft.world.phys.BlockHitResult blockHit) {
-                        hitType = 1;
-                        hitBlockPos = blockHit.getBlockPos();
-                        hitDirection = blockHit.getDirection();
-                        hitX = blockHit.getLocation().x;
-                        hitY = blockHit.getLocation().y;
-                        hitZ = blockHit.getLocation().z;
-                        hitInside = blockHit.isInside();
-                    } else if (hitResult instanceof net.minecraft.world.phys.EntityHitResult entityHit) {
-                        hitType = 2;
-                        hitEntityId = entityHit.getEntity().getId();
-                        hitX = entityHit.getLocation().x;
-                        hitY = entityHit.getLocation().y;
-                        hitZ = entityHit.getLocation().z;
-                    }
+            net.minecraft.world.phys.HitResult hitResult = 客户端复刻管理器.获取并清空射线结果();
+            if (hitResult != null) {
+                // 注意：BlockHitResult.miss() 也是 BlockHitResult 实例
+                // 必须用 getType() 区分真正命中方块 vs MISS
+                if (hitResult instanceof net.minecraft.world.phys.BlockHitResult blockHit
+                        && hitResult.getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
+                    hitType = 1;
+                    hitBlockPos = blockHit.getBlockPos();
+                    hitDirection = blockHit.getDirection();
+                    hitX = blockHit.getLocation().x;
+                    hitY = blockHit.getLocation().y;
+                    hitZ = blockHit.getLocation().z;
+                    hitInside = blockHit.isInside();
+                } else if (hitResult instanceof net.minecraft.world.phys.EntityHitResult entityHit) {
+                    hitType = 2;
+                    hitEntityId = entityHit.getEntity().getId();
+                    hitX = entityHit.getLocation().x;
+                    hitY = entityHit.getLocation().y;
+                    hitZ = entityHit.getLocation().z;
                 }
-
-                网络工具.发送到服务端(new com.v2t.puellamagi.core.network.packets.c2s.录制输入上报包(
-                        input.forwardImpulse,
-                        input.leftImpulse,
-                        input.jumping,
-                        input.shiftKeyDown,
-                        localPlayer.isSprinting(),
-                        localPlayer.getYRot(),
-                        localPlayer.getXRot(),
-                        localPlayer.getInventory().selected,
-                        keyboardEvents,
-                        mouseEvents,
-                        cursorX, cursorY,
-                        hitType, hitBlockPos, hitDirection,
-                        hitX, hitY, hitZ, hitInside, hitEntityId
-                ));
             }
+
+            网络工具.发送到服务端(new com.v2t.puellamagi.core.network.packets.c2s.录制输入上报包(
+                    input.forwardImpulse,
+                    input.leftImpulse,
+                    input.jumping,
+                    input.shiftKeyDown,
+                    localPlayer.isSprinting(),
+                    localPlayer.getYRot(),
+                    localPlayer.getXRot(),
+                    localPlayer.getInventory().selected,
+                    keyboardEvents,
+                    mouseEvents,
+                    cursorX, cursorY,
+                    hitType, hitBlockPos, hitDirection,
+                    hitX, hitY, hitZ, hitInside, hitEntityId
+            ));
         }
 
         /**

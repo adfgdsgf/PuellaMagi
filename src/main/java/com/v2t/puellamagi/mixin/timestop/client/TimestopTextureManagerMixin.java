@@ -2,7 +2,7 @@
 
 package com.v2t.puellamagi.mixin.timestop.client;
 
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.world.entity.Entity;
@@ -23,7 +23,7 @@ public class TimestopTextureManagerMixin {
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onTick(CallbackInfo ci) {
         Entity player = Minecraft.getInstance().player;
-        if (player != null && ((TimeStop) player.level()).puellamagi$inTimeStopRange(player)) {
+        if (player != null && ((时停) player.level()).puellamagi$inTimeStopRange(player)) {
             ci.cancel();
         }
     }

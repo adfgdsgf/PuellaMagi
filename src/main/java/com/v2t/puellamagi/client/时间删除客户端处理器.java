@@ -3,11 +3,18 @@ package com.v2t.puellamagi.client;
 import com.v2t.puellamagi.mixin.access.KeyMappingAccessor;
 import com.v2t.puellamagi.mixin.access.MouseHandlerAccessor;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.game.ClientboundSectionBlocksUpdatePacket;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 时间删除客户端处理器
@@ -20,11 +27,110 @@ import java.util.Map;
  * 2. 同步朝向旧值（防止插值跳变）
  * 3. 重置方块破坏状态（防止破坏动画卡住）
  * 4. 清空按键状态（防止回放残留按键继续生效）
+ * 5. 管理方块忽略列表（时删期间A不看到自己触发的方块变化）
  */
 @OnlyIn(Dist.CLIENT)
 public final class 时间删除客户端处理器 {
 
     private 时间删除客户端处理器() {}
+
+    // ==================== 方块忽略列表 ====================
+
+    /**
+     * 被忽略的方块位置集合
+     *
+     * 时删期间，服务端帧方块修正执行A的操作后，
+     * 通过S2C包通知A的客户端将这些方块位置加入此列表。
+     * 当MC原版方块更新包到达时，Mixin检查此列表：
+     * - 在列表中 → 不执行方块变化（A看到方块还在原来的状态）
+     * - 不在列表中 → 正常执行
+     *
+     * 时删结束时通过清空通知包清空此列表。
+     */
+    private static final Set<BlockPos> 忽略方块集合 = new HashSet<>();
+
+    /**
+     * 添加方块位置到忽略列表
+     * 由时删方块忽略包的IGNORE操作调用
+     *
+     * @param positions 需要忽略的方块位置列表
+     */
+    public static void 添加忽略方块(List<BlockPos> positions) {
+        for (BlockPos pos : positions) {
+            忽略方块集合.add(pos.immutable());
+        }
+    }
+
+    /**
+     * 清空忽略列表
+     * 由时删方块忽略包的CLEAR操作调用（时删结束时）
+     */
+    public static void 清空忽略方块() {
+        忽略方块集合.clear();
+    }
+
+    /**
+     * 检查是否有任何忽略方块（快速短路判断）
+     *
+     * @return true = 忽略列表非空
+     */
+    public static boolean 有忽略方块() {
+        return !忽略方块集合.isEmpty();
+    }
+
+    /**
+     * 检查指定位置是否在忽略列表中
+     *
+     * @param pos 方块位置
+     * @return true = 该位置的方块变化应被A忽略
+     */
+    public static boolean 是否忽略方块(BlockPos pos) {
+        return 忽略方块集合.contains(pos);
+    }
+
+    /**
+     * 检查区段方块更新包中是否包含需要忽略的方块
+     *
+     * 遍历包中的所有方块更新，检查位置是否在忽略列表中
+     *
+     * @param packet 区段方块更新包
+     * @return true = 包中至少有一个方块需要忽略
+     */
+    public static boolean 区段包含忽略方块(ClientboundSectionBlocksUpdatePacket packet) {
+        // 用boolean数组作为闭包捕获
+        boolean[] 结果 = {false};
+        packet.runUpdates((pos, state) -> {
+            if (忽略方块集合.contains(pos)) {
+                结果[0] = true;
+            }
+        });
+        return 结果[0];
+    }
+
+    /**
+     * 过滤区段方块更新包：跳过忽略列表中的方块，其余正常应用
+     *
+     * 当区段包中混合了忽略和非忽略方块时：
+     * - cancel原包（Mixin已做）
+     * - 手动遍历，只应用不在忽略列表中的方块变化
+     *
+     * @param packet 被cancel的区段方块更新包
+     */
+    public static void 过滤并应用区段方块更新(ClientboundSectionBlocksUpdatePacket packet) {
+        Minecraft mc = Minecraft.getInstance();
+        ClientLevel level = mc.level;
+        if (level == null) return;
+
+        packet.runUpdates((pos, state) -> {
+            // 在忽略列表中 → 跳过（A看不到这个变化）
+            if (忽略方块集合.contains(pos)) return;
+
+            // 不在忽略列表中 → 正常应用
+            level.setBlock(pos, state, 19);
+        });
+    }
+
+    // ==================== 进入时删处理 ====================
 
     /**
      * 进入时间删除时的客户端处理

@@ -3,7 +3,7 @@
 package com.v2t.puellamagi.system.ability.timestop;
 
 import com.v2t.puellamagi.PuellaMagi;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.system.contract.契约管理器;
 import com.v2t.puellamagi.util.资源工具;
 import net.minecraft.server.level.ServerLevel;
@@ -36,7 +36,8 @@ public final class 时停管理器 {
 
     // ==================== 伤害累计 ====================
 
-    private static final Map<Integer, 累计伤害数据> 累计伤害表 = new ConcurrentHashMap<>();
+    // 使用UUID而非int实体ID做key，避免实体ID回收复用导致伤害继承
+    private static final Map<UUID, 累计伤害数据> 累计伤害表 = new ConcurrentHashMap<>();
 
     /**
      * 累计伤害数据 - 存储累加值而非多条记录
@@ -61,7 +62,7 @@ public final class 时停管理器 {
      * 清理实体的累计伤害数据
      */
     public static void 清理实体伤害(LivingEntity entity) {
-        累计伤害表.remove(entity.getId());
+        累计伤害表.remove(entity.getUUID());
     }
 
     // ==================== 蓄力状态管理 ====================
@@ -74,14 +75,14 @@ public final class 时停管理器 {
      * 开始时停
      */
     public static void 开始时停(ServerPlayer player) {
-        TimeStop timeStop = (TimeStop) player.level();
+        时停 时停 = (时停) player.level();
 
-        if (timeStop.puellamagi$isTimeStopper(player)) {
+        if (时停.puellamagi$isTimeStopper(player)) {
             PuellaMagi.LOGGER.warn("玩家 {} 已经在时停中", player.getName().getString());
             return;
         }
 
-        timeStop.puellamagi$addTimeStopper(player);
+        时停.puellamagi$addTimeStopper(player);
         PuellaMagi.LOGGER.info("时停管理器:玩家 {} 开始时停", player.getName().getString());
     }
 
@@ -93,13 +94,13 @@ public final class 时停管理器 {
      * 当实体不再被冻结时，会自动释放累计伤害
      */
     public static void 结束时停(ServerPlayer player) {
-        TimeStop timeStop = (TimeStop) player.level();
+        时停 时停 = (时停) player.level();
 
-        if (!timeStop.puellamagi$isTimeStopper(player)) {
+        if (!时停.puellamagi$isTimeStopper(player)) {
             return;
         }
 
-        timeStop.puellamagi$removeTimeStopper(player);
+        时停.puellamagi$removeTimeStopper(player);
         PuellaMagi.LOGGER.info("时停管理器: 玩家 {} 结束时停", player.getName().getString());
     }
 
@@ -118,9 +119,9 @@ public final class 时停管理器 {
      * 存储伤害 - 累加到总值
      */
     public static void 存储伤害(Entity entity, DamageSource source, float amount) {
-        int id = entity.getId();
+        UUID uuid = entity.getUUID();
 
-        累计伤害表.compute(id, (key, existing) -> {
+        累计伤害表.compute(uuid, (key, existing) -> {
             累计伤害数据 data = existing != null ? existing : new 累计伤害数据();
             data.添加伤害(source, amount);
             return data;
@@ -131,7 +132,7 @@ public final class 时停管理器 {
      * 获取实体累计伤害总值
      */
     public static float 获取累计伤害(Entity entity) {
-        累计伤害数据 data = 累计伤害表.get(entity.getId());
+        累计伤害数据 data = 累计伤害表.get(entity.getUUID());
         return data != null ? data.获取总伤害() : 0;
     }
 
@@ -139,7 +140,7 @@ public final class 时停管理器 {
      * 检查实体是否有累计伤害
      */
     public static boolean 有累计伤害(Entity entity) {
-        累计伤害数据 data = 累计伤害表.get(entity.getId());
+        累计伤害数据 data = 累计伤害表.get(entity.getUUID());
         return data != null && data.获取总伤害() > 0;
     }
 
@@ -152,8 +153,8 @@ public final class 时停管理器 {
      * @param living 要释放伤害的实体
      */
     public static void 尝试释放实体伤害(LivingEntity living) {
-        int id = living.getId();
-        累计伤害数据 data = 累计伤害表.remove(id);
+        UUID uuid = living.getUUID();
+        累计伤害数据 data = 累计伤害表.remove(uuid);
 
         if (data == null || data.获取总伤害() <= 0) {
             return;
@@ -183,12 +184,20 @@ public final class 时停管理器 {
             return;
         }
 
-        Map<Integer, 累计伤害数据> snapshot = new HashMap<>(累计伤害表);
+        Map<UUID, 累计伤害数据> snapshot = new HashMap<>(累计伤害表);
         累计伤害表.clear();
 
+        // 先建立UUID→Entity的查找表，避免对每个累计伤害都遍历所有实体
+        Map<UUID, LivingEntity> entityMap = new HashMap<>();
+        for (Entity entity : level.getEntities().getAll()) {
+            if (entity instanceof LivingEntity living && snapshot.containsKey(entity.getUUID())) {
+                entityMap.put(entity.getUUID(), living);
+            }
+        }
+
         for (var entry : snapshot.entrySet()) {
-            Entity entity = level.getEntity(entry.getKey());
-            if (entity instanceof LivingEntity living && living.isAlive()) {
+            LivingEntity living = entityMap.get(entry.getKey());
+            if (living != null && living.isAlive()) {
                 累计伤害数据 data = entry.getValue();
                 living.hurt(data.获取伤害源(), data.获取总伤害());
             }
@@ -201,7 +210,7 @@ public final class 时停管理器 {
      * 检查是否存在时停
      */
     public static boolean 存在时停(Level level) {
-        return ((TimeStop) level).puellamagi$hasActiveTimeStop();
+        return ((时停) level).puellamagi$hasActiveTimeStop();
     }
 
     /**
@@ -209,7 +218,7 @@ public final class 时停管理器 {
      */
     public static boolean 是否时停者(Player player) {
         if (player == null) return false;
-        return ((TimeStop) player.level()).puellamagi$isTimeStopper(player);
+        return ((时停) player.level()).puellamagi$isTimeStopper(player);
     }
 
     /**
@@ -217,7 +226,7 @@ public final class 时停管理器 {
      */
     public static boolean 是否被冻结(Entity entity) {
         if (entity == null) return false;
-        return ((TimeStop) entity.level()).puellamagi$shouldFreezeEntity(entity);
+        return ((时停) entity.level()).puellamagi$shouldFreezeEntity(entity);
     }
 
     //==================== 能力判断 ====================
@@ -263,10 +272,10 @@ public final class 时停管理器 {
      */
     public static void 玩家下线(Player player) {
         if (player instanceof ServerPlayer serverPlayer) {
-            TimeStop timeStop = (TimeStop) serverPlayer.level();
+            时停 时停 = (时停) serverPlayer.level();
 
-            if (timeStop.puellamagi$isTimeStopper(serverPlayer)) {
-                timeStop.puellamagi$removeTimeStopper(serverPlayer);
+            if (时停.puellamagi$isTimeStopper(serverPlayer)) {
+                时停.puellamagi$removeTimeStopper(serverPlayer);
                 PuellaMagi.LOGGER.info("时停者 {} 下线，时停结束", player.getName().getString());
             }
         }

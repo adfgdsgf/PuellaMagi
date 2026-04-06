@@ -5,7 +5,7 @@ package com.v2t.puellamagi.mixin.timestop.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.v2t.puellamagi.api.access.IEntityAndData;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -54,10 +54,10 @@ public abstract class TimestopEntityRenderDispatcherMixin {
             float opacity, float partialTick, LevelReader level, float radius,
             CallbackInfo ci) {
 
-        TimeStop timeStop = (TimeStop) entity.level();
+        时停 时停 = (时停) entity.level();
 
         // 只处理被冻结的生物实体
-        if (timeStop.puellamagi$shouldFreezeEntity(entity) && entity instanceof LivingEntity) {
+        if (时停.puellamagi$shouldFreezeEntity(entity) && entity instanceof LivingEntity) {
             IEntityAndData data = (IEntityAndData) entity;
 
             // 使用固定的 partialTick（当前帧时间，但用存储的位置）

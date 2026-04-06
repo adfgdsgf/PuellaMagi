@@ -6,7 +6,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.v2t.puellamagi.PuellaMagi;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.mixin.access.GuiAccessor;
 import com.v2t.puellamagi.system.ability.timestop.时停管理器;
 import com.v2t.puellamagi.system.ability.timestop.时停豁免系统;
@@ -112,11 +112,11 @@ public class 时停冻结帧 {
             return;
         }
 
-        TimeStop timeStop = (TimeStop) mc.level;
+        时停 时停 = (时停) mc.level;
         boolean isCreative = mc.player.isCreative();
 
         // 使用豁免系统判断是否需要冻结画面
-        boolean shouldFreeze = timeStop.puellamagi$hasActiveTimeStop()
+        boolean shouldFreeze = 时停.puellamagi$hasActiveTimeStop()
                 && 时停豁免系统.应该冻结画面(mc.player);
 
         if (shouldFreeze && !isFrozen) {

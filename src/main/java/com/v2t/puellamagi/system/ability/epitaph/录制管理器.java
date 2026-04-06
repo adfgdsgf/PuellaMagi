@@ -2,6 +2,7 @@ package com.v2t.puellamagi.system.ability.epitaph;
 
 import com.v2t.puellamagi.mixin.access.ServerPlayerGameModeAccessor;
 import com.v2t.puellamagi.util.recording.*;
+import com.v2t.puellamagi.util.实体工具;
 import com.v2t.puellamagi.util.网络工具;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -9,8 +10,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -87,7 +86,7 @@ public final class 录制管理器 {
         public final Map<UUID, CompoundTag> 上次状态NBT缓存;
 
         /** 玩家鼠标增量数据 */
-        public final Map<UUID, List<float[]>> 鼠标样本表= new HashMap<>();
+        public final Map<UUID, List<float[]>> 鼠标样本表 = new HashMap<>();
 
         /** 玩家最新输入缓冲区（覆盖式） */
         public final Map<UUID, 玩家输入帧> 最新输入缓冲 = new HashMap<>();
@@ -160,7 +159,7 @@ public final class 录制管理器 {
 
         // 确保正在被挖的方块被快照记录
         for (UUID entityUUID : entities) {
-            Entity entity = findEntityByUUID(level, entityUUID);
+            Entity entity = 实体工具.按UUID查找实体(level, entityUUID);
             if (entity instanceof ServerPlayer sp) {
                 ServerPlayerGameModeAccessor gameMode =
                         (ServerPlayerGameModeAccessor) sp.gameMode;
@@ -185,7 +184,7 @@ public final class 录制管理器 {
 
         // 初始化每个玩家的输入帧列表
         for (UUID entityUUID : entities) {
-            Entity entity = findEntityByUUID(level, entityUUID);
+            Entity entity = 实体工具.按UUID查找实体(level, entityUUID);
             if (entity instanceof ServerPlayer) {
                 session.玩家输入表.put(entityUUID, new ArrayList<>());
             }
@@ -193,7 +192,7 @@ public final class 录制管理器 {
 
         // 给每个范围内的玩家拍快照
         for (UUID entityUUID : entities) {
-            Entity entity = findEntityByUUID(level, entityUUID);
+            Entity entity = 实体工具.按UUID查找实体(level, entityUUID);
             if (entity instanceof ServerPlayer sp) {
                 session.玩家快照表.put(entityUUID, 玩家快照.从玩家采集(sp));
             }
@@ -206,7 +205,7 @@ public final class 录制管理器 {
 
         // 通知被录制的玩家客户端开始录制
         for (UUID entityUUID : entities) {
-            Entity entity = findEntityByUUID(level, entityUUID);
+            Entity entity = 实体工具.按UUID查找实体(level, entityUUID);
             if (entity instanceof ServerPlayer sp) {
                 网络工具.发送给玩家(sp,
                         com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.开始录制());
@@ -238,31 +237,17 @@ public final class 录制管理器 {
             UUID entityUUID = entity.getUUID();
             session.被录制实体.add(entityUUID);
 
+            // 精简后：直接使用实体帧数据的静态工厂方法
+            // 每帧都采集完整NBT，不再差分
             if (entity instanceof LivingEntity living) {
-                实体帧数据.Builder builder = 从活体采集到Builder(living);
-
-                CompoundTag currentNBT = 实体帧数据.采集状态NBT(living);
-                CompoundTag lastNBT = session.上次状态NBT缓存.get(entityUUID);
-
-                if (!实体帧数据.NBT相同(currentNBT, lastNBT)) {
-                    builder.状态NBT(currentNBT.copy());
-                    session.上次状态NBT缓存.put(entityUUID, currentNBT);
-                }
-
-                frameData.put(entityUUID, builder.构建());
+                frameData.put(entityUUID, 实体帧数据.从实体采集(living));
             } else {
-                实体帧数据.Builder builder = 从普通实体采集到Builder(entity);
-
-                CompoundTag currentNBT = 实体帧数据.采集状态NBT(entity);
-                CompoundTag lastNBT = session.上次状态NBT缓存.get(entityUUID);
-
-                if (!实体帧数据.NBT相同(currentNBT, lastNBT)) {
-                    builder.状态NBT(currentNBT.copy());
-                    session.上次状态NBT缓存.put(entityUUID, currentNBT);
-                }
-
-                frameData.put(entityUUID, builder.构建());
+                frameData.put(entityUUID, 实体帧数据.从普通实体采集(entity));
             }
+
+            // 更新NBT缓存（帧实体NBT校验的查找期望NBT方法仍使用此缓存作为fallback）
+            CompoundTag currentNBT = 实体帧数据.采集状态NBT(entity);
+            session.上次状态NBT缓存.put(entityUUID, currentNBT);
         }
 
         boolean added = session.帧数据.添加帧(frameData);
@@ -347,7 +332,7 @@ public final class 录制管理器 {
     @Nullable
     private static UUID 查找容器操作者(录制会话 session, ServerLevel level, BlockPos pos) {
         for (UUID playerUUID : session.被录制实体) {
-            Entity entity = findEntityByUUID(level, playerUUID);
+            Entity entity = 实体工具.按UUID查找实体(level, playerUUID);
             if (!(entity instanceof ServerPlayer sp)) continue;
 
             // 检查玩家当前打开的容器是否关联到这个方块位置
@@ -419,7 +404,7 @@ public final class 录制管理器 {
         if (session != null) {
             // 通知客户端停止录制
             for (UUID entityUUID : session.被录制实体) {
-                Entity entity = findEntityByUUID(session.维度, entityUUID);
+                Entity entity = 实体工具.按UUID查找实体(session.维度, entityUUID);
                 if (entity instanceof ServerPlayer sp) {
                     网络工具.发送给玩家(sp,
                             com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.停止录制());
@@ -429,7 +414,7 @@ public final class 录制管理器 {
             // 拍录制结束时的玩家快照（结果驱动恢复用）
             session.结束快照表 = new HashMap<>();
             for (UUID entityUUID : session.被录制实体) {
-                Entity entity = findEntityByUUID(session.维度, entityUUID);
+                Entity entity = 实体工具.按UUID查找实体(session.维度, entityUUID);
                 if (entity instanceof ServerPlayer sp) {
                     session.结束快照表.put(entityUUID, 玩家快照.从玩家采集(sp));
                 }
@@ -447,7 +432,7 @@ public final class 录制管理器 {
         录制会话 removed = 活跃会话.remove(userUUID);
         if (removed != null) {
             for (UUID entityUUID : removed.被录制实体) {
-                Entity entity = findEntityByUUID(removed.维度, entityUUID);
+                Entity entity = 实体工具.按UUID查找实体(removed.维度, entityUUID);
                 if (entity instanceof ServerPlayer sp) {
                     网络工具.发送给玩家(sp,
                             com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.停止录制());
@@ -513,56 +498,9 @@ public final class 录制管理器 {
         return new ArrayList<>(活跃会话.keySet());
     }
 
-    // ==================== Builder构建工具 ====================
-
-    private static 实体帧数据.Builder 从活体采集到Builder(LivingEntity entity) {
-        return new 实体帧数据.Builder(entity.getUUID())
-                .位置(entity.getX(), entity.getY(), entity.getZ())
-                .朝向(entity.getYRot(), entity.getXRot())
-                .身体朝向(entity.yBodyRot, entity.yHeadRot)
-                .速度(entity.getDeltaMovement())
-                .生命(entity.getHealth(), entity.getMaxHealth())
-                .行走动画(entity.walkAnimation.position(), entity.walkAnimation.speed())
-                .攻击动画(entity.attackAnim)
-                .挥手(entity.swinging, entity.swingTime,
-                        entity.swingingArm == InteractionHand.OFF_HAND)
-                .受击(entity.hurtTime)
-                .死亡(entity.deathTime)
-                .使用物品(
-                        entity.isUsingItem(),
-                        entity.getUseItemRemainingTicks(),
-                        entity.isUsingItem() ? entity.getUsedItemHand() : null
-                )
-                .姿态(entity.getPose())
-                .全部装备(
-                        entity.getMainHandItem().copy(),
-                        entity.getOffhandItem().copy(),
-                        entity.getItemBySlot(EquipmentSlot.HEAD).copy(),
-                        entity.getItemBySlot(EquipmentSlot.CHEST).copy(),
-                        entity.getItemBySlot(EquipmentSlot.LEGS).copy(),
-                        entity.getItemBySlot(EquipmentSlot.FEET).copy()
-                )
-                .潜行(entity.isShiftKeyDown())
-                .冲刺(entity.isSprinting())
-                .在地面(entity.onGround());
-    }
-
-    private static 实体帧数据.Builder 从普通实体采集到Builder(Entity entity) {
-        return new 实体帧数据.Builder(entity.getUUID())
-                .位置(entity.getX(), entity.getY(), entity.getZ())
-                .朝向(entity.getYRot(), entity.getXRot())
-                .身体朝向(entity.getYRot(), entity.getYRot())
-                .速度(entity.getDeltaMovement())
-                .生命(0, 0)
-                .行走动画(0, 0)
-                .攻击动画(0)
-                .挥手(false, 0, false)
-                .受击(0)
-                .死亡(0)
-                .使用物品(false, 0, null)
-                .姿态(entity.getPose())
-                .在地面(entity.onGround());
-    }
+    // ==================== Builder构建工具（精简后不再需要） ====================
+    // 实体帧数据精简后，采集逻辑已移到实体帧数据.从实体采集()和从普通实体采集()
+    // 不再需要手动构建30+个字段的Builder
 
     // ==================== 工具方法 ====================
 
@@ -579,15 +517,6 @@ public final class 录制管理器 {
         return result;
     }
 
-    @Nullable
-    private static Entity findEntityByUUID(ServerLevel level, UUID uuid) {
-        for (Entity entity : level.getAllEntities()) {
-            if (entity.getUUID().equals(uuid)) {
-                return entity;
-            }
-        }
-        return null;
-    }
 
     // ==================== 生命周期 ====================
 

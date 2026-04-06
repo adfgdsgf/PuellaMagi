@@ -7,7 +7,7 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.v2t.puellamagi.api.access.IParticleAccess;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.mixin.access.AccessParticleMixin;
 import net.minecraft.CrashReport;
 import net.minecraft.CrashReportCategory;
@@ -69,7 +69,7 @@ public class TimestopParticleEngineMixin {
                     (int) access.puellamagi$getZ()
             );
 
-            if (((TimeStop) level).puellamagi$inTimeStopRange(pos)) {
+            if (((时停) level).puellamagi$inTimeStopRange(pos)) {
                 ((IParticleAccess) particle).puellamagi$setTimeStopCreated(true);}
         }
         return particle;
@@ -101,7 +101,7 @@ public class TimestopParticleEngineMixin {
                 (int) access.puellamagi$getZ()
         );
 
-        if (((TimeStop) level).puellamagi$inTimeStopRange(pos)) {
+        if (((时停) level).puellamagi$inTimeStopRange(pos)) {
             // 同步旧位置，防止渲染抖动
             access.puellamagi$setXO(access.puellamagi$getX());
             access.puellamagi$setYO(access.puellamagi$getY());
@@ -119,8 +119,8 @@ public class TimestopParticleEngineMixin {
             return;
         }
 
-        TimeStop timeStop = (TimeStop) level;
-        if (timeStop.puellamagi$getTimeStoppers().isEmpty()) {
+        时停 时停 = (时停) level;
+        if (时停.puellamagi$getTimeStoppers().isEmpty()) {
             return; // 没有时停，正常渲染
         }
 
@@ -158,7 +158,7 @@ public class TimestopParticleEngineMixin {
                                     (int) access.puellamagi$getZ()
                             );
 
-                            if (timeStop.puellamagi$inTimeStopRange(pos)) {
+                            if (时停.puellamagi$inTimeStopRange(pos)) {
                                 // 在时停范围内，使用存储的 partialTick
                                 tickToUse = particleAccess.puellamagi$getPreTSTick();
                             } else {

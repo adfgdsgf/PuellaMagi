@@ -4,7 +4,7 @@ package com.v2t.puellamagi.mixin.timestop.client;
 
 import com.v2t.puellamagi.api.access.IEntityAndData;
 import com.v2t.puellamagi.api.access.ILivingEntityAccess;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.mixin.timestop.WalkAnimationStateAccessor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.entity.Entity;
@@ -29,7 +29,7 @@ public abstract class TimestopClientLevelMixin {
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void puellamagi$onTickHead(BooleanSupplier supplier, CallbackInfo ci) {
-        ((TimeStop) this).puellamagi$tickTimeStop();
+        ((时停) this).puellamagi$tickTimeStop();
     }
 
     @Inject(method = "tickNonPassenger", at = @At("HEAD"), cancellable = true)
@@ -38,7 +38,7 @@ public abstract class TimestopClientLevelMixin {
             // 每帧存储旧位置
             puellamagi$storeOldPositionsForTS(entity);
 
-            if (((TimeStop) this).puellamagi$shouldFreezeEntity(entity)) {
+            if (((时停) this).puellamagi$shouldFreezeEntity(entity)) {
                 puellamagi$tickEntityTS(entity);
 
                 for (Entity passenger : entity.getPassengers()) {
@@ -57,7 +57,7 @@ public abstract class TimestopClientLevelMixin {
         if (passenger.isRemoved() || passenger.getVehicle() != vehicle) {
             passenger.stopRiding();
         } else {
-            if (((TimeStop) this).puellamagi$shouldFreezeEntity(passenger)) {
+            if (((时停) this).puellamagi$shouldFreezeEntity(passenger)) {
                 passenger.setDeltaMovement(Vec3.ZERO);
                 puellamagi$tickEntityTS(passenger);
 
@@ -168,7 +168,7 @@ public abstract class TimestopClientLevelMixin {
     private void puellamagi$tickPassengerTS(Entity vehicle, Entity passenger) {
         puellamagi$storeOldPositionsForTS(passenger);
 
-        if (((TimeStop) this).puellamagi$shouldFreezeEntity(passenger)) {
+        if (((时停) this).puellamagi$shouldFreezeEntity(passenger)) {
             puellamagi$tickEntityTS(passenger);
 
             if (passenger.isPassenger()) {

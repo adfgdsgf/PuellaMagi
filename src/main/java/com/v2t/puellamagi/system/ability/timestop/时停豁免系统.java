@@ -2,8 +2,9 @@
 
 package com.v2t.puellamagi.system.ability.timestop;
 
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.api.timestop.时停豁免级别;
+import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.client.客户端队伍缓存;
 import com.v2t.puellamagi.core.config.时停配置;
 import com.v2t.puellamagi.system.contract.契约管理器;
@@ -53,15 +54,15 @@ public final class 时停豁免系统 {
         if (entity == null) return 时停豁免级别.无豁免;
 
         Level level = entity.level();
-        TimeStop timeStop = (TimeStop) level;
+        时停 时停 = (时停) level;
 
-        // 没有时停，不需要豁免判断
-        if (!timeStop.puellamagi$hasActiveTimeStop()) {
+        // 没有活跃时停 → 所有实体正常行动，返回完全豁免使调用方跳过冻结逻辑
+        if (!时停.puellamagi$hasActiveTimeStop()) {
             return 时停豁免级别.完全豁免;
         }
 
         // 1. 时停者→ 完全豁免
-        if (timeStop.puellamagi$isTimeStopper(entity)) {
+        if (时停.puellamagi$isTimeStopper(entity)) {
             return 时停豁免级别.完全豁免;
         }
 
@@ -76,7 +77,7 @@ public final class 时停豁免系统 {
         }
 
         // 4. 被觉醒 → 完全豁免
-        if (检查觉醒条件(entity, timeStop)) {
+        if (检查觉醒条件(entity, 时停)) {
             return 时停豁免级别.完全豁免;
         }
 
@@ -113,7 +114,7 @@ public final class 时停豁免系统 {
      * 2. 实体是玩家（如果配置要求仅玩家）
      * 3. 目标玩家的个人配置 timestopAwakening 为 true
      */
-    private static boolean 检查觉醒条件(Entity entity, TimeStop timeStop) {
+    private static boolean 检查觉醒条件(Entity entity, 时停 时停) {
         boolean shouldDebug = 调试模式 && entity instanceof Player && 可以输出调试();
 
         if (shouldDebug) {
@@ -143,9 +144,9 @@ public final class 时停豁免系统 {
         Level level = entity.level();
 
         if (level.isClientSide) {
-            return 检查觉醒条件_客户端(entity, timeStop, rangeSquared, requireTeammate, shouldDebug);
+            return 检查觉醒条件_客户端(entity, 时停, rangeSquared, requireTeammate, shouldDebug);
         } else {
-            return 检查觉醒条件_服务端(entity, timeStop, rangeSquared, requireTeammate, shouldDebug);
+            return 检查觉醒条件_服务端(entity, 时停, rangeSquared, requireTeammate, shouldDebug);
         }
     }
 
@@ -187,8 +188,8 @@ public final class 时停豁免系统 {
     /**
      * 服务端觉醒检查
      */
-    private static boolean 检查觉醒条件_服务端(Entity entity, TimeStop timeStop,double rangeSquared, boolean requireTeammate, boolean shouldDebug) {
-        List<LivingEntity> stoppers = timeStop.puellamagi$getTimeStoppers();
+    private static boolean 检查觉醒条件_服务端(Entity entity, 时停 时停, double rangeSquared, boolean requireTeammate, boolean shouldDebug) {
+        List<LivingEntity> stoppers = 时停.puellamagi$getTimeStoppers();
 
         if (shouldDebug) {
             调试消息("§7[服务端] 时停者: " + stoppers.size());
@@ -207,14 +208,14 @@ public final class 时停豁免系统 {
     /**
      * 客户端觉醒检查
      */
-    private static boolean 检查觉醒条件_客户端(Entity entity, TimeStop timeStop,
+    private static boolean 检查觉醒条件_客户端(Entity entity, 时停 时停,
                                                double rangeSquared, boolean requireTeammate, boolean shouldDebug) {
         Level level = entity.level();
         int stopperCount = 0;
 
         // 遍历所有玩家，检查谁是时停者
         for (Player player : level.players()) {
-            if (timeStop.puellamagi$isTimeStopper(player)) {
+            if (时停.puellamagi$isTimeStopper(player)) {
                 stopperCount++;
                 if (检查单个时停者(entity, player, rangeSquared, requireTeammate, shouldDebug)) {
                     return true;
@@ -332,10 +333,15 @@ public final class 时停豁免系统 {
     }
 
     private static void 调试消息(String msg) {
+        // 服务端环境下Minecraft类不存在，直接用日志输出
         try {
-            Minecraft mc = Minecraft.getInstance();
-            if (mc.player != null) {
-                mc.player.displayClientMessage(Component.literal(msg), false);
+            if (net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient()) {
+                Minecraft mc = Minecraft.getInstance();
+                if (mc.player != null) {
+                    mc.player.displayClientMessage(Component.literal(msg), false);
+                }
+            } else {
+                PuellaMagi.LOGGER.debug("[时停豁免调试] {}", msg);
             }
         } catch (Exception ignored) {
         }

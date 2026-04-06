@@ -2,7 +2,7 @@
 
 package com.v2t.puellamagi.core.network.packets.c2s;
 
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -38,10 +38,10 @@ public class 掉落物拾取请求包 {
             ServerPlayer player = ctx.get().getSender();
             if (player == null) return;
 
-            TimeStop timeStop = (TimeStop) player.level();
+            时停 时停 = (时停) player.level();
 
             // 必须是时停者
-            if (!timeStop.puellamagi$isTimeStopper(player)) {
+            if (!时停.puellamagi$isTimeStopper(player)) {
                 return;
             }
 
@@ -52,7 +52,7 @@ public class 掉落物拾取请求包 {
             }
 
             // 必须在时停范围内
-            if (!timeStop.puellamagi$inTimeStopRange(item)) {
+            if (!时停.puellamagi$inTimeStopRange(item)) {
                 return;
             }
 

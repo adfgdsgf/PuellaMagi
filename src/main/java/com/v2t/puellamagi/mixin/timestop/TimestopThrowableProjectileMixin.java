@@ -3,7 +3,7 @@
 package com.v2t.puellamagi.mixin.timestop;
 
 import com.v2t.puellamagi.api.access.IProjectileAccess;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.system.ability.timestop.时停投射物处理;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -32,11 +32,11 @@ public abstract class TimestopThrowableProjectileMixin extends Entity {
      */
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onTick(CallbackInfo ci) {
-        TimeStop timeStop = (TimeStop) this.level();
+        时停 时停 = (时停) this.level();
         IProjectileAccess access = (IProjectileAccess) this;
 
         // 在时停范围内 且 是时停中创建的投射物
-        if (timeStop.puellamagi$inTimeStopRange(this) && access.puellamagi$isTimeStopCreated()) {
+        if (时停.puellamagi$inTimeStopRange(this) && access.puellamagi$isTimeStopCreated()) {
             // 调用 Entity.tick()
             super.tick();
             // 使用自定义惯性处理

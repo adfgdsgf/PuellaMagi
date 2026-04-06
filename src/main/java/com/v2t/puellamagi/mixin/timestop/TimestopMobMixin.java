@@ -2,7 +2,7 @@
 
 package com.v2t.puellamagi.mixin.timestop;
 
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,9 +20,9 @@ public abstract class TimestopMobMixin {
 
     @Inject(method = "setTarget", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onSetTarget(LivingEntity target, CallbackInfo ci) {Mob self = (Mob) (Object) this;
-        TimeStop timeStop = (TimeStop) self.level();
+        时停 时停 = (时停) self.level();
 
-        if (timeStop.puellamagi$shouldFreezeEntity(self)) {
+        if (时停.puellamagi$shouldFreezeEntity(self)) {
             ci.cancel();
         }
     }

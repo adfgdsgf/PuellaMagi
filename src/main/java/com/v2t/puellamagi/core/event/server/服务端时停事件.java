@@ -3,7 +3,6 @@
 package com.v2t.puellamagi.core.event.server;
 
 import com.v2t.puellamagi.常量;
-import com.v2t.puellamagi.api.timestop.TimeStop;
 import com.v2t.puellamagi.system.ability.timestop.时停管理器;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;

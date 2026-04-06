@@ -34,10 +34,15 @@ public final class 技能注册表 {
         PuellaMagi.LOGGER.debug("注册技能: {}", id);
     }
 
+    // 技能ID -> 缓存的单例实例（供只读查询使用）
+    private static final Map<ResourceLocation, I技能> 实例缓存 = new HashMap<>();
+
     /**
-     * 创建技能实例
+     * 创建技能实例（每次返回新对象）
+     * 适用于需要独立状态的场景
      */
-    public static Optional<I技能> 创建实例(ResourceLocation id) {Supplier<? extends I技能> factory = 注册表.get(id);
+    public static Optional<I技能> 创建实例(ResourceLocation id) {
+        Supplier<? extends I技能> factory = 注册表.get(id);
         if (factory == null) {
             PuellaMagi.LOGGER.warn("尝试创建不存在的技能: {}", id);
             return Optional.empty();
@@ -48,6 +53,25 @@ public final class 技能注册表 {
             PuellaMagi.LOGGER.error("创建技能实例失败: {}", id, e);
             return Optional.empty();
         }
+    }
+
+    /**
+     * 获取技能的缓存实例（单例，只读查询用）
+     * 适用于每tick检查技能属性（消耗时机、是否开启等）的场景
+     * 避免每tick创建新对象造成GC压力
+     *
+     * 注意：返回的实例不应持有可变状态
+     */
+    public static Optional<I技能> 获取实例(ResourceLocation id) {
+        I技能 cached = 实例缓存.get(id);
+        if (cached != null) {
+            return Optional.of(cached);
+        }
+
+        // 首次访问时创建并缓存
+        Optional<I技能> opt = 创建实例(id);
+        opt.ifPresent(skill -> 实例缓存.put(id, skill));
+        return opt;
     }
 
     /**
@@ -79,6 +103,7 @@ public final class 技能注册表 {
      */
     public static void 清空() {
         注册表.clear();
+        实例缓存.clear();
         技能ID缓存 = null;
     }
 }

@@ -13,6 +13,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,8 +62,12 @@ public class 技能能力 implements ICapabilitySerializable<CompoundTag> {
     /**
      * 获取所有预设
      */
+    /**
+     * 获取所有预设（只读视图）
+     * 外部不可直接修改列表结构，需通过添加预设/删除预设方法操作
+     */
     public List<技能预设> 获取所有预设() {
-        return 预设列表;
+        return Collections.unmodifiableList(预设列表);
     }
 
     /**

@@ -89,6 +89,7 @@ public class 队伍个人配置 implements I队伍成员.I队伍个人配置 {
     /**
      * 通过配置键名获取值
      */
+    @Override
     public boolean 获取配置(String key) {
         return switch (key) {
             case "friendlyFire" ->友伤;

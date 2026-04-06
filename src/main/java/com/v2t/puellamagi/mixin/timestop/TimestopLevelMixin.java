@@ -5,7 +5,7 @@ package com.v2t.puellamagi.mixin.timestop;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.v2t.puellamagi.PuellaMagi;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.api.timestop.时停实例;
 import com.v2t.puellamagi.core.network.ModNetwork;
 import com.v2t.puellamagi.core.network.packets.s2c.时停状态同步包;
@@ -13,10 +13,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraftforge.network.PacketDistributor;
@@ -33,7 +32,7 @@ import java.util.UUID;
  * Level Mixin - 实现TimeStop 接口
  */
 @Mixin(Level.class)
-public abstract class TimestopLevelMixin implements TimeStop {
+public abstract class TimestopLevelMixin implements 时停 {
 
     // ==================== 服务端数据 ====================
 
@@ -244,10 +243,12 @@ public abstract class TimestopLevelMixin implements TimeStop {
 
     @Override
     public boolean puellamagi$inTimeStopRange(Entity entity) {
+        // 使用Mth.floor而非(int)强转，避免负坐标截断方向错误
+        // (int)(-0.5) = 0（向零截断），Mth.floor(-0.5) = -1（正确的向下取整）
         return puellamagi$inTimeStopRange(new Vec3i(
-                (int) entity.getX(),
-                (int) entity.getY(),
-                (int) entity.getZ()
+                Mth.floor(entity.getX()),
+                Mth.floor(entity.getY()),
+                Mth.floor(entity.getZ())
         ));
     }
 

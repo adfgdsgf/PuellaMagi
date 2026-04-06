@@ -1,0 +1,184 @@
+// 文件路径: src/main/java/com/v2t/puellamagi/core/event/核心事件.java
+
+package com.v2t.puellamagi.core.event;
+
+import com.v2t.puellamagi.PuellaMagi;
+import com.v2t.puellamagi.core.command.命令注册器;
+import com.v2t.puellamagi.core.network.packets.s2c.技能能力同步包;
+import com.v2t.puellamagi.core.registry.ModCapabilities;
+import com.v2t.puellamagi.system.ability.能力管理器;
+import com.v2t.puellamagi.system.ability.timestop.时停管理器;
+import com.v2t.puellamagi.system.contract.契约能力;
+import com.v2t.puellamagi.system.skill.impl.预知技能;
+import com.v2t.puellamagi.system.soulgem.effect.假死状态处理器;
+import com.v2t.puellamagi.system.soulgem.污浊度管理器;
+import com.v2t.puellamagi.system.soulgem.污浊度能力;
+import com.v2t.puellamagi.system.transformation.变身能力;
+import com.v2t.puellamagi.system.skill.技能能力;
+import com.v2t.puellamagi.util.绑定物品工具;
+import com.v2t.puellamagi.util.能力工具;
+import com.v2t.puellamagi.util.网络工具;
+import com.v2t.puellamagi.常量;
+import com.v2t.puellamagi.system.ability.epitaph.录制管理器;
+import com.v2t.puellamagi.system.ability.epitaph.复刻引擎;
+import com.v2t.puellamagi.system.ability.epitaph.预知状态管理;
+import com.v2t.puellamagi.system.team.队伍邀请管理器;
+import com.v2t.puellamagi.util.network.存在屏蔽器;
+import com.v2t.puellamagi.util.network.输入接管器;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.event.AttachCapabilitiesEvent;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+
+/**
+ * 核心事件处理
+ *
+ * 职责：
+ * - 命令注册
+ * - 能力（Capability）附加
+ * - 玩家克隆（死亡/维度切换时的数据迁移）
+ * - 服务器关闭清理
+ * - 技能能力同步工具方法
+ *
+ * 不含业务逻辑，只做初始化和数据迁移
+ */
+@Mod.EventBusSubscriber(modid = 常量.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+public class 核心事件 {
+
+    private static final ResourceLocation 变身能力ID = new ResourceLocation(常量.MOD_ID, "transformation");
+    private static final ResourceLocation 技能能力ID = new ResourceLocation(常量.MOD_ID, "skill");
+    private static final ResourceLocation 契约能力ID = new ResourceLocation(常量.MOD_ID, "contract");
+    private static final ResourceLocation 污浊度能力ID = new ResourceLocation(常量.MOD_ID, "corruption");
+
+    @SubscribeEvent
+    public static void 注册命令(RegisterCommandsEvent event) {
+        命令注册器.register(event.getDispatcher());
+        PuellaMagi.LOGGER.info("Puella Magi 命令注册完成");
+    }
+
+    @SubscribeEvent
+    public static void 附加能力(AttachCapabilitiesEvent<Entity> event) {
+        if (event.getObject() instanceof Player) {
+            if (!event.getObject().getCapability(ModCapabilities.变身能力).isPresent()) {
+                event.addCapability(变身能力ID, new 变身能力());
+            }
+            if (!event.getObject().getCapability(ModCapabilities.技能能力).isPresent()) {
+                event.addCapability(技能能力ID, new 技能能力());
+            }
+            if (!event.getObject().getCapability(ModCapabilities.契约能力).isPresent()) {
+                event.addCapability(契约能力ID, new 契约能力());
+            }
+            if (!event.getObject().getCapability(ModCapabilities.污浊度能力).isPresent()) {
+                event.addCapability(污浊度能力ID, new 污浊度能力());
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public static void 玩家克隆(PlayerEvent.Clone event) {
+        Player 原玩家 = event.getOriginal();
+        Player 新玩家 = event.getEntity();
+
+        原玩家.reviveCaps();
+
+        try {
+            // ==================== 能力复制 ====================
+
+            // 复制变身能力
+            能力工具.获取变身能力完整(原玩家).ifPresent(旧能力 -> {
+                能力工具.获取变身能力完整(新玩家).ifPresent(新能力 -> {
+                    新能力.复制自(旧能力);
+                    if (event.isWasDeath()) {
+                        新能力.设置变身状态(false);
+                        能力管理器.失效能力(原玩家);
+                        时停管理器.玩家下线(原玩家);
+                        PuellaMagi.LOGGER.debug("玩家 {} 死亡重生，已解除变身状态",
+                                新玩家.getName().getString());
+                    }
+                });
+            });
+
+            // 复制技能能力
+            能力工具.获取技能能力(原玩家).ifPresent(旧能力 -> {
+                能力工具.获取技能能力(新玩家).ifPresent(新能力 -> {
+                    新能力.复制自(旧能力);
+                    if (event.isWasDeath()) {
+                        新能力.清除所有冷却();
+                    }
+                });
+            });
+
+            // 复制契约能力（契约状态在死亡后保留）
+            能力工具.获取契约能力完整(原玩家).ifPresent(旧能力 -> {
+                能力工具.获取契约能力完整(新玩家).ifPresent(新能力 -> {
+                    新能力.复制自(旧能力);
+                });
+            });
+
+            // 复制污浊度能力
+            能力工具.获取污浊度能力完整(原玩家).ifPresent(旧能力 -> {
+                能力工具.获取污浊度能力完整(新玩家).ifPresent(新能力 -> {
+                    新能力.复制自(旧能力);
+                    if (event.isWasDeath()) {
+                        污浊度管理器.玩家死亡(新玩家, 新能力);
+                    }
+                });
+            });
+
+            // ==================== 死亡专属处理 ====================
+
+            if (event.isWasDeath()) {
+                // 清除假死状态
+                假死状态处理器.清除玩家状态(新玩家.getUUID());
+
+                // 强制终止预知能力
+                预知技能.玩家下线(新玩家.getUUID());
+
+                // 同步死亡保留的绑定物品
+                绑定物品工具.同步到新玩家(原玩家, 新玩家);
+            }
+
+        } finally {
+            原玩家.invalidateCaps();
+        }
+    }
+
+    @SubscribeEvent
+    public static void 服务器关闭(ServerStoppingEvent event) {
+        // 通用清理
+        假死状态处理器.clearAll();
+        绑定物品工具.清理所有缓存();
+
+        // 预知系统清理
+        录制管理器.清除全部();
+        复刻引擎.清除全部();
+        预知状态管理.清除全部();
+        输入接管器.清除全部();
+        存在屏蔽器.清除全部();
+
+        // 队伍邀请清理（非持久化数据）
+        队伍邀请管理器.clearAll();
+
+        PuellaMagi.LOGGER.info("服务器关闭，已清理所有缓存");
+    }
+
+    // ==================== 公共工具方法 ====================
+
+    /**
+     * 同步技能能力到客户端
+     *
+     * 被多个事件处理类调用（登录、重生、维度切换等），所以放在核心事件中
+     */
+    public static void 同步技能能力(ServerPlayer player) {
+        能力工具.获取技能能力(player).ifPresent(cap -> {
+            技能能力同步包 packet = new 技能能力同步包(player.getUUID(), cap.写入NBT());
+            网络工具.发送给玩家(player, packet);
+        });
+    }
+}

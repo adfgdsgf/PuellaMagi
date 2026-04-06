@@ -2,7 +2,7 @@
 
 package com.v2t.puellamagi.core.network.packets.c2s;
 
-import com.v2t.puellamagi.core.event.通用事件;
+import com.v2t.puellamagi.core.event.核心事件;
 import com.v2t.puellamagi.util.能力工具;
 import com.v2t.puellamagi.util.本地化工具;
 import net.minecraft.network.FriendlyByteBuf;
@@ -91,7 +91,7 @@ public class 预设切换请求包 {
                 String presetName = cap.获取当前预设().获取名称();
 
                 // 同步数据回客户端
-                通用事件.同步技能能力(player);
+                核心事件.同步技能能力(player);
             });
         });
         ctx.setPacketHandled(true);

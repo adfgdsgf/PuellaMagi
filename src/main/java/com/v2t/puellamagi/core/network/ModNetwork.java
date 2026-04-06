@@ -267,6 +267,13 @@ public class ModNetwork {
                 背包同步包::handle
         );
 
+        registerPacket(
+                时删方块忽略包.class,
+                时删方块忽略包::encode,
+                时删方块忽略包::decode,
+                时删方块忽略包::handle
+        );
+
     }
 
     public static <T> void registerPacket(

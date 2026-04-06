@@ -2,7 +2,7 @@
 
 package com.v2t.puellamagi.mixin.timestop.client;
 
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.system.ability.timestop.时停豁免系统;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Timer;
@@ -115,8 +115,8 @@ public abstract class TimestopMinecraftMixin {
             return false;
         }
 
-        TimeStop timeStop = (TimeStop) level;
-        if (!timeStop.puellamagi$hasActiveTimeStop()) {
+        时停 时停 = (时停) level;
+        if (!时停.puellamagi$hasActiveTimeStop()) {
             return false;
         }
 

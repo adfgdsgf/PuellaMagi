@@ -2,7 +2,7 @@
 
 package com.v2t.puellamagi.core.network.packets.c2s;
 
-import com.v2t.puellamagi.core.event.通用事件;
+import com.v2t.puellamagi.core.event.核心事件;
 import com.v2t.puellamagi.util.能力工具;
 import com.v2t.puellamagi.util.本地化工具;
 import net.minecraft.network.FriendlyByteBuf;
@@ -124,7 +124,7 @@ public class 预设管理请求包 {
                 }
 
                 // 同步数据回客户端
-                通用事件.同步技能能力(player);
+                核心事件.同步技能能力(player);
             });
         });
         ctx.setPacketHandled(true);

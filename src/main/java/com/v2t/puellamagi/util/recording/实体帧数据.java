@@ -1,31 +1,32 @@
 package com.v2t.puellamagi.util.recording;
 
 import com.v2t.puellamagi.api.access.ILivingEntityAccess;
-import com.v2t.puellamagi.mixin.timestop.WalkAnimationStateAccessor;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Pose;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
 import java.util.UUID;
 
 /**
- * 实体单帧数据
+ * 实体单帧数据（精简版）
  *
- * 双层存储策略：
- * - 手动字段：位置/朝向/基础动画等渲染插值关键数据，每tick必须记录
- * - 状态NBT：实体的完整杂项状态（药水效果、苦力怕膨胀、着火等），仅在变化时记录
+ * 三层存储策略：
+ * - 插值提示：位置/朝向/速度/地面状态 — NBT中不精确的渲染关键字段
+ * - 状态NBT：实体的完整状态 — 每帧都存储，不再差分
+ * - 渲染驱动：由MC自己的动画计算器处理（不再手动管理walkDist/bob等）
+ *
+ * 精简前30+个手动字段 → 精简后12个核心字段
+ * 生命值/受击/死亡/装备/使用物品/挥手/姿态/潜行/冲刺等全部从NBT恢复
+ * 新增实体状态自动被覆盖，无需手动添加字段
  *
  * 应用顺序（极其重要）：
- * 1. 如果有状态NBT → entity.load(nbt) → 恢复一切杂项状态
+ * 1. 如果有状态NBT → entity.load(nbt) → 恢复一切状态
  * 2. 手动设旧值 = 上一帧 → 给渲染插值用
  * 3. 手动设当前值 = 当前帧 → 覆盖NBT中的位置/朝向（NBT的位置不准确）
+ * 4. 调用MC原生动画计算 → 不再手动管理walkDist/bob
  *
  * 网络同步：
  * - 服务端每tick通过复刻帧同步包发给客户端
@@ -34,71 +35,28 @@ import java.util.UUID;
  */
 public class 实体帧数据 {
 
-    // ==================== 身份====================
+    // ==================== 身份 ====================
 
     private final UUID 实体UUID;
 
-    // ==================== 位置与朝向（手动字段，每tick） ====================
+    // ==================== 插值提示（每帧必有） ====================
 
     private final double x, y, z;
     private final float yRot, xRot;
     private final float yBodyRot;
     private final float yHeadRot;
-
-    // ==================== 速度（手动字段） ====================
-
     private final double velX, velY, velZ;
-
-    // ==================== 生命值（手动字段） ====================
-
-    private final float 生命值;
-    private final float 最大生命值;
-
-    // ==================== 动画状态（手动字段，每tick） ====================
-
-    private final float walkAnimPos;
-    private final float walkAnimSpeed;
-    private final float attackAnim;
-
-    // 挥手动画
-    private final boolean 正在挥手;
-    private final int 挥手进度;
-    private final boolean 副手挥手;
-
-    // 受击与死亡
-    private final int 受击时间;
-    private final int 死亡时间;
-
-    //使用物品动画
-    private final boolean 正在使用物品;
-    private final int 使用物品剩余时间;
-    @Nullable
-    private final InteractionHand 使用物品的手;
-
-    // 姿态
-    private final Pose 姿态;
-
-    // ==================== 装备（全部6槽） ====================
-
-    @Nullable private final ItemStack 主手物品;
-    @Nullable private final ItemStack 副手物品;
-    @Nullable private final ItemStack 头部装备;
-    @Nullable private final ItemStack 胸部装备;
-    @Nullable private final ItemStack 腿部装备;
-    @Nullable private final ItemStack 脚部装备;
-
-    // ==================== 其他状态（手动字段） ====================
-
-    private final boolean 正在潜行;
-    private final boolean 正在冲刺;
     private final boolean 在地面上;
 
-    // ==================== 状态NBT（仅在变化时有值） ====================
+    // ==================== 状态NBT（每帧都有） ====================
 
     /**
-     * 实体的完整杂项状态
+     * 实体的完整状态
      * 排除了Pos/Rotation/Motion（由手动字段管理）
-     * null = 本帧相比上一帧没有变化，不需要load
+     * 不再差分 — 每帧都存储完整NBT
+     *
+     * 包含：生命值、受击时间、死亡时间、装备、使用物品、
+     *       挥手、攻击动画、姿态、潜行、冲刺、药水效果等
      */
     @Nullable
     private final CompoundTag 状态NBT;
@@ -117,28 +75,6 @@ public class 实体帧数据 {
         this.velX = builder.velX;
         this.velY = builder.velY;
         this.velZ = builder.velZ;
-        this.生命值 = builder.生命值;
-        this.最大生命值 = builder.最大生命值;
-        this.walkAnimPos = builder.walkAnimPos;
-        this.walkAnimSpeed = builder.walkAnimSpeed;
-        this.attackAnim = builder.attackAnim;
-        this.正在挥手 = builder.正在挥手;
-        this.挥手进度 = builder.挥手进度;
-        this.副手挥手 = builder.副手挥手;
-        this.受击时间 = builder.受击时间;
-        this.死亡时间 = builder.死亡时间;
-        this.正在使用物品 = builder.正在使用物品;
-        this.使用物品剩余时间 = builder.使用物品剩余时间;
-        this.使用物品的手 = builder.使用物品的手;
-        this.姿态 = builder.姿态;
-        this.主手物品 = builder.主手物品;
-        this.副手物品 = builder.副手物品;
-        this.头部装备 = builder.头部装备;
-        this.胸部装备 = builder.胸部装备;
-        this.腿部装备 = builder.腿部装备;
-        this.脚部装备 = builder.脚部装备;
-        this.正在潜行 = builder.正在潜行;
-        this.正在冲刺 = builder.正在冲刺;
         this.在地面上 = builder.在地面上;
         this.状态NBT = builder.状态NBT;
     }
@@ -179,10 +115,10 @@ public class 实体帧数据 {
     // ==================== 从实体采集 ====================
 
     /**
-     * 从活体实体采集一帧手动字段数据
+     * 从活体实体采集一帧数据（插值提示 + 完整NBT）
      *
-     * 注意：不含状态NBT。NBT的采集和变化检测由录制管理器负责，
-     * 通过Builder.状态NBT() 传入。
+     * 不再需要手动采集20+个动画字段
+     * NBT包含一切状态，新增状态自动被覆盖
      */
     public static 实体帧数据 从实体采集(LivingEntity entity) {
         return new Builder(entity.getUUID())
@@ -190,36 +126,14 @@ public class 实体帧数据 {
                 .朝向(entity.getYRot(), entity.getXRot())
                 .身体朝向(entity.yBodyRot, entity.yHeadRot)
                 .速度(entity.getDeltaMovement())
-                .生命(entity.getHealth(), entity.getMaxHealth())
-                .行走动画(entity.walkAnimation.position(), entity.walkAnimation.speed())
-                .攻击动画(entity.attackAnim)
-                .挥手(entity.swinging, entity.swingTime,
-                        entity.swingingArm == InteractionHand.OFF_HAND)
-                .受击(entity.hurtTime)
-                .死亡(entity.deathTime)
-                .使用物品(
-                        entity.isUsingItem(),
-                        entity.getUseItemRemainingTicks(),
-                        entity.isUsingItem() ? entity.getUsedItemHand() : null
-                )
-                .姿态(entity.getPose())
-                .全部装备(
-                        entity.getMainHandItem().copy(),
-                        entity.getOffhandItem().copy(),
-                        entity.getItemBySlot(EquipmentSlot.HEAD).copy(),
-                        entity.getItemBySlot(EquipmentSlot.CHEST).copy(),
-                        entity.getItemBySlot(EquipmentSlot.LEGS).copy(),
-                        entity.getItemBySlot(EquipmentSlot.FEET).copy()
-                )
-                .潜行(entity.isShiftKeyDown())
-                .冲刺(entity.isSprinting())
                 .在地面(entity.onGround())
+                .状态NBT(采集状态NBT(entity))
                 .构建();
     }
 
     /**
      * 从非活体实体采集一帧数据（投射物、掉落物等）
-     * 只记录位置/朝向/速度
+     * 只记录位置/朝向/速度 + NBT
      */
     public static 实体帧数据 从普通实体采集(Entity entity) {
         return new Builder(entity.getUUID())
@@ -227,15 +141,8 @@ public class 实体帧数据 {
                 .朝向(entity.getYRot(), entity.getXRot())
                 .身体朝向(entity.getYRot(), entity.getYRot())
                 .速度(entity.getDeltaMovement())
-                .生命(0, 0)
-                .行走动画(0, 0)
-                .攻击动画(0)
-                .挥手(false, 0, false)
-                .受击(0)
-                .死亡(0)
-                .使用物品(false, 0, null)
-                .姿态(entity.getPose())
                 .在地面(entity.onGround())
+                .状态NBT(采集状态NBT(entity))
                 .构建();
     }
 
@@ -243,7 +150,7 @@ public class 实体帧数据 {
 
     public UUID 获取UUID() { return 实体UUID; }
 
-    //位置
+    // 位置
     public double 获取X() { return x; }
     public double 获取Y() { return y; }
     public double 获取Z() { return z; }
@@ -258,46 +165,19 @@ public class 实体帧数据 {
     // 速度
     public Vec3 获取速度() { return new Vec3(velX, velY, velZ); }
 
-    // 生命
-    public float 获取生命值() { return 生命值; }
-    public float 获取最大生命值() { return 最大生命值; }
-
-    // 动画
-    public float 获取WalkAnimPos() { return walkAnimPos; }
-    public float 获取WalkAnimSpeed() { return walkAnimSpeed; }
-    public float 获取AttackAnim() { return attackAnim; }
-    public boolean 是否挥手() { return 正在挥手; }
-    public int 获取挥手进度() { return 挥手进度; }
-    public boolean 是否副手挥手() { return 副手挥手; }
-    public int 获取受击时间() { return 受击时间; }
-    public int 获取死亡时间() { return 死亡时间; }
-    public boolean 是否使用物品() { return 正在使用物品; }
-    public int 获取使用物品剩余时间() { return 使用物品剩余时间; }
-    @Nullable public InteractionHand 获取使用物品的手() { return 使用物品的手; }
-    public Pose 获取姿态() { return 姿态; }
-
-    // 装备
-    @Nullable public ItemStack 获取主手物品() { return 主手物品; }
-    @Nullable public ItemStack 获取副手物品() { return 副手物品; }
-    @Nullable public ItemStack 获取头部装备() { return 头部装备; }
-    @Nullable public ItemStack 获取胸部装备() { return 胸部装备; }
-    @Nullable public ItemStack 获取腿部装备() { return 腿部装备; }
-    @Nullable public ItemStack 获取脚部装备() { return 脚部装备; }
-
     // 其他
-    public boolean 是否潜行() { return 正在潜行; }
-    public boolean 是否冲刺() { return 正在冲刺; }
     public boolean 是否在地面() { return 在地面上; }
 
     // NBT
     public boolean 有状态NBT() { return 状态NBT != null; }
-    @Nullable public CompoundTag 获取状态NBT() { return 状态NBT; }
+    @Nullable
+    public CompoundTag 获取状态NBT() { return 状态NBT; }
 
     // ==================== 网络序列化 ====================
 
     /**
      * 写入网络包
-     * 服务端每tick发给客户端，客户端用于直接设实体状态
+     * 精简后只序列化12个字段 + NBT
      */
     public void encode(FriendlyByteBuf buf) {
         buf.writeUUID(实体UUID);
@@ -316,45 +196,10 @@ public class 实体帧数据 {
         buf.writeDouble(velY);
         buf.writeDouble(velZ);
 
-        // 生命
-        buf.writeFloat(生命值);
-        buf.writeFloat(最大生命值);
-
-        // 动画
-        buf.writeFloat(walkAnimPos);
-        buf.writeFloat(walkAnimSpeed);
-        buf.writeFloat(attackAnim);
-        buf.writeBoolean(正在挥手);
-        buf.writeVarInt(挥手进度);
-        buf.writeBoolean(副手挥手);
-        buf.writeVarInt(受击时间);
-        buf.writeVarInt(死亡时间);
-
-        // 使用物品
-        buf.writeBoolean(正在使用物品);
-        buf.writeVarInt(使用物品剩余时间);
-        buf.writeBoolean(使用物品的手!= null);
-        if (使用物品的手 != null) {
-            buf.writeEnum(使用物品的手);
-        }
-
-        // 姿态
-        buf.writeEnum(姿态);
-
-        // 装备（6槽）
-        buf.writeItem(主手物品 != null ? 主手物品 : ItemStack.EMPTY);
-        buf.writeItem(副手物品 != null ? 副手物品 : ItemStack.EMPTY);
-        buf.writeItem(头部装备 != null ? 头部装备 : ItemStack.EMPTY);
-        buf.writeItem(胸部装备 != null ? 胸部装备 : ItemStack.EMPTY);
-        buf.writeItem(腿部装备 != null ? 腿部装备 : ItemStack.EMPTY);
-        buf.writeItem(脚部装备 != null ? 脚部装备 : ItemStack.EMPTY);
-
         // 状态
-        buf.writeBoolean(正在潜行);
-        buf.writeBoolean(正在冲刺);
         buf.writeBoolean(在地面上);
 
-        // 状态NBT（可选）
+        // 状态NBT（每帧都有）
         buf.writeBoolean(状态NBT != null);
         if (状态NBT != null) {
             buf.writeNbt(状态NBT);
@@ -372,34 +217,7 @@ public class 实体帧数据 {
                 .朝向(buf.readFloat(), buf.readFloat())
                 .身体朝向(buf.readFloat(), buf.readFloat())
                 .速度(new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble()))
-                .生命(buf.readFloat(), buf.readFloat())
-                .行走动画(buf.readFloat(), buf.readFloat())
-                .攻击动画(buf.readFloat())
-                .挥手(buf.readBoolean(), buf.readVarInt(), buf.readBoolean())
-                .受击(buf.readVarInt())
-                .死亡(buf.readVarInt());
-
-        // 使用物品
-        boolean using = buf.readBoolean();
-        int remaining = buf.readVarInt();
-        boolean hasHand = buf.readBoolean();
-        InteractionHand hand = hasHand ? buf.readEnum(InteractionHand.class) : null;
-        builder.使用物品(using, remaining, hand);
-
-        // 姿态
-        builder.姿态(buf.readEnum(Pose.class));
-
-        // 装备
-        builder.全部装备(
-                buf.readItem(), buf.readItem(),
-                buf.readItem(), buf.readItem(),
-                buf.readItem(), buf.readItem()
-        );
-
-        // 状态
-        builder.潜行(buf.readBoolean());
-        builder.冲刺(buf.readBoolean());
-        builder.在地面(buf.readBoolean());
+                .在地面(buf.readBoolean());
 
         // 状态NBT
         boolean hasNBT = buf.readBoolean();
@@ -413,38 +231,32 @@ public class 实体帧数据 {
     // ==================== 应用到实体 ====================
 
     /**
-     * 将帧数据应用到活体实体（服务端+ 客户端通用）
+     * 将帧数据应用到活体实体（服务端 + 客户端通用）
      *
-     *应用顺序：
-     * 1. load状态NBT（恢复杂项状态：药水/着火/苦力怕膨胀等）
+     * 应用顺序：
+     * 1. load状态NBT（恢复一切状态：血量/受击/死亡/装备/使用物品/挥手/药水等）
      * 2. 设旧值 = 上一帧 → 给渲染插值用
      * 3. 设当前值 = 当前帧 → 覆盖NBT中的位置/朝向
-     * 4.驱动动画系统 → 调用MC自己的计算器而非直接塞录制值
+     * 4. 驱动动画系统 → 调用MC原生方法
      *
-     * 第4步的关键：
-     * tick被cancel后MC的动画计算器全部停止
-     * 必须手动调用它们，用位置差作为输入
-     * 这样腿部摆动、手部摇摆、镜头晃动全部自然运行
+     * 不再手动设20+个动画字段 — 全部由NBT恢复
+     * 新增的动画状态自动被覆盖
      *
      * @param entity 目标实体
-     * @param上一帧 上一tick的帧数据（用于旧值），首帧传null
+     * @param 上一帧 上一tick的帧数据（用于旧值），首帧传null
      */
     public void 应用到活体(LivingEntity entity, @Nullable 实体帧数据 上一帧) {
 
         // ======== 第1步：load状态NBT ========
+        // 恢复一切状态：生命值、受击时间、死亡时间、装备、使用物品、挥手、
+        // 攻击动画、姿态、潜行、冲刺、药水效果、着火等
         if (状态NBT != null) {
             entity.load(状态NBT);
         }
 
         // ======== 第2步：旧值（插值起点） ========
-        // MC用lerp(partialTick, 旧值, 当前值) 做帧间平滑
-        //旧值必须 = 上一帧的值，这样插值结果平滑连续
-        //
-        // 位置有两组旧值：
-        //   xo/yo/zo — Camera和部分渲染计算用
-        //   xOld/yOld/zOld — LevelRenderer世界坐标定位用
         if (上一帧 != null) {
-            // 位置旧值
+            // 位置旧值（两组）
             entity.xo = 上一帧.x;
             entity.yo = 上一帧.y;
             entity.zo = 上一帧.z;
@@ -458,8 +270,10 @@ public class 实体帧数据 {
             entity.yBodyRotO = 上一帧.yBodyRot;
             entity.yHeadRotO = 上一帧.yHeadRot;
 
-            // 攻击动画旧值（手部挥砍渲染用）
-            entity.oAttackAnim = 上一帧.attackAnim;
+            // 攻击动画旧值（从NBT恢复后entity.attackAnim是当前值）
+            // 旧值需要设为上一帧NBT恢复后的值
+            // 但上一帧的attackAnim在NBT恢复时已经被覆盖了
+            // 所以这里不设oAttackAnim — MC自己在tick中管理
         } else {
             // 首帧：旧值 = 当前值（无插值，静止一帧）
             entity.xo = x;
@@ -473,13 +287,11 @@ public class 实体帧数据 {
             entity.xRotO = xRot;
             entity.yBodyRotO = yBodyRot;
             entity.yHeadRotO = yHeadRot;
-
-            entity.oAttackAnim = attackAnim;
         }
 
         // ======== 第3步：当前值（覆盖NBT） ========
 
-        // 位置与朝向
+        // 位置与朝向（NBT中的值不精确，用手动字段覆盖）
         entity.setPos(x, y, z);
         entity.setYRot(yRot);
         entity.setXRot(xRot);
@@ -490,93 +302,26 @@ public class 实体帧数据 {
         // 速度
         entity.setDeltaMovement(velX, velY, velZ);
 
-        // 生命值
-        entity.setHealth(生命值);
-
-        // 攻击/挥手
-        entity.attackAnim = attackAnim;
-        entity.swinging = 正在挥手;
-        entity.swingTime = 挥手进度;
-
-        // 受击与死亡
-        entity.hurtTime = 受击时间;
-        entity.deathTime = 死亡时间;
-
-        // 使用物品
-        if (entity instanceof ILivingEntityAccess access) {
-            if (正在使用物品 && 使用物品的手!= null) {
-                ItemStack useStack = (使用物品的手 == InteractionHand.MAIN_HAND)
-                        ? entity.getMainHandItem() : entity.getOffhandItem();
-                access.puellamagi$setUseItem(useStack.copy());
-                access.puellamagi$setUseItemRemaining(使用物品剩余时间);
-
-                access.puellamagi$setLivingEntityFlag(1, true);
-                access.puellamagi$setLivingEntityFlag(2,
-                        使用物品的手 == InteractionHand.OFF_HAND);
-            } else {
-                access.puellamagi$setUseItem(ItemStack.EMPTY);
-                access.puellamagi$setUseItemRemaining(0);
-
-                access.puellamagi$setLivingEntityFlag(1, false);
-                access.puellamagi$setLivingEntityFlag(2, false);
-            }
-        }
-
-        //姿态
-        entity.setPose(姿态);
-
-        // 状态标志
-        entity.setShiftKeyDown(正在潜行);
-        entity.setSprinting(正在冲刺);
+        // 地面状态
         entity.setOnGround(在地面上);
 
-        // 装备
-        if (主手物品 != null) entity.setItemSlot(EquipmentSlot.MAINHAND, 主手物品.copy());
-        if (副手物品 != null) entity.setItemSlot(EquipmentSlot.OFFHAND, 副手物品.copy());
-        if (头部装备 != null) entity.setItemSlot(EquipmentSlot.HEAD, 头部装备.copy());
-        if (胸部装备 != null) entity.setItemSlot(EquipmentSlot.CHEST, 胸部装备.copy());
-        if (腿部装备 != null) entity.setItemSlot(EquipmentSlot.LEGS, 腿部装备.copy());
-        if (脚部装备 != null) entity.setItemSlot(EquipmentSlot.FEET, 脚部装备.copy());
-
         // ======== 第4步：驱动动画系统 ========
-        //
-        // tick被cancel后以下MC内部计算器全部停止：
-        //   walkAnimation —腿部摆动（第三人称走路动画）
-        //   walkDist — 手部摇摆幅度/步行音效
-        //   bob — 镜头/手部上下晃动（第一人称走路手晃）
-        //
-        // 用上一帧和当前帧的位置差作为输入，手动调用它们
-        // 这和MC在tick()中做的完全一样，只是输入来自录制数据
 
-        // 计算本tick移动量
+        // 计算本tick移动量（用于walkDist和bob）
         double prevX = (上一帧 != null) ? 上一帧.x : x;
-        double prevY = (上一帧 != null) ? 上一帧.y : y;
         double prevZ = (上一帧 != null) ? 上一帧.z : z;
-
         float dx = (float) (x - prevX);
-        float dy = (float) (y - prevY);
         float dz = (float) (z - prevZ);
         float horizontalDist = (float) Math.sqrt(dx * dx + dz * dz);
 
-        // --- walkAnimation：腿部摆动 ---
-        // 复刻 LivingEntity.calculateEntityAnimation() 的逻辑
-        // update()内部会自动管理speedOld和position的平滑过渡
-        float totalDist = (float) Math.sqrt(
-                dx * dx + (在地面上 ? 0 : dy * dy) + dz * dz);
-        float animDelta = Math.min(totalDist * (在地面上 ? 4.0f : 1.0f), 1.0f);
-        entity.walkAnimation.update(animDelta,0.4f);
-
-        // --- walkDist：手部左右摇摆幅度 ---
-        // 复刻 Entity.move() 中的 walkDist 累加逻辑
+        // walkDist：手部左右摇摆幅度
         entity.walkDistO = entity.walkDist;
         entity.walkDist += Math.min(horizontalDist * 0.6f, 1.0f);
 
-        // --- bob：第一人称镜头/手部上下晃动 ---
-        // bob/oBob 是 Player 专属字段，LivingEntity 没有
-        // 不更新这个→ partialTick在两个旧值之间振荡 → 手部高频抖动
+        // bob：第一人称镜头/手部上下晃动
         if (entity instanceof net.minecraft.world.entity.player.Player player) {
             player.oBob = player.bob;
-            float bobTarget = (在地面上 && 死亡时间 == 0)
+            float bobTarget = (在地面上 && entity.deathTime == 0)
                     ? Math.min(0.1f, horizontalDist) : 0.0f;
             player.bob += (bobTarget - player.bob) * 0.4f;
         }
@@ -591,7 +336,7 @@ public class 实体帧数据 {
             entity.load(状态NBT);
         }
 
-        // 旧值— 两组都要设
+        // 旧值 — 两组都要设
         if (上一帧 != null) {
             entity.xo = 上一帧.x;
             entity.yo = 上一帧.y;
@@ -622,7 +367,6 @@ public class 实体帧数据 {
         entity.setXRot(xRot);
         entity.setDeltaMovement(velX, velY, velZ);
         entity.setOnGround(在地面上);
-        entity.setPose(姿态);
     }
 
     // ==================== Builder ====================
@@ -630,131 +374,44 @@ public class 实体帧数据 {
     public static class Builder {
         private final UUID 实体UUID;
 
-        // 位置朝向
+        // 插值提示
         private double x, y, z;
         private float yRot, xRot;
         private float yBodyRot, yHeadRot;
-
-        // 速度
         private double velX, velY, velZ;
-
-        // 生命
-        private float 生命值, 最大生命值;
-
-        // 动画
-        private float walkAnimPos, walkAnimSpeed;
-        private float attackAnim;
-        private boolean 正在挥手;
-        private int 挥手进度;
-        private boolean 副手挥手;
-        private int 受击时间;
-        private int 死亡时间;
-
-        // 使用物品
-        private boolean 正在使用物品;
-        private int 使用物品剩余时间;
-        @Nullable private InteractionHand 使用物品的手;
-
-        // 姿态
-        private Pose 姿态 = Pose.STANDING;
-
-        // 装备
-        private ItemStack 主手物品, 副手物品;
-        private ItemStack 头部装备, 胸部装备, 腿部装备, 脚部装备;
-
-        // 状态
-        private boolean 正在潜行, 正在冲刺, 在地面上;
+        private boolean 在地面上;
 
         // NBT
-        @Nullable private CompoundTag 状态NBT;
+        @Nullable
+        private CompoundTag 状态NBT;
 
         public Builder(UUID uuid) {
             this.实体UUID = uuid;
         }
 
         public Builder 位置(double x, double y, double z) {
-            this.x = x; this.y = y; this.z = z;
+            this.x = x;
+            this.y = y;
+            this.z = z;
             return this;
         }
 
         public Builder 朝向(float yRot, float xRot) {
-            this.yRot = yRot; this.xRot = xRot;
+            this.yRot = yRot;
+            this.xRot = xRot;
             return this;
         }
 
         public Builder 身体朝向(float yBodyRot, float yHeadRot) {
-            this.yBodyRot = yBodyRot; this.yHeadRot = yHeadRot;
+            this.yBodyRot = yBodyRot;
+            this.yHeadRot = yHeadRot;
             return this;
         }
 
         public Builder 速度(Vec3 vel) {
-            this.velX = vel.x; this.velY = vel.y; this.velZ = vel.z;
-            return this;
-        }
-
-        public Builder 生命(float current, float max) {
-            this.生命值 = current; this.最大生命值 = max;
-            return this;
-        }
-
-        public Builder 行走动画(float pos, float speed) {
-            this.walkAnimPos = pos; this.walkAnimSpeed = speed;
-            return this;
-        }
-
-        public Builder 攻击动画(float anim) {
-            this.attackAnim = anim;
-            return this;
-        }
-
-        public Builder 挥手(boolean swinging, int swingTime, boolean offHand) {
-            this.正在挥手 = swinging;
-            this.挥手进度 = swingTime;
-            this.副手挥手 = offHand;
-            return this;
-        }
-
-        public Builder 受击(int hurtTime) {
-            this.受击时间 = hurtTime;
-            return this;
-        }
-
-        public Builder 死亡(int deathTime) {
-            this.死亡时间 = deathTime;
-            return this;
-        }
-
-        public Builder 使用物品(boolean using, int remaining, @Nullable InteractionHand hand) {
-            this.正在使用物品 = using;
-            this.使用物品剩余时间 = remaining;
-            this.使用物品的手 = hand;
-            return this;
-        }
-
-        public Builder 姿态(Pose pose) {
-            this.姿态 = pose;
-            return this;
-        }
-
-        public Builder 全部装备(ItemStack main, ItemStack off,
-                                ItemStack head, ItemStack chest,
-                                ItemStack legs, ItemStack feet) {
-            this.主手物品 = main;
-            this.副手物品 = off;
-            this.头部装备 = head;
-            this.胸部装备 = chest;
-            this.腿部装备 = legs;
-            this.脚部装备 = feet;
-            return this;
-        }
-
-        public Builder 潜行(boolean sneaking) {
-            this.正在潜行 = sneaking;
-            return this;
-        }
-
-        public Builder 冲刺(boolean sprinting) {
-            this.正在冲刺 = sprinting;
+            this.velX = vel.x;
+            this.velY = vel.y;
+            this.velZ = vel.z;
             return this;
         }
 
@@ -764,7 +421,8 @@ public class 实体帧数据 {
         }
 
         /**
-         * 设置状态NBT（仅在与上一帧不同时传入，相同时传null）
+         * 设置状态NBT
+         * 精简后每帧都传入完整NBT，不再差分
          */
         public Builder 状态NBT(@Nullable CompoundTag nbt) {
             this.状态NBT = nbt;

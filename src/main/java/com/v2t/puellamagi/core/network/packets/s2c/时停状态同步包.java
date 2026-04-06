@@ -3,7 +3,7 @@
 package com.v2t.puellamagi.core.network.packets.s2c;
 
 import com.v2t.puellamagi.PuellaMagi;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
@@ -107,13 +107,13 @@ public class 时停状态同步包 {
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null) return;
 
-            TimeStop timeStop = (TimeStop) mc.level;
+            时停 时停 = (时停) mc.level;
 
             PuellaMagi.LOGGER.info("[S2C] 收到时停同步: {} - 实体ID={}", packet.类型, packet.实体ID);
 
             switch (packet.类型) {
-                case 开始时停 -> timeStop.puellamagi$addTimeStopperClient(packet.实体ID, packet.x, packet.y, packet.z, packet.范围);
-                case 结束时停 -> timeStop.puellamagi$removeTimeStopperClient(packet.实体ID);
+                case 开始时停 -> 时停.puellamagi$addTimeStopperClient(packet.实体ID, packet.x, packet.y, packet.z, packet.范围);
+                case 结束时停 -> 时停.puellamagi$removeTimeStopperClient(packet.实体ID);
             }
         }
     }

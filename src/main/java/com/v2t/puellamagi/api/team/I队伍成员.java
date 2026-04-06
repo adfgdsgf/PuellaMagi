@@ -63,5 +63,13 @@ public interface I队伍成员 {
          * true = 允许队友搜身自己
          */
         boolean 允许队友搜身();
+
+        /**
+         * 通过配置键名获取值（通用访问方式）
+         *
+         * @param key 配置键名（如 "friendlyFire"、"timestopAwakening" 等）
+         * @return 该配置项的值，键名无效时返回 false
+         */
+        boolean 获取配置(String key);
     }
 }

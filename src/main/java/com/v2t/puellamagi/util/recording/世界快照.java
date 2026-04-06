@@ -1,5 +1,6 @@
 package com.v2t.puellamagi.util.recording;
 
+import com.v2t.puellamagi.util.实体工具;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -143,7 +144,7 @@ public class 世界快照 {
 
         // 恢复实体
         for (实体快照 snapshot : 实体表.values()) {
-            Entity entity = level.getEntity(findEntityByUUID(level, snapshot.获取UUID()));
+            Entity entity = level.getEntity(实体工具.按UUID查找实体ID(level, snapshot.获取UUID()));
             if (entity != null) {
                 if (snapshot.恢复到(entity)) {
                     实体恢复数++;
@@ -155,18 +156,6 @@ public class 世界快照 {
         return new int[]{实体恢复数, 方块恢复数};
     }
 
-    /**
-     * 通过UUID查找实体的数字ID
-     * MC中 ServerLevel.getEntity(int) 需要数字ID
-     */
-    private int findEntityByUUID(ServerLevel level, UUID uuid) {
-        for (Entity entity : level.getAllEntities()) {
-            if (entity.getUUID().equals(uuid)) {
-                return entity.getId();
-            }
-        }
-        return -1;
-    }
 
     /**
      * 检查是否已包含指定位置的方块快照

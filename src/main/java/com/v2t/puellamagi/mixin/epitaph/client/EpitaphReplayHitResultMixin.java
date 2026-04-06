@@ -3,7 +3,11 @@ package com.v2t.puellamagi.mixin.epitaph.client;
 import com.v2t.puellamagi.client.客户端复刻管理器;
 import com.v2t.puellamagi.system.ability.epitaph.玩家输入帧;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -21,6 +25,7 @@ import javax.annotation.Nullable;
  *
  * 录制：在这里存hitResult → 存的是MC即将使用的值→ 精确
  * 回放：在这里覆盖hitResult → MC用我们的值 → 位置一致
+ * 结尾保护：强制MISS → 防止残留clickCount触发额外操作
  * 时间删除：不覆盖 → 用玩家自己的射线
  */
 @Mixin(Minecraft.class)
@@ -39,6 +44,16 @@ public class EpitaphReplayHitResultMixin {
         // === 录制：存当前hitResult ===
         if (客户端复刻管理器.是否录制中()) {
             客户端复刻管理器.设置当前射线结果(this.hitResult);
+            return;
+        }
+
+        // === 结尾保护期间：强制MISS ===
+        // 输入回放已结束但可能有残留的clickCount
+        // 如果不覆盖hitResult，MC会用玩家当前面对的方块 → 多放方块
+        // 强制设为MISS → 即使clickCount > 0也不会放方块
+        if (客户端复刻管理器.是否结尾保护中()) {
+            this.hitResult = BlockHitResult.miss(
+                    Vec3.ZERO, Direction.UP, BlockPos.ZERO);
             return;
         }
 
@@ -71,6 +86,7 @@ public class EpitaphReplayHitResultMixin {
                 }
             }
         } else {
+            // hitType == 0 (MISS)
             this.hitResult = input.重建射线结果();
         }
     }

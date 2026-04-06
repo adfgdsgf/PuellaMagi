@@ -3,7 +3,7 @@
 package com.v2t.puellamagi.mixin.timestop.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -35,10 +35,10 @@ public abstract class TimestopProjectileRendererMixin<T extends AbstractArrow> e
             argsOnly = true
     )
     private float puellamagi$fixPartialTick(float partialTick, T entity, float entityYaw, float partialTickParam, PoseStack poseStack, MultiBufferSource buffer, int light) {
-        TimeStop timeStop = (TimeStop) entity.level();
+        时停 时停 = (时停) entity.level();
 
         // 被冻结或在时停范围内的箭使用固定 partialTick
-        if (timeStop.puellamagi$inTimeStopRange(entity)) {
+        if (时停.puellamagi$inTimeStopRange(entity)) {
             return 0.0f;
         }
 

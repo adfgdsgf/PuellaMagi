@@ -213,7 +213,9 @@ public final class 适应管理器 {
     }
 
     public static void onPlayerLogout(UUID playerUUID) {
-        // 登出不清除，重连后继续生效
+        // 适应数据基于 gameTime，重连后服务器 gameTime 已变化，旧数据不再有效
+        // 必须清除以防止内存泄漏（玩家下线后数据永远留在内存中）
+        玩家适应数据.remove(playerUUID);
     }
 
     public static void clearAll() {

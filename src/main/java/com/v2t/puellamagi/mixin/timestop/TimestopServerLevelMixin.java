@@ -3,7 +3,7 @@
 package com.v2t.puellamagi.mixin.timestop;
 
 import com.v2t.puellamagi.api.access.ILivingEntityAccess;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.system.ability.timestop.时停管理器;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -38,7 +38,7 @@ public abstract class TimestopServerLevelMixin {
      */
     @Inject(method = "tick", at = @At("HEAD"))
     private void puellamagi$onTickHead(BooleanSupplier supplier, CallbackInfo ci) {
-        ((TimeStop) this).puellamagi$tickTimeStop();
+        ((时停) this).puellamagi$tickTimeStop();
     }
 
     /**
@@ -46,7 +46,7 @@ public abstract class TimestopServerLevelMixin {
      */
     @Inject(method = "tickTime", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onTickTime(CallbackInfo ci) {
-        if (((TimeStop) this).puellamagi$hasActiveTimeStop()) {
+        if (((时停) this).puellamagi$hasActiveTimeStop()) {
             ci.cancel();
         }
     }
@@ -62,7 +62,7 @@ public abstract class TimestopServerLevelMixin {
             //===== 关键：每个实体都检查伤害释放 =====
             puellamagi$tickTSDamage(entity);
 
-            if (((TimeStop) this).puellamagi$shouldFreezeEntity(entity)) {
+            if (((时停) this).puellamagi$shouldFreezeEntity(entity)) {
                 if (entity instanceof LivingEntity living) {
                     living.hurtTime = 0;
                     entity.invulnerableTime = 0;
@@ -98,7 +98,7 @@ public abstract class TimestopServerLevelMixin {
             // ===== 乘客也检查伤害释放 =====
             puellamagi$tickTSDamage(passenger);
 
-            if (((TimeStop) this).puellamagi$shouldFreezeEntity(passenger)) {
+            if (((时停) this).puellamagi$shouldFreezeEntity(passenger)) {
                 if (passenger instanceof LivingEntity living) {
                     passenger.invulnerableTime = 0;
                     living.hurtTime = 0;
@@ -121,7 +121,7 @@ public abstract class TimestopServerLevelMixin {
      */
     @Inject(method = "tickFluid", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onTickFluid(BlockPos pos, Fluid fluid, CallbackInfo ci) {
-        if (((TimeStop) this).puellamagi$inTimeStopRange(pos)) {
+        if (((时停) this).puellamagi$inTimeStopRange(pos)) {
             // 重新安排 tick，让流体保持等待状态
             ServerLevel self = (ServerLevel) (Object) this;
             self.scheduleTick(pos, fluid, fluid.getTickDelay(self));
@@ -134,7 +134,7 @@ public abstract class TimestopServerLevelMixin {
      */
     @Inject(method = "tickBlock", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onTickBlock(BlockPos pos, Block block, CallbackInfo ci) {
-        if (((TimeStop) this).puellamagi$inTimeStopRange(pos)) {
+        if (((时停) this).puellamagi$inTimeStopRange(pos)) {
             // 重新安排 tick
             ServerLevel self = (ServerLevel) (Object) this;
             self.scheduleTick(pos, block, 1);
@@ -150,7 +150,7 @@ public abstract class TimestopServerLevelMixin {
         //乘客也检查伤害释放
         puellamagi$tickTSDamage(passenger);
 
-        if (((TimeStop) this).puellamagi$shouldFreezeEntity(passenger)) {
+        if (((时停) this).puellamagi$shouldFreezeEntity(passenger)) {
             if (passenger instanceof LivingEntity living) {
                 passenger.invulnerableTime = 0;
                 living.hurtTime = 0;
@@ -177,7 +177,7 @@ public abstract class TimestopServerLevelMixin {
     private void puellamagi$tickTSDamage(Entity entity) {
         if (entity instanceof LivingEntity living) {
             // 关键条件：不被冻结 + 有累计伤害
-            if (!((TimeStop) this).puellamagi$shouldFreezeEntity(entity)) {
+            if (!((时停) this).puellamagi$shouldFreezeEntity(entity)) {
                 时停管理器.尝试释放实体伤害(living);
             }
         }

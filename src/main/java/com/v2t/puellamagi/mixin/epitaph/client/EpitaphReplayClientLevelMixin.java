@@ -52,6 +52,7 @@ public abstract class EpitaphReplayClientLevelMixin {
         }
 
         // ======== 其他实体：帧数据驱动 ========
+        // 被锁定玩家不在帧数据中 → 不会进入此分支 → MC原版处理动画
         if (!客户端复刻管理器.实体是否被控制(entity.getUUID())) return;
 
         实体帧数据 当前帧 = 客户端复刻管理器.获取当前帧(entity.getUUID());

@@ -439,7 +439,7 @@ public final class 技能管理器 {
             int tickCount = entry.getValue() + 1;
             entry.setValue(tickCount);
 
-            Optional<I技能> optSkill = 技能注册表.创建实例(skillId);
+            Optional<I技能> optSkill = 技能注册表.获取实例(skillId);
             if (optSkill.isEmpty()) {
                 iterator.remove();
                 continue;
@@ -488,7 +488,7 @@ public final class 技能管理器 {
                 技能槽位数据 slot = preset.获取槽位(i);
                 if (slot == null || slot.是否为空()) continue;
 
-                技能注册表.创建实例(slot.获取技能ID()).ifPresent(skill -> {
+                技能注册表.获取实例(slot.获取技能ID()).ifPresent(skill -> {
                     // 通过行为方法判断，不使用 instanceof 或 switch(类型)
                     if (skill.需要开启tick() && skill.是否开启(player)) {
                         skill.开启tick(player, player.level());
@@ -522,7 +522,7 @@ public final class 技能管理器 {
             能力工具.获取技能能力(player).ifPresent(cap -> {
                 cap.设置冷却(skill.获取ID(), cooldown);
             });
-            com.v2t.puellamagi.core.event.通用事件.同步技能能力(player);
+            com.v2t.puellamagi.core.event.核心事件.同步技能能力(player);
         }
     }
 

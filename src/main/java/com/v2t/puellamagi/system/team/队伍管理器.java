@@ -238,10 +238,7 @@ public final class 队伍管理器 {
 
         return 队伍世界数据.获取(server).获取玩家队伍(playerUUID)
                 .flatMap(team -> team.获取成员(playerUUID))
-                .map(member -> {
-                    队伍成员数据 data = (队伍成员数据) member;
-                    return data.获取配置().获取配置(key);
-                })
+                .map(member -> member.获取个人配置().获取配置(key))
                 .orElse(false);
     }
 

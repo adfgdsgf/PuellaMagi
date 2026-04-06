@@ -2,7 +2,7 @@
 
 package com.v2t.puellamagi.mixin.timestop;
 
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import net.minecraft.world.entity.monster.Slime;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
@@ -25,10 +25,10 @@ public abstract class TimestopSlimeMixin {
     @Inject(method = "playerTouch", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onPlayerTouch(Player player, CallbackInfo ci) {
         Slime self = (Slime) (Object) this;
-        TimeStop timeStop = (TimeStop) player.level();
+        时停 时停 = (时停) player.level();
 
         // 如果史莱姆应该被冻结，取消接触伤害
-        if (timeStop.puellamagi$shouldFreezeEntity(self)) {
+        if (时停.puellamagi$shouldFreezeEntity(self)) {
             ci.cancel();
         }
     }

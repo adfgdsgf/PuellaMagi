@@ -3,7 +3,7 @@
 package com.v2t.puellamagi.mixin.timestop;
 
 import com.v2t.puellamagi.api.access.IProjectileAccess;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -133,10 +133,10 @@ public abstract class TimestopProjectileMixin extends Entity implements IProject
         puellamagi$isTimeStopCreated = false;
 
         if (owner instanceof LivingEntity) {
-            TimeStop timeStop = (TimeStop) owner.level();
+            时停 时停 = (时停) owner.level();
 
             // 在时停范围内 且 发射者是时停者（不会被冻结）
-            if (timeStop.puellamagi$inTimeStopRange(owner) &&!timeStop.puellamagi$shouldFreezeEntity(owner)) {
+            if (时停.puellamagi$inTimeStopRange(owner) &&!时停.puellamagi$shouldFreezeEntity(owner)) {
                 puellamagi$isTimeStopCreated = true;
                 puellamagi$invincibilityBypassTicks = INVINCIBILITY_BYPASS_DURATION;
                 puellamagi$speedMultiplier = 0.75F;
@@ -163,10 +163,10 @@ public abstract class TimestopProjectileMixin extends Entity implements IProject
             return;
         }
 
-        TimeStop timeStop = (TimeStop) this.level();
+        时停 时停 = (时停) this.level();
 
         // 关键：只在没有时停激活时才倒计时
-        if (!timeStop.puellamagi$hasActiveTimeStop()) {
+        if (!时停.puellamagi$hasActiveTimeStop()) {
             puellamagi$invincibilityBypassTicks--;
         }
     }

@@ -3,7 +3,7 @@
 package com.v2t.puellamagi.mixin.timestop;
 
 import com.v2t.puellamagi.api.access.IItemEntityAccess;
-import com.v2t.puellamagi.api.timestop.TimeStop;
+import com.v2t.puellamagi.api.timestop.时停;
 import com.v2t.puellamagi.system.ability.timestop.时停掉落物处理;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -72,10 +72,10 @@ public abstract class TimestopItemEntityMixin extends Entity implements IItemEnt
     @Inject(method = "setThrower", at = @At("TAIL"))
     private void puellamagi$onSetThrower(UUID throwerUUID, CallbackInfo ci) {
         if (throwerUUID != null && !this.level().isClientSide) {
-            TimeStop timeStop = (TimeStop) this.level();
+            时停 时停 = (时停) this.level();
 
-            if (timeStop.puellamagi$inTimeStopRange(this) &&
-                    timeStop.puellamagi$isTimeStopper(throwerUUID)) {
+            if (时停.puellamagi$inTimeStopRange(this) &&
+                    时停.puellamagi$isTimeStopper(throwerUUID)) {
                 this.entityData.set(PUELLAMAGI_TIME_STOP_CREATED, true);
                 this.entityData.set(PUELLAMAGI_SPEED_MULTIPLIER, 0.75f);
             }
@@ -86,9 +86,9 @@ public abstract class TimestopItemEntityMixin extends Entity implements IItemEnt
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onTick(CallbackInfo ci) {
-        TimeStop timeStop = (TimeStop) this.level();
+        时停 时停 = (时停) this.level();
 
-        if (timeStop.puellamagi$inTimeStopRange(this) &&
+        if (时停.puellamagi$inTimeStopRange(this) &&
                 this.entityData.get(PUELLAMAGI_TIME_STOP_CREATED)) {
             super.tick();
             时停掉落物处理.tick((ItemEntity) (Object) this);
@@ -104,16 +104,16 @@ public abstract class TimestopItemEntityMixin extends Entity implements IItemEnt
     @Inject(method = "playerTouch", at = @At("HEAD"), cancellable = true)
     private void puellamagi$onPlayerTouch(Player player, CallbackInfo ci) {
         ItemEntity self = (ItemEntity) (Object) this;
-        TimeStop timeStop = (TimeStop) self.level();
+        时停 时停 = (时停) self.level();
 
         // 不在时停范围内，正常处理
-        if (!timeStop.puellamagi$inTimeStopRange(self)) {
+        if (!时停.puellamagi$inTimeStopRange(self)) {
             return;
         }
 
         // 时停范围内，禁止所有自动拾取（包括时停者）
         // 需要右键拾取
-        if (timeStop.puellamagi$hasActiveTimeStop()) {
+        if (时停.puellamagi$hasActiveTimeStop()) {
             ci.cancel();
         }
     }
