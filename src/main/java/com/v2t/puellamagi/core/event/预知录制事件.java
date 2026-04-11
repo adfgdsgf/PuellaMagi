@@ -3,8 +3,11 @@
 package com.v2t.puellamagi.core.event;
 
 import com.v2t.puellamagi.PuellaMagi;
+import com.v2t.puellamagi.system.ability.epitaph.合并录制数据;
 import com.v2t.puellamagi.system.ability.epitaph.复刻引擎;
 import com.v2t.puellamagi.system.ability.epitaph.录制管理器;
+import com.v2t.puellamagi.system.ability.epitaph.录制组;
+import com.v2t.puellamagi.system.ability.epitaph.录制组管理器;
 import com.v2t.puellamagi.system.ability.epitaph.影响标记表;
 import com.v2t.puellamagi.system.ability.epitaph.预知状态管理;
 import com.v2t.puellamagi.常量;
@@ -70,15 +73,45 @@ public class 预知录制事件 {
             复刻引擎.清空帧方块追踪();
 
             // ==================== 复刻引擎驱动（Level.tick之前） ====================
-            // 位置/朝向 + 正向修正必须在Level.tick之前
-            // 否则破坏进度检查时玩家位置不对
-            for (UUID userUUID : 复刻引擎.获取所有活跃使用者()) {
-                boolean still = 复刻引擎.tick(userUUID);
+            // 按录制组ID驱动（一个录制组 = 一个复刻会话）
+            for (UUID groupID : 复刻引擎.获取所有活跃使用者()) {
+                boolean still = 复刻引擎.tick(groupID);
                 if (!still) {
-                    复刻引擎.结束复刻(userUUID);
-                    预知状态管理.结束(userUUID);
-                    PuellaMagi.LOGGER.info("玩家 {} 复刻自然播放完毕", userUUID);
+                    // 回放自然结束 → 结束复刻 + 清理所有录制者的预知状态
+                    复刻引擎.复刻会话 session = 复刻引擎.获取会话(groupID);
+                    复刻引擎.结束复刻(groupID);
+                    if (session != null) {
+                        for (UUID 录制者 : session.录制者集合) {
+                            预知状态管理.结束(录制者);
+                        }
+                    }
+                    PuellaMagi.LOGGER.info("录制组 {} 复刻自然播放完毕", groupID);
                 }
+            }
+
+            // ==================== 录制组管理器tick（续接窗口+回放触发） ====================
+            List<录制组> 已关闭列表 = 录制组管理器.tick();
+            for (录制组 group : 已关闭列表) {
+                // 录制组关闭 → 合并数据已生成 → 触发所有录制者开始回放
+                合并录制数据 merged = group.获取合并数据();
+                if (merged == null) continue;
+
+                long gameTime = server.overworld().getGameTime();
+                int totalFrames = merged.获取总帧数();
+
+                // 所有录制者进入复刻阶段
+                for (UUID 录制者 : group.获取录制者集合()) {
+                    预知状态管理.开始复刻(录制者, gameTime, totalFrames, group.获取组ID());
+                }
+
+                // 开始复刻引擎
+                复刻引擎.开始复刻(group.获取组ID(), merged);
+
+                // 从录制组管理器中移除已关闭的录制组（数据已交给复刻引擎）
+                录制组管理器.移除录制组(group.获取组ID());
+
+                PuellaMagi.LOGGER.info("录制组 {} 触发回放（{} 帧，{} 个录制者）",
+                        group.获取组ID(), totalFrames, group.获取录制者集合().size());
             }
         }
 
@@ -86,8 +119,8 @@ public class 预知录制事件 {
             // ==================== 反向保底（Level.tick之后） ====================
             // MC已处理完玩家的所有C2S包（放方块/破坏方块等）
             // 现在可以准确检测并回退多余的方块变化
-            for (UUID userUUID : 复刻引擎.获取所有活跃使用者()) {
-                复刻引擎.tickEnd(userUUID);
+            for (UUID groupID : 复刻引擎.获取所有活跃使用者()) {
+                复刻引擎.tickEnd(groupID);
             }
 
             // ==================== 录制帧采集（Level.tick之后） ====================
@@ -164,9 +197,9 @@ public class 预知录制事件 {
         // 检查所有活跃复刻会话的标记表
         for (UUID userUUID : 复刻引擎.获取所有活跃使用者()) {
             复刻引擎.复刻会话 session = 复刻引擎.获取会话(userUUID);
-            if (session == null || !session.时间删除中) continue;
+            if (session == null || !session.有时删中玩家()) continue;
 
-            UUID 方块来源 = session.录制.标记表.获取方块来源(pos);
+            UUID 方块来源 = session.录制.获取标记表().获取方块来源(pos);
             if (方块来源 == null) continue;
 
             // 方块有标记 → 掉落物继承
@@ -179,12 +212,12 @@ public class 预知录制事件 {
                 for (Entity entity : serverLevel.getEntities(
                         (Entity) null, area,
                         e -> e instanceof ItemEntity)) {
-                    session.录制.标记表.标记掉落物(entity.getId(), source);
+                    session.录制.获取标记表().标记掉落物(entity.getId(), source);
                 }
             }));
 
             // 清除方块标记（方块已经没了）
-            session.录制.标记表.清除方块标记(pos);
+            session.录制.获取标记表().清除方块标记(pos);
             break;
         }
     }
@@ -204,9 +237,9 @@ public class 预知录制事件 {
 
         for (UUID userUUID : 复刻引擎.获取所有活跃使用者()) {
             复刻引擎.复刻会话 session = 复刻引擎.获取会话(userUUID);
-            if (session == null || !session.时间删除中) continue;
+            if (session == null || !session.有时删中玩家()) continue;
 
-            UUID 来源 = session.录制.标记表.获取掉落物来源(entityId);
+            UUID 来源 = session.录制.获取标记表().获取掉落物来源(entityId);
             if (来源 == null) continue;
 
             // 掉落物有标记 → 物品NBT加tag
@@ -214,7 +247,7 @@ public class 预知录制事件 {
             影响标记表.标记物品(stack, 来源);
 
             // 清除掉落物标记（已被捡起）
-            session.录制.标记表.清除掉落物标记(entityId);
+            session.录制.获取标记表().清除掉落物标记(entityId);
             break;
         }
     }
@@ -235,7 +268,7 @@ public class 预知录制事件 {
         boolean 在时删中 = false;
         for (UUID userUUID : 复刻引擎.获取所有活跃使用者()) {
             复刻引擎.复刻会话 session = 复刻引擎.获取会话(userUUID);
-            if (session != null && session.时间删除中) {
+            if (session != null && session.有时删中玩家()) {
                 在时删中 = true;
                 break;
             }

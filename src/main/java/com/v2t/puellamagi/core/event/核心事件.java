@@ -20,6 +20,7 @@ import com.v2t.puellamagi.util.能力工具;
 import com.v2t.puellamagi.util.网络工具;
 import com.v2t.puellamagi.常量;
 import com.v2t.puellamagi.system.ability.epitaph.录制管理器;
+import com.v2t.puellamagi.system.ability.epitaph.录制组管理器;
 import com.v2t.puellamagi.system.ability.epitaph.复刻引擎;
 import com.v2t.puellamagi.system.ability.epitaph.预知状态管理;
 import com.v2t.puellamagi.system.team.队伍邀请管理器;
@@ -157,6 +158,7 @@ public class 核心事件 {
 
         // 预知系统清理
         录制管理器.清除全部();
+        录制组管理器.清除全部();
         复刻引擎.清除全部();
         预知状态管理.清除全部();
         输入接管器.清除全部();

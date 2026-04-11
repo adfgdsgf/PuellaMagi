@@ -66,6 +66,7 @@ public class 预知限制来源 implements I限制来源 {
         return switch (phase) {
             case 待机 -> 无限制;
             case 录制中 -> 无限制;
+            case 等待回放 -> 无限制;
             case 复刻中 -> 复刻限制;
             case 时间删除 -> 时间删除限制;
         };

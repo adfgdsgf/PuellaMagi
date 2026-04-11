@@ -36,7 +36,7 @@ public final class 影响记录工具 {
             预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(userUUID);
             if (state == null) continue;
 
-            session.录制.影响.记录伤害(state.获取当前复刻帧(),
+            session.录制.获取影响().记录伤害(state.获取当前复刻帧(),
                     attacker.getUUID(),
                     target.getUUID(),
                     amount
@@ -82,7 +82,7 @@ public final class 影响记录工具 {
             预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(userUUID);
             if (state == null) continue;
 
-            session.录制.影响.记录击杀(
+            session.录制.获取影响().记录击杀(
                     state.获取当前复刻帧(),
                     killer.getUUID(),
                     victim.getUUID()

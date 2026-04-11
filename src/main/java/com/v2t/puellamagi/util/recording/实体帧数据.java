@@ -1,10 +1,12 @@
 package com.v2t.puellamagi.util.recording;
 
 import com.v2t.puellamagi.api.access.ILivingEntityAccess;
+import com.v2t.puellamagi.mixin.timestop.WalkAnimationStateAccessor;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.WalkAnimationState;
 import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
@@ -314,9 +316,24 @@ public class 实体帧数据 {
         float dz = (float) (z - prevZ);
         float horizontalDist = (float) Math.sqrt(dx * dx + dz * dz);
 
-        // walkDist：手部左右摇摆幅度
+        // walkDist：手部左右摇摆幅度（旧版兼容字段）
         entity.walkDistO = entity.walkDist;
         entity.walkDist += Math.min(horizontalDist * 0.6f, 1.0f);
+
+        // WalkAnimationState：MC1.20.1中真正驱动走路动画的系统
+        // cancel tick后MC不会调用WalkAnimationState.update()
+        // 需要手动更新speed和position，否则腿不会动
+        if (entity instanceof ILivingEntityAccess access) {
+            WalkAnimationState walkAnim = access.puellamagi$getWalkAnimation();
+            WalkAnimationStateAccessor walkAccessor = (WalkAnimationStateAccessor) (Object) walkAnim;
+            // speedOld = 上一帧的speed（用于插值）
+            walkAccessor.setSpeedOld(walkAccessor.getSpeed());
+            // speed：根据水平移动距离计算，和MC原生LivingEntity.calculateEntityAnimation一致
+            float speedTarget = Math.min(horizontalDist * 4.0f, 1.0f);
+            walkAccessor.setSpeed(walkAccessor.getSpeed() + (speedTarget - walkAccessor.getSpeed()) * 0.4f);
+            // position：累加speed，驱动腿部摆动周期
+            walkAccessor.setPosition(walkAccessor.getPosition() + walkAccessor.getSpeed());
+        }
 
         // bob：第一人称镜头/手部上下晃动
         if (entity instanceof net.minecraft.world.entity.player.Player player) {

@@ -100,32 +100,60 @@ public final class 复刻引擎 {
     // ==================== 复刻会话 ====================
 
     /**
-     * 单个使用者的复刻会话
+     * 复刻会话 — 一个录制组的回放实例
+     *
+     * 多人预知：一个录制组 = 一个复刻会话
+     * 单人预知：退化为录制组中只有一个录制段
      *
      * 被锁定玩家：客户端输入被替换为录制数据，MC自己处理操作
      * 被控制实体：tick被cancel，由帧数据驱动（怪物/投射物等）
+     * 时删中玩家：已从被锁定状态脱离，自由活动+因果追踪
      */
     public static class 复刻会话 {
-        public final UUID 使用者UUID;
-        public final 录制管理器.录制会话 录制;
+        /** 录制组ID（唯一标识这个复刻会话） */
+        public final UUID 组ID;
+
+        /** 合并后的录制数据（替代原来的单个录制会话） */
+        public final 合并录制数据 录制;
+
+        /** 维度 */
         public final ServerLevel 维度;
 
+        /** 被锁定玩家集合（输入被回放控制） */
         public final Set<UUID> 被锁定玩家;
+
+        /** 被控制实体集合（帧驱动的怪物等） */
         public final Set<UUID> 被控制实体;
 
-        public boolean 时间删除中 = false;
+        /** 时删中玩家集合（从被锁定脱离、自由活动的玩家） */
+        public final Set<UUID> 时删中玩家 = new HashSet<>();
 
-        public 复刻会话(UUID userUUID, 录制管理器.录制会话 recording, ServerLevel level) {
-            this.使用者UUID = userUUID;
-            this.录制 = recording;
+        /** 所有录制者UUID（录制组中的使用者们） */
+        public final Set<UUID> 录制者集合;
+
+        /**
+         * 是否有任何玩家在时删中
+         * 替代原来的 boolean 时间删除中
+         */
+        public boolean 有时删中玩家() {
+            return !时删中玩家.isEmpty();
+        }
+
+        public 复刻会话(UUID groupID, 合并录制数据 mergedData, ServerLevel level) {
+            this.组ID = groupID;
+            this.录制 = mergedData;
             this.维度 = level;
             this.被锁定玩家 = new HashSet<>();
-            this.被控制实体 = new HashSet<>(recording.被录制实体);
+            this.被控制实体 = new HashSet<>(mergedData.获取被录制实体集合());
+            this.录制者集合 = new HashSet<>(mergedData.获取录制者集合());
         }
     }
 
-    /** 活跃的复刻会话：使用者UUID → 会话 */
+    /** 活跃的复刻会话：录制组ID → 会话 */
     private static final Map<UUID, 复刻会话> 活跃会话 = new ConcurrentHashMap<>();
+
+    /** 玩家到录制组的反查映射：玩家UUID → 录制组ID（包括录制者和被锁定者） */
+    private static final Map<UUID, UUID> 玩家组映射 = new ConcurrentHashMap<>();
 
     // ==================== 回放方块变化追踪 ====================
 
@@ -168,33 +196,36 @@ public final class 复刻引擎 {
     // ==================== 核心流程 ====================
 
     /**
-     * 开始复刻（Phase 1 → Phase 2）
+     * 开始复刻（基于合并录制数据）
      *
      * 1. 预更新客户端方块（消除视觉延迟）
      * 2. 回滚世界到录制起点
      * 3. 清除录制期间出现的实体
      * 4. 恢复玩家快照 + 同步背包
      * 5. 标记被锁定玩家 + 从帧驱动中移除玩家（让tick正常跑）
+     *
+     * @param groupID    录制组ID
+     * @param mergedData 合并后的录制数据
+     * @return 是否成功
      */
-    public static boolean 开始复刻(ServerPlayer user, 录制管理器.录制会话 recording) {
-        UUID userUUID = user.getUUID();
-        ServerLevel level = recording.维度;
+    public static boolean 开始复刻(UUID groupID, 合并录制数据 mergedData) {
+        ServerLevel level = mergedData.获取维度();
 
         // 1. 提前通知客户端方块变化
-        发送方块预更新包(recording.起点快照, level);
+        发送方块预更新包(mergedData.获取起点快照(), level);
 
         // 2. 回滚世界
-        int[] result = recording.起点快照.恢复到(level);
+        int[] result = mergedData.获取起点快照().恢复到(level);
         LOGGER.info("世界回滚完成：{}个实体, {} 个方块", result[0], result[1]);
 
         // 3. 清除录制期间出现的实体（防刷物品/刷箭）
-        int 清除数量 = 清除录制期间出现的实体(level, recording);
+        int 清除数量 = 清除录制期间出现的实体(level, mergedData);
         if (清除数量 > 0) {
             LOGGER.info("清除了 {} 个录制期间出现的实体", 清除数量);
         }
 
         // 4. 恢复玩家快照 + 强制同步背包
-        for (Map.Entry<UUID, 玩家快照> entry : recording.玩家快照表.entrySet()) {
+        for (Map.Entry<UUID, 玩家快照> entry : mergedData.获取玩家快照表().entrySet()) {
             Entity entity = 实体工具.按UUID查找实体(level, entry.getKey());
             if (entity instanceof ServerPlayer sp) {
                 entry.getValue().恢复到(sp);
@@ -203,9 +234,9 @@ public final class 复刻引擎 {
         }
 
         // 5. 创建会话
-        复刻会话 session = new 复刻会话(userUUID, recording, level);
+        复刻会话 session = new 复刻会话(groupID, mergedData, level);
 
-        for (UUID entityUUID : recording.被录制实体) {
+        for (UUID entityUUID : mergedData.获取被录制实体集合()) {
             Entity entity = 实体工具.按UUID查找实体(level, entityUUID);
             if (entity instanceof ServerPlayer sp) {
                 sp.connection.teleport(sp.getX(), sp.getY(), sp.getZ(),
@@ -214,17 +245,18 @@ public final class 复刻引擎 {
                 session.被控制实体.remove(entityUUID);
                 session.被锁定玩家.add(entityUUID);
 
-                // 服务端恢复使用物品状态
-                if (recording.初始状态 != null && recording.初始状态.有进行中的操作()) {
-                    recording.初始状态.恢复到服务端(sp);
+                // 服务端恢复使用物品状态（每个录制者有自己的初始状态）
+                录制初始状态 initState = mergedData.获取初始状态(entityUUID);
+                if (initState != null && initState.有进行中的操作()) {
+                    initState.恢复到服务端(sp);
                 }
 
                 // 通知客户端恢复按键状态（通用，覆盖所有mod）
-                List<String> heldKeys = recording.玩家初始按键.get(entityUUID);
-                boolean leftHeld = recording.初始状态 != null
-                        && recording.初始状态.是否正在破坏方块();
-                boolean rightHeld = recording.初始状态 != null
-                        && recording.初始状态.是否正在使用物品();
+                List<String> heldKeys = mergedData.获取初始按键(entityUUID);
+                boolean leftHeld = initState != null
+                        && initState.是否正在破坏方块();
+                boolean rightHeld = initState != null
+                        && initState.是否正在使用物品();
 
                 if ((heldKeys != null && !heldKeys.isEmpty()) || leftHeld || rightHeld) {
                     网络工具.发送给玩家(sp,
@@ -233,33 +265,61 @@ public final class 复刻引擎 {
                                     leftHeld,
                                     rightHeld));
                 }
+
+                // 注册玩家到录制组映射
+                玩家组映射.put(entityUUID, groupID);
             }
         }
 
-        活跃会话.put(userUUID, session);
-        LOGGER.info("玩家 {} 开始复刻（帧驱动 {} 个实体，输入回放 {} 个玩家）",
-                user.getName().getString(),
+        活跃会话.put(groupID, session);
+        LOGGER.info("录制组 {} 开始复刻（帧驱动 {} 个实体，输入回放 {} 个玩家）",
+                groupID,
                 session.被控制实体.size(),
                 session.被锁定玩家.size());
         return true;
     }
 
     /**
-     * 每tick推进复刻
+     * 兼容旧接口：单个录制会话直接开始复刻
+     * 内部包装为合并录制数据
+     */
+    public static boolean 开始复刻(ServerPlayer user, 录制管理器.录制会话 recording) {
+        // 从录制组管理器获取合并数据
+        录制组 group = 录制组管理器.获取玩家所在录制组(user.getUUID());
+        if (group != null && group.获取合并数据() != null) {
+            return 开始复刻(group.获取组ID(), group.获取合并数据());
+        }
+
+        // 兜底：如果没有录制组（不应该发生），创建单段合并数据
+        LOGGER.warn("玩家 {} 没有录制组，使用兜底单段合并", user.getName().getString());
+        return false;
+    }
+
+    /**
+     * 每tick推进复刻（按录制组ID驱动）
      *
-     * 由通用事件在ServerTickEvent.START阶段调用
+     * 由预知录制事件在ServerTickEvent.START阶段调用
+     * 一个录制组 = 一个复刻会话 = 一个tick驱动
      *
+     * @param groupID 录制组ID
      * @return 是否仍在复刻中（false = 自然结束）
      */
-    public static boolean tick(UUID userUUID) {
-        复刻会话 session = 活跃会话.get(userUUID);
+    public static boolean tick(UUID groupID) {
+        复刻会话 session = 活跃会话.get(groupID);
         if (session == null) return false;
-        预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(userUUID);
+
+        // 取任意一个录制者的状态来获取帧进度
+        // 所有录制者共享同一个帧计数（由预知录制事件统一推进）
+        预知状态管理.玩家预知状态 state = null;
+        for (UUID 录制者 : session.录制者集合) {
+            state = 预知状态管理.获取状态(录制者);
+            if (state != null) break;
+        }
         if (state == null) return false;
 
         int currentFrame = state.获取当前复刻帧();
         if (currentFrame >= state.获取总复刻帧数()) {
-            LOGGER.debug("玩家 {} 复刻自然结束", userUUID);
+            LOGGER.debug("录制组 {} 复刻自然结束", groupID);
             return false;
         }
 
@@ -268,8 +328,9 @@ public final class 复刻引擎 {
         // 只驱动怪物帧（不干预玩家）
         驱动实体帧(session, level, currentFrame);
 
-        // 每帧方块正向修正（输入回放的保底：确保该变的变了）
-        帧方块修正(session, level, currentFrame);
+        // 注意：帧方块正向修正已移到tickEnd()中执行（Level.tick之后）
+        // 这样输入回放产生的方块变化先发生，正向保底再检查有没有漏的
+        // 避免正向保底和输入回放同时放方块导致多放
 
         // 每帧方块实体修正（容器内容保底）
         帧方块实体修正(session, level, currentFrame);
@@ -280,7 +341,13 @@ public final class 复刻引擎 {
         // 发帧同步包给客户端（输入帧 + 怪物帧数据）
         发送帧同步包给客户端(session, currentFrame);
 
-        state.推进复刻帧();
+        // 推进所有录制者的帧计数（多人场景下所有人帧进度同步）
+        for (UUID 录制者 : session.录制者集合) {
+            预知状态管理.玩家预知状态 录制者状态 = 预知状态管理.获取状态(录制者);
+            if (录制者状态 != null) {
+                录制者状态.推进复刻帧();
+            }
+        }
         return true;
     }
 
@@ -300,15 +367,25 @@ public final class 复刻引擎 {
      * 2. Level.tick期间MC处理C2S包，方块变化被事件监听器记录
      * 3. END阶段执行反向修正，回退多余变化
      */
-    public static void tickEnd(UUID userUUID) {
-        复刻会话 session = 活跃会话.get(userUUID);
+    public static void tickEnd(UUID groupID) {
+        复刻会话 session = 活跃会话.get(groupID);
         if (session == null) return;
-        预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(userUUID);
+
+        // 取任意录制者的状态获取帧进度
+        预知状态管理.玩家预知状态 state = null;
+        for (UUID 录制者 : session.录制者集合) {
+            state = 预知状态管理.获取状态(录制者);
+            if (state != null) break;
+        }
         if (state == null) return;
 
         // 当前帧 = 已推进后的帧 - 1（tick中已推进）
         int lastFrame = state.获取当前复刻帧() - 1;
         if (lastFrame < 0) return;
+
+        // 正向保底：在Level.tick之后执行，此时输入回放产生的方块已经放好了
+        // 只修正输入回放漏掉的（实际!=期望 的才修正）
+        帧方块修正(session, session.维度, lastFrame);
 
         // 反向修正：检测并回退多余的方块变化
         帧方块反向修正(session, session.维度, lastFrame);
@@ -331,7 +408,7 @@ public final class 复刻引擎 {
      * → 已变 → 不管
      */
     private static void 帧方块实体修正(复刻会话 session, ServerLevel level, int frameIndex) {
-        for (方块实体变化帧 change : session.录制.方块实体变化列表) {
+        for (方块实体变化帧 change : session.录制.获取方块实体变化列表()) {
             if (change.获取tick序号() != frameIndex) continue;
 
             BlockPos pos = change.获取位置();
@@ -492,44 +569,57 @@ public final class 复刻引擎 {
      * → 不再遍历所有被锁定玩家
      */
     private static void 帧方块正向修正内部(复刻会话 session, ServerLevel level, int frameIndex) {
-        // 时删期间收集使用者触发的方块变化位置，统一发忽略包给A
-        List<BlockPos> 使用者操作方块 = new ArrayList<>();
+        // === 第一遍：收集时删玩家操作方块位置 + 提前发送忽略包 ===
+        // 必须在执行destroyBlock/setBlockAndUpdate之前发送忽略包
+        // 否则destroyBlock产生的levelEvent(2001)先到达时删玩家客户端
+        // 而忽略列表还没更新 → 时删玩家会听到不该听到的破坏声效
+        if (session.有时删中玩家()) {
+            // 按时删玩家分组收集操作方块
+            Map<UUID, List<BlockPos>> 时删玩家操作方块 = new HashMap<>();
 
-        for (方块变化帧 change : session.录制.方块变化列表) {
+            for (方块变化帧 change : session.录制.获取方块变化列表()) {
+                if (change.获取tick序号() != frameIndex) continue;
+
+                UUID 触发者 = change.获取触发者UUID();
+                if (触发者 != null && session.时删中玩家.contains(触发者)) {
+                    时删玩家操作方块.computeIfAbsent(触发者, k -> new ArrayList<>())
+                            .add(change.获取位置().immutable());
+                }
+            }
+
+            // 给每个时删玩家发忽略包
+            for (Map.Entry<UUID, List<BlockPos>> entry : 时删玩家操作方块.entrySet()) {
+                if (!entry.getValue().isEmpty()) {
+                    Entity userEntity = 实体工具.按UUID查找实体(level, entry.getKey());
+                    if (userEntity instanceof ServerPlayer sp) {
+                        网络工具.发送给玩家(sp, 时删方块忽略包.忽略(entry.getValue()));
+                    }
+                }
+            }
+        }
+
+        // === 第二遍：执行方块操作 ===
+        for (方块变化帧 change : session.录制.获取方块变化列表()) {
             if (change.获取tick序号() != frameIndex) continue;
 
             BlockPos pos = change.获取位置();
             BlockState expected = change.获取新状态();
             BlockState actual = level.getBlockState(pos);
 
-            if (actual.equals(expected)) {
-                // 即使状态已一致，时删期间使用者触发的也要加入忽略列表
-                // 因为后续MC可能发方块更新包给A（如destroyBlock触发的连锁更新）
-                boolean 时删使用者操作 = session.时间删除中
-                        && change.获取触发者UUID() != null
-                        && change.获取触发者UUID().equals(session.使用者UUID);
-                if (时删使用者操作) {
-                    使用者操作方块.add(pos.immutable());
-                }
-                continue;
-            }
+            if (actual.equals(expected)) continue;
 
-            // 时删期间使用者触发的方块变化：直接执行不扣背包
-            // 因为结算时会全部撤销，不需要真的消耗物品
-            boolean 时删使用者操作 = session.时间删除中
-                    && change.获取触发者UUID() != null
-                    && change.获取触发者UUID().equals(session.使用者UUID);
+            LOGGER.info("正向保底 帧{} 位置{} 期望={} 实际={} 需要修正",
+                    frameIndex, pos, expected, actual);
 
-            if (时删使用者操作) {
-                使用者操作方块.add(pos.immutable());
-            }
+            // 判断这个方块变化的触发者是否是时删中的玩家
+            UUID 触发者 = change.获取触发者UUID();
+            boolean 时删玩家操作 = session.有时删中玩家()
+                    && 触发者 != null
+                    && session.时删中玩家.contains(触发者);
 
             if (expected.isAir() && !actual.isAir()) {
-                if (时删使用者操作) {
-                    // 时删使用者操作：不掉落物品（结算会恢复方块，掉落物品=凭空刷物品）
-                    // 不发破坏进度包（A不应该看到裂纹，B通过destroyBlock的levelEvent看到效果）
-                    // A的客户端方块更新被EpitaphTimeDeletionBlockMixin拦截 → A看不到方块消失
-                    // A的客户端levelEvent被EpitaphTimeDeletionLevelEventMixin拦截 → A听不到声音
+                if (时删玩家操作) {
+                    // 时删玩家操作：不掉落物品（结算会恢复方块）
                     level.destroyBlock(pos, false);
                 } else {
                     // 非时删操作：发送破坏进度=10（完全破裂贴图），让客户端有裂纹效果
@@ -537,22 +627,14 @@ public final class 复刻引擎 {
                     level.destroyBlock(pos, true);
                 }
             } else if (!expected.isAir()) {
-                if (时删使用者操作) {
+                if (时删玩家操作) {
                     // 时删期间：直接放方块，不扣背包，标记用于结算撤销
                     level.setBlockAndUpdate(pos, expected);
-                    session.录制.标记表.标记方块(pos, session.使用者UUID);
+                    session.录制.获取标记表().标记方块(pos, 触发者);
                 } else {
-                    // 非时删 或 非使用者触发：使用触发者UUID精确扣物品
-                    放方块并扣物品(session, level, pos, expected, change.获取触发者UUID());
+                    // 非时删 或 非时删玩家触发：使用触发者UUID精确扣物品
+                    放方块并扣物品(session, level, pos, expected, 触发者);
                 }
-            }
-        }
-
-        // 发送忽略通知给A的客户端
-        if (!使用者操作方块.isEmpty()) {
-            Entity userEntity = 实体工具.按UUID查找实体(level, session.使用者UUID);
-            if (userEntity instanceof ServerPlayer sp) {
-                网络工具.发送给玩家(sp, 时删方块忽略包.忽略(使用者操作方块));
             }
         }
     }
@@ -575,14 +657,14 @@ public final class 复刻引擎 {
 
         // 构建当前帧期望变化的位置集合
         Set<BlockPos> 期望变化位置 = new HashSet<>();
-        for (方块变化帧 change : session.录制.方块变化列表) {
+        for (方块变化帧 change : session.录制.获取方块变化列表()) {
             if (change.获取tick序号() == frameIndex) {
                 期望变化位置.add(change.获取位置().immutable());
             }
         }
 
         // 也包含之前所有帧已经变化过的位置（这些位置的状态已经被正向修正管理）
-        for (方块变化帧 change : session.录制.方块变化列表) {
+        for (方块变化帧 change : session.录制.获取方块变化列表()) {
             if (change.获取tick序号() < frameIndex) {
                 期望变化位置.add(change.获取位置().immutable());
             }
@@ -594,11 +676,17 @@ public final class 复刻引擎 {
             List<BlockPos> 修正位置 = new ArrayList<>();
             List<BlockState> 修正状态 = new ArrayList<>();
 
+            LOGGER.info("反向修正 帧{} 实际变化数={} 期望变化位置数={}",
+                    frameIndex, 回放中实际方块变化.size(), 期望变化位置.size());
+
             for (Map.Entry<BlockPos, BlockState> entry : 回放中实际方块变化.entrySet()) {
                 BlockPos pos = entry.getKey();
 
                 // 这个位置在期望变化列表中 → 是正常的变化，不回退
-                if (期望变化位置.contains(pos)) continue;
+                if (期望变化位置.contains(pos)) {
+                    LOGGER.debug("反向修正 帧{} 位置{} 在期望列表中，跳过", frameIndex, pos);
+                    continue;
+                }
 
                 // 这个位置不在期望列表中 → 是多余的变化
                 BlockState 变化前状态 = entry.getValue();
@@ -683,7 +771,7 @@ public final class 复刻引擎 {
             sp.load(期望NBT);
 
             // 覆盖位置朝向（NBT中的位置不精确，使用帧数据中的精确位置）
-            实体帧数据 帧 = session.录制.帧数据.获取实体帧(frameIndex, playerUUID);
+            实体帧数据 帧 = session.录制.获取实体帧(frameIndex, playerUUID);
             if (帧 != null) {
                 sp.setPos(帧.获取X(), 帧.获取Y(), 帧.获取Z());
                 sp.setYRot(帧.获取YRot());
@@ -709,14 +797,14 @@ public final class 复刻引擎 {
     private static CompoundTag 查找期望NBT(复刻会话 session, int frameIndex, UUID entityUUID) {
         // 从当前帧向前查找最近一次有NBT的帧
         for (int i = frameIndex; i >= 0; i--) {
-            实体帧数据 帧 = session.录制.帧数据.获取实体帧(i, entityUUID);
+            实体帧数据 帧 = session.录制.获取实体帧(i, entityUUID);
             if (帧 != null && 帧.有状态NBT()) {
                 return 帧.获取状态NBT();
             }
         }
 
         // 没找到任何帧有NBT → 使用录制时的初始NBT缓存
-        return session.录制.上次状态NBT缓存.get(entityUUID);
+        return session.录制.获取上次状态NBT缓存().get(entityUUID);
     }
 
     /**
@@ -887,7 +975,7 @@ public final class 复刻引擎 {
         ServerLevel level = session.维度;
         Set<BlockPos> 已处理位置 = new HashSet<>();
 
-        for (方块变化帧 change : session.录制.方块变化列表) {
+        for (方块变化帧 change : session.录制.获取方块变化列表()) {
             BlockPos pos = change.获取位置();
             if (!已处理位置.add(pos)) continue;
 
@@ -921,13 +1009,15 @@ public final class 复刻引擎 {
      */
     public static boolean 进入时间删除(ServerPlayer user) {
         UUID userUUID = user.getUUID();
-        复刻会话 session = 活跃会话.get(userUUID);
+        UUID groupID = 玩家组映射.get(userUUID);
+        if (groupID == null) return false;
+        复刻会话 session = 活跃会话.get(groupID);
         if (session == null) return false;
 
         // A从被锁定玩家移除 → A获得完全自由
         session.被锁定玩家.remove(userUUID);
         session.被控制实体.remove(userUUID);
-        session.时间删除中 = true;
+        session.时删中玩家.add(userUUID);
 
         // 不再使用存在屏蔽器
         // 改用sendChanges位置欺骗：A始终在B的seenBy中，但发包时位置被替换为命运位置
@@ -949,22 +1039,31 @@ public final class 复刻引擎 {
     /**
      * 跳到结尾（时间删除中按键）
      */
-    public static void 跳到结尾(UUID userUUID) {
-        复刻会话 session = 活跃会话.get(userUUID);
+    public static void 跳到结尾(UUID triggerUUID) {
+        // 通过玩家组映射找到录制组
+        UUID groupID = 玩家组映射.get(triggerUUID);
+        if (groupID == null) groupID = triggerUUID;
+        // 兼容：如果triggerUUID本身就是groupID
+        复刻会话 session = 活跃会话.get(groupID);
         if (session == null) return;
 
-        预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(userUUID);
-        if (state == null) return;
-
-        int lastFrame = state.获取总复刻帧数() - 1;
+        // 取任意录制者的状态获取帧数
+        int lastFrame = -1;
+        for (UUID 录制者 : session.录制者集合) {
+            预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(录制者);
+            if (state != null) {
+                lastFrame = state.获取总复刻帧数() - 1;
+                break;
+            }
+        }
         if (lastFrame >= 0) {
             驱动实体帧(session, session.维度, lastFrame);
             发送帧同步包给客户端(session, lastFrame);
         }
 
-        LOGGER.info("玩家 {} 复刻跳到结尾（从帧 {} 跳到帧 {}）",
-                userUUID, state.获取当前复刻帧(), lastFrame);
-        结束复刻(userUUID);
+        LOGGER.info("录制组 {} 复刻跳到结尾（跳到帧 {}）",
+                groupID, lastFrame);
+        结束复刻(groupID);
     }
 
     /**
@@ -984,48 +1083,55 @@ public final class 复刻引擎 {
      */
     private static final Set<UUID> 正在结束中 = ConcurrentHashMap.newKeySet();
 
-    public static void 结束复刻(UUID userUUID) {
+    /**
+     * 结束复刻（按录制组ID）
+     * 外部调用统一使用此方法
+     */
+    public static void 结束复刻(UUID groupID) {
         // 重入保护：防止跳到结尾和自然结束同时触发
-        if (!正在结束中.add(userUUID)) {
-            LOGGER.debug("结束复刻重入保护：玩家 {} 已在结束流程中", userUUID);
+        if (!正在结束中.add(groupID)) {
+            LOGGER.debug("结束复刻重入保护：录制组 {} 已在结束流程中", groupID);
             return;
         }
 
         try {
-            结束复刻内部(userUUID);
+            结束复刻内部(groupID);
         } finally {
-            正在结束中.remove(userUUID);
+            正在结束中.remove(groupID);
         }
     }
 
-    private static void 结束复刻内部(UUID userUUID) {
-        复刻会话 session = 活跃会话.remove(userUUID);
+    private static void 结束复刻内部(UUID groupID) {
+        复刻会话 session = 活跃会话.remove(groupID);
         if (session == null) return;
 
-        // 1. 应用最终帧
-        预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(userUUID);
+        // 1. 应用最终帧（取任意录制者的状态获取帧数）
         int lastFrame = -1;
-        if (state != null) {
-            lastFrame = state.获取总复刻帧数() - 1;
-            if (lastFrame >= 0) {
-                驱动实体帧(session, session.维度, lastFrame);
+        for (UUID 录制者 : session.录制者集合) {
+            预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(录制者);
+            if (state != null) {
+                lastFrame = state.获取总复刻帧数() - 1;
+                break;
             }
+        }
+        if (lastFrame >= 0) {
+            驱动实体帧(session, session.维度, lastFrame);
         }
 
         // 2. 通知客户端
         通知客户端复刻结束(session);
 
-        // 时删结束：通知A的客户端清空方块忽略列表
-        if (session.时间删除中) {
-            Entity userEntity = 实体工具.按UUID查找实体(session.维度, userUUID);
-            if (userEntity instanceof ServerPlayer sp) {
+        // 时删结束：通知每个时删玩家的客户端清空方块忽略列表
+        for (UUID 时删玩家 : session.时删中玩家) {
+            Entity entity = 实体工具.按UUID查找实体(session.维度, 时删玩家);
+            if (entity instanceof ServerPlayer sp) {
                 网络工具.发送给玩家(sp, 时删方块忽略包.清空());
             }
         }
 
-        // 时间删除结算（撤销使用者的影响）
-        if (session.时间删除中) {
-            时间删除结算(session);
+        // 时间删除结算（per-player独立结算）
+        for (UUID 时删玩家 : session.时删中玩家) {
+            时间删除结算(session, 时删玩家);
         }
 
         // 清除所有方块变化位置的破坏进度纹理
@@ -1034,43 +1140,25 @@ public final class 复刻引擎 {
         清除方块破坏进度纹理(session);
 
         // 4. 强制同步位置
-        if (session.时间删除中) {
-            // 时删结束：使用者位置已通过MOVE_ONLY模式正常同步到服务端
-            // 不需要传送，A已经在正确的位置
-            Entity userEntity = 实体工具.按UUID查找实体(session.维度, userUUID);
-            if (userEntity instanceof ServerPlayer sp) {
-                // 同步背包给使用者
+        // 时删玩家：同步背包（位置已通过MOVE_ONLY模式正常同步）
+        for (UUID 时删玩家 : session.时删中玩家) {
+            Entity entity = 实体工具.按UUID查找实体(session.维度, 时删玩家);
+            if (entity instanceof ServerPlayer sp) {
                 网络工具.发送给玩家(sp, 背包同步包.从玩家构建(sp));
             }
+        }
 
-            // 其他被锁定玩家传送到录制结束时的位置（偏差大于阈值才传送）
-            if (lastFrame >= 0) {
-                Map<UUID, 实体帧数据> lastFrameData = session.录制.帧数据.获取帧(lastFrame);
-                if (lastFrameData != null) {
-                    for (UUID lockedUUID : session.被锁定玩家) {
-                        实体帧数据 data = lastFrameData.get(lockedUUID);
-                        if (data == null) continue;
+        // 被锁定玩家传送到录制结束时的位置（偏差大于阈值才传送）
+        if (lastFrame >= 0) {
+            Map<UUID, 实体帧数据> lastFrameData = session.录制.获取帧(lastFrame);
+            if (lastFrameData != null) {
+                for (UUID lockedUUID : session.被锁定玩家) {
+                    实体帧数据 data = lastFrameData.get(lockedUUID);
+                    if (data == null) continue;
 
-                        Entity entity = 实体工具.按UUID查找实体(session.维度, lockedUUID);
-                        if (entity instanceof ServerPlayer sp) {
-                            位置修正(sp, data);
-                        }
-                    }
-                }
-            }
-        } else {
-            // 非时删：所有被锁定玩家传送到录制结束时的位置（偏差大于阈值才传送）
-            if (lastFrame >= 0) {
-                Map<UUID, 实体帧数据> lastFrameData = session.录制.帧数据.获取帧(lastFrame);
-                if (lastFrameData != null) {
-                    for (UUID lockedUUID : session.被锁定玩家) {
-                        实体帧数据 data = lastFrameData.get(lockedUUID);
-                        if (data == null) continue;
-
-                        Entity entity = 实体工具.按UUID查找实体(session.维度, lockedUUID);
-                        if (entity instanceof ServerPlayer sp) {
-                            位置修正(sp, data);
-                        }
+                    Entity entity = 实体工具.按UUID查找实体(session.维度, lockedUUID);
+                    if (entity instanceof ServerPlayer sp) {
+                        位置修正(sp, data);
                     }
                 }
             }
@@ -1088,27 +1176,38 @@ public final class 复刻引擎 {
         for (UUID lockedUUID : session.被锁定玩家) {
             输入接管器.释放(lockedUUID, 接管来源);
         }
-        // 时删中使用者也需要释放MOVE_ONLY接管
-        if (session.时间删除中) {
-            输入接管器.释放(userUUID, 接管来源);
+        // 时删中玩家释放MOVE_ONLY接管
+        for (UUID 时删玩家 : session.时删中玩家) {
+            输入接管器.释放(时删玩家, 接管来源);
         }
 
         // 6. 清除命运位置缓存
-        命运位置缓存.remove(userUUID);
+        for (UUID 时删玩家 : session.时删中玩家) {
+            命运位置缓存.remove(时删玩家);
+        }
 
         // 7. 时删结束：短暂存在屏蔽让MC的lastSent同步到真实位置
-        // 屏蔽1tick → sendChanges正常执行更新lastSent但不发包给B
-        // → 下一tick解除 → MC发spawn包 → A直接出现在真实位置（无传送轨迹）
-        if (session.时间删除中) {
-            存在屏蔽器.屏蔽除外(userUUID, 淡出屏蔽来源, userUUID);
-            // 延迟1tick解除屏蔽
+        for (UUID 时删玩家 : session.时删中玩家) {
+            存在屏蔽器.屏蔽除外(时删玩家, 淡出屏蔽来源, 时删玩家);
+            final UUID finalUUID = 时删玩家;
             session.维度.getServer().tell(new net.minecraft.server.TickTask(
                     session.维度.getServer().getTickCount() + 1,
-                    () -> 存在屏蔽器.解除屏蔽(userUUID, 淡出屏蔽来源)
+                    () -> 存在屏蔽器.解除屏蔽(finalUUID, 淡出屏蔽来源)
             ));
         }
 
-        LOGGER.info("玩家 {} 复刻结束", userUUID);
+        // 8. 清除玩家组映射
+        for (UUID playerUUID : session.被锁定玩家) {
+            玩家组映射.remove(playerUUID);
+        }
+        for (UUID playerUUID : session.时删中玩家) {
+            玩家组映射.remove(playerUUID);
+        }
+        for (UUID playerUUID : session.录制者集合) {
+            玩家组映射.remove(playerUUID);
+        }
+
+        LOGGER.info("录制组 {} 复刻结束", groupID);
     }
 
     //==================== 帧驱动逻辑 ====================
@@ -1122,21 +1221,23 @@ public final class 复刻引擎 {
      * 时删期间额外功能：缓存使用者的命运帧位置（供sendChanges位置欺骗使用）
      */
     private static void 驱动实体帧(复刻会话 session, ServerLevel level, int frameIndex) {
-        Map<UUID, 实体帧数据> frame = session.录制.帧数据.获取帧(frameIndex);
+        Map<UUID, 实体帧数据> frame = session.录制.获取帧(frameIndex);
         if (frame == null) return;
 
         Map<UUID, 实体帧数据> prevFrame = frameIndex > 0
-                ? session.录制.帧数据.获取帧(frameIndex - 1) : null;
+                ? session.录制.获取帧(frameIndex - 1) : null;
 
-        // 时删期间：缓存使用者的命运帧位置（供sendChanges位置欺骗使用）
-        if (session.时间删除中) {
-            实体帧数据 使用者帧 = frame.get(session.使用者UUID);
-            if (使用者帧 != null) {
-                命运位置缓存.put(session.使用者UUID, new 命运位置(
-                        使用者帧.获取X(), 使用者帧.获取Y(), 使用者帧.获取Z(),
-                        使用者帧.获取YRot(), 使用者帧.获取XRot(),
-                        使用者帧.获取身体YRot(), 使用者帧.获取头部YRot()
-                ));
+        // 时删期间：缓存每个时删玩家的命运帧位置（供sendChanges位置欺骗使用）
+        if (session.有时删中玩家()) {
+            for (UUID 时删玩家UUID : session.时删中玩家) {
+                实体帧数据 时删帧 = frame.get(时删玩家UUID);
+                if (时删帧 != null) {
+                    命运位置缓存.put(时删玩家UUID, new 命运位置(
+                            时删帧.获取X(), 时删帧.获取Y(), 时删帧.获取Z(),
+                            时删帧.获取YRot(), 时删帧.获取XRot(),
+                            时删帧.获取身体YRot(), 时删帧.获取头部YRot()
+                    ));
+                }
             }
         }
 
@@ -1205,7 +1306,7 @@ public final class 复刻引擎 {
      * 同步被锁定玩家的位置到服务端内部系统
      */
     private static void 同步玩家状态(复刻会话 session, ServerLevel level, int frameIndex) {
-        Map<UUID, 实体帧数据> frame = session.录制.帧数据.获取帧(frameIndex);
+        Map<UUID, 实体帧数据> frame = session.录制.获取帧(frameIndex);
         if (frame == null) return;
 
         for (UUID playerUUID : session.被锁定玩家) {
@@ -1251,11 +1352,11 @@ public final class 复刻引擎 {
      * → A的客户端也收到但不驱动自己（时间删除自由状态）
      */
     private static void 发送帧同步包给客户端(复刻会话 session, int frameIndex) {
-        Map<UUID, 实体帧数据> frame = session.录制.帧数据.获取帧(frameIndex);
+        Map<UUID, 实体帧数据> frame = session.录制.获取帧(frameIndex);
         if (frame == null) return;
 
         Map<UUID, 实体帧数据> prevFrame = frameIndex > 0
-                ? session.录制.帧数据.获取帧(frameIndex - 1) : null;
+                ? session.录制.获取帧(frameIndex - 1) : null;
 
         List<实体帧数据> 当前帧列表 = new ArrayList<>();
         List<实体帧数据> 上一帧列表 = new ArrayList<>();
@@ -1265,9 +1366,12 @@ public final class 复刻引擎 {
 
             // 被控制实体（怪物等）：帧数据驱动（客户端cancel tick）
             // 时删使用者：帧数据用于命运位置欺骗（B的客户端驱动A的残影）
-            // 被锁定玩家不包含：由MC原版sendChanges同步位置 + MC自己算动画
+            // 被锁定玩家：帧数据发给其他客户端用于平滑位置插值
+            //   → 第三方观察者C需要收到被锁定玩家的帧数据才能平滑渲染
+            //   → 被锁定玩家自己的客户端通过输入回放驱动，帧数据作为保底参考
             boolean 需要包含 = session.被控制实体.contains(entityUUID)
-                    || (session.时间删除中 && entityUUID.equals(session.使用者UUID));
+                    || session.时删中玩家.contains(entityUUID)
+                    || session.被锁定玩家.contains(entityUUID);
 
             if (!需要包含) continue;
 
@@ -1283,13 +1387,17 @@ public final class 复刻引擎 {
 
         // 输入帧：时删中不发送使用者的输入帧（A的客户端已自由，不需要驱动输入回放）
         Map<UUID, 玩家输入帧> 输入帧 = new HashMap<>();
-        for (Map.Entry<UUID, List<玩家输入帧>> entry : session.录制.玩家输入表.entrySet()) {
-            if (session.时间删除中 && entry.getKey().equals(session.使用者UUID)) {
+        for (Map.Entry<UUID, List<玩家输入帧>> entry : session.录制.获取玩家输入表().entrySet()) {
+            // 时删中的玩家不发送输入帧（客户端已自由）
+            if (session.时删中玩家.contains(entry.getKey())) {
                 continue;
             }
             List<玩家输入帧> inputs = entry.getValue();
             if (frameIndex < inputs.size()) {
-                输入帧.put(entry.getKey(), inputs.get(frameIndex));
+                玩家输入帧 input = inputs.get(frameIndex);
+                if (input != null) {
+                    输入帧.put(entry.getKey(), input);
+                }
             }
         }
 
@@ -1298,7 +1406,8 @@ public final class 复刻引擎 {
         if (当前帧列表.isEmpty() && 输入帧.isEmpty()) return;
 
         复刻帧同步包 packet = new 复刻帧同步包(
-                session.使用者UUID, 当前帧列表, 上一帧列表, 输入帧, 鼠标样本);
+                session.组ID, 当前帧列表, 上一帧列表, 输入帧, 鼠标样本,
+                session.被锁定玩家);
 
         for (ServerPlayer player : session.维度.players()) {
             网络工具.发送给玩家(player, packet);
@@ -1310,7 +1419,7 @@ public final class 复刻引擎 {
      */
     private static void 通知客户端复刻结束(复刻会话 session) {
         复刻帧同步包 packet = new 复刻帧同步包(
-                session.使用者UUID, new ArrayList<>(), new ArrayList<>());
+                session.组ID, new ArrayList<>(), new ArrayList<>());
 
         for (ServerPlayer player : session.维度.players()) {
             网络工具.发送给玩家(player, packet);
@@ -1336,11 +1445,10 @@ public final class 复刻引擎 {
      * 8. 复活被杀实体
      * 9. 强制同步
      */
-    private static void 时间删除结算(复刻会话 session) {
-        UUID 使用者 = session.使用者UUID;
+    private static void 时间删除结算(复刻会话 session, UUID 使用者) {
         ServerLevel level = session.维度;
-        影响记录 影响 = session.录制.影响;
-        影响标记表 标记表 = session.录制.标记表;
+        影响记录 影响 = session.录制.获取影响();
+        影响标记表 标记表 = session.录制.获取标记表();
 
         // 获取时删激活帧
         预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(使用者);
@@ -1394,7 +1502,7 @@ public final class 复刻引擎 {
         // 从后往前处理，避免同一位置多次变化时的顺序问题
         int 恢复方块数 = 0;
         Set<BlockPos> 已恢复位置 = new HashSet<>();
-        List<方块变化帧> 变化列表 = session.录制.方块变化列表;
+        List<方块变化帧> 变化列表 = session.录制.获取方块变化列表();
         for (int i = 变化列表.size() - 1; i >= 0; i--) {
             方块变化帧 change = 变化列表.get(i);
             if (change.获取触发者UUID() == null) continue;
@@ -1419,7 +1527,7 @@ public final class 复刻引擎 {
         }
 
         // 4. 恢复容器（方块实体变化帧来源=使用者且tick>=激活帧）
-        for (方块实体变化帧 change : session.录制.方块实体变化列表) {
+        for (方块实体变化帧 change : session.录制.获取方块实体变化列表()) {
             if (change.获取触发者UUID() == null) continue;
             if (!change.获取触发者UUID().equals(使用者)) continue;
             if (change.获取tick序号() < 激活帧) continue;
@@ -1436,7 +1544,7 @@ public final class 复刻引擎 {
         // 5. 清除掉落物（范围内标记=使用者的）
         double range = 录制管理器.获取录制范围();
         net.minecraft.world.phys.AABB box = net.minecraft.world.phys.AABB.ofSize(
-                session.录制.录制中心, range * 2, range * 2, range * 2);
+                session.录制.获取录制中心(), range * 2, range * 2, range * 2);
         List<Entity> 待删除掉落物 = new ArrayList<>();
         for (Entity entity : level.getEntities((Entity) null, box,
                 e -> e instanceof net.minecraft.world.entity.item.ItemEntity)) {
@@ -1478,10 +1586,10 @@ public final class 复刻引擎 {
         }
 
         // 7. 清除容器内标记=使用者的物品
-        int minChunkX = (int) Math.floor(session.录制.录制中心.x - range) >> 4;
-        int maxChunkX = (int) Math.floor(session.录制.录制中心.x + range) >> 4;
-        int minChunkZ = (int) Math.floor(session.录制.录制中心.z - range) >> 4;
-        int maxChunkZ = (int) Math.floor(session.录制.录制中心.z + range) >> 4;
+        int minChunkX = (int) Math.floor(session.录制.获取录制中心().x - range) >> 4;
+        int maxChunkX = (int) Math.floor(session.录制.获取录制中心().x + range) >> 4;
+        int minChunkZ = (int) Math.floor(session.录制.获取录制中心().z - range) >> 4;
+        int maxChunkZ = (int) Math.floor(session.录制.获取录制中心().z + range) >> 4;
 
         for (int cx = minChunkX; cx <= maxChunkX; cx++) {
             for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
@@ -1506,7 +1614,7 @@ public final class 复刻引擎 {
         List<影响记录.击杀条目> 击杀列表 = 影响.获取来源击杀(使用者, 激活帧);
         for (影响记录.击杀条目 entry : 击杀列表) {
             // 从世界快照恢复实体
-            CompoundTag entityNBT = session.录制.起点快照.获取实体NBT(entry.被杀者);
+            CompoundTag entityNBT = session.录制.获取起点快照().获取实体NBT(entry.被杀者);
             if (entityNBT != null) {
                 Entity restored = net.minecraft.world.entity.EntityType.loadEntityRecursive(
                         entityNBT, level, e -> {
@@ -1554,13 +1662,14 @@ public final class 复刻引擎 {
         return new ArrayList<>(活跃会话.keySet());
     }
 
-    public static boolean 是否复刻中(UUID userUUID) {
-        return 活跃会话.containsKey(userUUID);
-    }
-
     @Nullable
-    public static 复刻会话 获取会话(UUID userUUID) {
-        return 活跃会话.get(userUUID);
+    public static 复刻会话 获取会话(UUID id) {
+        // 先按组ID查
+        复刻会话 session = 活跃会话.get(id);
+        if (session != null) return session;
+        // 再按玩家组映射查
+        UUID groupID = 玩家组映射.get(id);
+        return groupID != null ? 活跃会话.get(groupID) : null;
     }
 
     public static boolean 玩家是否被锁定(UUID playerUUID) {
@@ -1577,22 +1686,47 @@ public final class 复刻引擎 {
         for (复刻会话 session : 活跃会话.values()) {
             if (!session.被控制实体.contains(playerUUID)) continue;
 
-            预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(session.使用者UUID);
-            if (state == null) continue;
-
-            return session.录制.帧数据.获取实体帧(state.获取当前复刻帧(), playerUUID);
+            // 取任意录制者的状态获取帧进度
+            for (UUID 录制者 : session.录制者集合) {
+                预知状态管理.玩家预知状态 state = 预知状态管理.获取状态(录制者);
+                if (state != null) {
+                    return session.录制.获取实体帧(state.获取当前复刻帧(), playerUUID);
+                }
+            }
         }
         return null;
+    }
+
+    /**
+     * 查找玩家所在的复刻会话
+     * 通过玩家组映射反查
+     */
+    @Nullable
+    public static 复刻会话 查找玩家所在会话(UUID playerUUID) {
+        UUID groupID = 玩家组映射.get(playerUUID);
+        if (groupID == null) return null;
+        return 活跃会话.get(groupID);
+    }
+
+    /**
+     * 是否复刻中（按录制组ID或玩家UUID查询）
+     */
+    public static boolean 是否复刻中(UUID id) {
+        // 先按组ID查
+        if (活跃会话.containsKey(id)) return true;
+        // 再按玩家组映射查
+        UUID groupID = 玩家组映射.get(id);
+        return groupID != null && 活跃会话.containsKey(groupID);
     }
 
     // ==================== 查询方法 ====================
 
     // ==================== 工具方法 ====================
 
-    private static int 清除录制期间出现的实体(ServerLevel level, 录制管理器.录制会话 recording) {
+    private static int 清除录制期间出现的实体(ServerLevel level, 合并录制数据 recording) {
         double range = 录制管理器.获取录制范围();
-        AABB box = AABB.ofSize(recording.录制中心, range * 2, range * 2, range * 2);
-        Set<UUID> 快照实体 = recording.起点快照.获取所有实体UUID();
+        AABB box = AABB.ofSize(recording.获取录制中心(), range * 2, range * 2, range * 2);
+        Set<UUID> 快照实体 = recording.获取起点快照().获取所有实体UUID();
 
         List<Entity> 待删除 = new ArrayList<>();
         for (Entity entity : level.getEntities().getAll()) {
@@ -1648,7 +1782,12 @@ public final class 复刻引擎 {
 
     public static void 玩家下线(UUID playerUUID) {
         命运位置缓存.remove(playerUUID);
-        结束复刻(playerUUID);
+        // 通过玩家组映射找到录制组ID
+        UUID groupID = 玩家组映射.get(playerUUID);
+        if (groupID != null) {
+            结束复刻(groupID);
+        }
+        玩家组映射.remove(playerUUID);
         输入接管器.玩家下线(playerUUID);
     }
 
@@ -1657,12 +1796,13 @@ public final class 复刻引擎 {
             for (UUID lockedUUID : session.被锁定玩家) {
                 输入接管器.释放(lockedUUID, 接管来源);
             }
-            if (session.时间删除中) {
-                输入接管器.释放(session.使用者UUID, 接管来源);
-                存在屏蔽器.解除屏蔽(session.使用者UUID, 淡出屏蔽来源);
+            for (UUID 时删玩家 : session.时删中玩家) {
+                输入接管器.释放(时删玩家, 接管来源);
+                存在屏蔽器.解除屏蔽(时删玩家, 淡出屏蔽来源);
             }
         }
         活跃会话.clear();
+        玩家组映射.clear();
         命运位置缓存.clear();
     }
 
@@ -1691,4 +1831,38 @@ public final class 复刻引擎 {
     public static boolean 是否位置欺骗中(UUID entityUUID) {
         return 命运位置缓存.containsKey(entityUUID);
     }
+
+    /**
+     * 检查玩家是否在时删中（已从被锁定状态脱离、自由活动）
+     *
+     * @param playerUUID 玩家UUID
+     * @return true = 该玩家正在时删中自由活动
+     */
+    public static boolean 玩家是否在时删中(UUID playerUUID) {
+        for (复刻会话 session : 活跃会话.values()) {
+            if (session.时删中玩家.contains(playerUUID)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 获取与指定时删使用者同一会话中的其他时删玩家列表
+     *
+     * 用于位置欺骗的差异化：当A在时删中，需要找到同会话中其他也在时删中的玩家
+     * 这些玩家应该看到A的真实位置而非命运位置
+     *
+     * @param entityUUID 被观察的实体UUID（时删使用者）
+     * @return 同会话中其他时删玩家的UUID集合，如果没有则返回空集合
+     */
+    public static Set<UUID> 获取同会话时删玩家(UUID entityUUID) {
+        复刻会话 session = 查找玩家所在会话(entityUUID);
+        if (session == null || session.时删中玩家.isEmpty()) {
+            return Collections.emptySet();
+        }
+        // 返回所有时删中的玩家（包括自己，由调用方判断是否排除）
+        return Collections.unmodifiableSet(session.时删中玩家);
+    }
 }
+

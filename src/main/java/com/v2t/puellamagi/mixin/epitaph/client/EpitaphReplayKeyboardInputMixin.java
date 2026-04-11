@@ -53,9 +53,13 @@ public class EpitaphReplayKeyboardInputMixin extends Input {
         if (player == null) return;
 
         player.setSprinting(input.是否冲刺());
-        player.getInventory().selected = input.获取选中槽位();
+        // 合成帧不改变选中槽位（只有朝向数据有效）
+        if (!input.是否合成帧()) {
+            player.getInventory().selected = input.获取选中槽位();
+        }
         player.setYRot(input.获取YRot());
-        player.setXRot(input.获取XRot());}
+        player.setXRot(input.获取XRot());
+    }
 
 
 }

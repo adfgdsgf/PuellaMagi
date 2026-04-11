@@ -3,6 +3,9 @@ package com.v2t.puellamagi.system.skill.impl;
 import com.v2t.puellamagi.PuellaMagi;
 import com.v2t.puellamagi.api.I技能;
 import com.v2t.puellamagi.system.ability.epitaph.录制管理器;
+import com.v2t.puellamagi.system.ability.epitaph.录制组;
+import com.v2t.puellamagi.system.ability.epitaph.录制组管理器;
+import com.v2t.puellamagi.system.ability.epitaph.合并录制数据;
 import com.v2t.puellamagi.system.ability.epitaph.复刻引擎;
 import com.v2t.puellamagi.system.ability.epitaph.预知状态管理;
 import com.v2t.puellamagi.system.ability.epitaph.预知状态管理.阶段;
@@ -186,38 +189,61 @@ public class 预知技能 implements I技能 {
     }
 
     /**
-     * Phase 1 → Phase 2：结束录制，回溯+开始复刻
+     * Phase 1 → Phase 1.5 或 Phase 2：结束录制
+     *
+     * 多人录制场景：
+     * - 录制组中还有其他人在录制 → 进入等待回放（Phase 1.5）
+     * - 录制组中所有人都录完了 → 录制组关闭、合并数据、开始回放（Phase 2）
+     *
+     * 单人场景：录制组中只有自己 → 直接进入Phase 2（等价于原有逻辑）
      */
     private void 处理_结束录制并复刻(ServerPlayer player) {
+        java.util.UUID userUUID = player.getUUID();
+
         // 停止录制，获取录制会话
-        录制管理器.录制会话 session = 录制管理器.停止录制(player.getUUID());
+        录制管理器.录制会话 session = 录制管理器.停止录制(userUUID);
         if (session == null) {
-            预知状态管理.取消(player.getUUID());
+            预知状态管理.取消(userUUID);
             return;
         }
 
         int totalFrames = session.帧数据.获取总帧数();
         if (totalFrames == 0) {
             PuellaMagi.LOGGER.warn("玩家 {} 录制数据为空，取消", player.getName().getString());
-            预知状态管理.取消(player.getUUID());
+            预知状态管理.取消(userUUID);
+            return;
+        }
+
+        // 检查录制组状态
+        // 停止录制时录制管理器已调用录制组管理器.标记录制段结束()
+        录制组 group = 录制组管理器.获取玩家所在录制组(userUUID);
+        if (group == null) {
+            // 不在录制组中（不应该发生，兜底处理）
+            PuellaMagi.LOGGER.warn("玩家 {} 不在录制组中，强制取消", player.getName().getString());
+            预知状态管理.取消(userUUID);
             return;
         }
 
         long gameTime = player.level().getGameTime();
 
-        // 状态机转换
-        if (!预知状态管理.开始复刻(player.getUUID(), gameTime, totalFrames)) {
+        if (group.获取活跃录制数() > 0 || group.续接窗口中()) {
+            // 录制组中还有人在录制或在续接窗口中 → 进入等待回放
+            if (!预知状态管理.进入等待回放(userUUID, gameTime, group.获取组ID())) {
+                return;
+            }
+            PuellaMagi.LOGGER.info("玩家 {} 进入等待回放（录制组中还有活跃录制者或续接窗口中）",
+                    player.getName().getString());
             return;
         }
 
-        // 开始复刻（内含世界回滚）
-        if (!复刻引擎.开始复刻(player, session)) {
-            预知状态管理.取消(player.getUUID());
+        // 录制组已无活跃录制者且不在续接窗口
+        // 进入等待回放，由预知录制事件中录制组管理器.tick()触发关闭和回放
+        if (!预知状态管理.进入等待回放(userUUID, gameTime, group.获取组ID())) {
             return;
         }
 
-        PuellaMagi.LOGGER.info("玩家 {} 开始复刻（{} 帧）",
-                player.getName().getString(), totalFrames);
+        PuellaMagi.LOGGER.info("玩家 {} 进入等待回放（等待录制组关闭）",
+                player.getName().getString());
     }
 
     /**
@@ -244,8 +270,25 @@ public class 预知技能 implements I技能 {
      * Phase 3 → Phase 0：结束能力
      */
     private void 处理_结束能力(ServerPlayer player) {
-        复刻引擎.结束复刻(player.getUUID());
-        预知状态管理.结束(player.getUUID());
+        // 通过玩家组映射找到录制组ID
+        java.util.UUID groupID = null;
+        复刻引擎.复刻会话 session = 复刻引擎.查找玩家所在会话(player.getUUID());
+        if (session != null) {
+            groupID = session.组ID;
+        }
+
+        if (groupID != null) {
+            复刻引擎.结束复刻(groupID);
+            // 清理所有该录制组内录制者的预知状态
+            if (session != null) {
+                for (java.util.UUID 录制者 : session.录制者集合) {
+                    预知状态管理.结束(录制者);
+                }
+            }
+        } else {
+            // 兜底：直接清理自己的状态
+            预知状态管理.结束(player.getUUID());
+        }
 
         PuellaMagi.LOGGER.info("玩家 {} 结束预知能力", player.getName().getString());
     }
@@ -274,18 +317,22 @@ public class 预知技能 implements I技能 {
 
         switch (current) {
             case 录制中 -> tick_录制(sp);
+            case 等待回放 -> {}
+            // 等待回放阶段不做任何事，等录制组管理器触发回放
             case 复刻中, 时间删除 -> tick_复刻(sp);
             default -> {}
         }
     }
 
     /**
-     * 录制阶段tick：采集帧
+     * 录制阶段tick
+     *
+     * 注意：帧采集由预知录制事件END阶段统一驱动，不在这里调用
+     * 这里只检查录制是否已满，满了则自动结束录制进入复刻
      */
     private void tick_录制(ServerPlayer player) {
-        boolean added = 录制管理器.采集帧(player.getUUID());
-
-        if (!added) {
+        录制管理器.录制会话 session = 录制管理器.获取会话(player.getUUID());
+        if (session != null && session.帧数据.已满()) {
             // 录制已满，自动进入复刻
             PuellaMagi.LOGGER.info("玩家 {} 录制已满，自动进入复刻",
                     player.getName().getString());
@@ -294,17 +341,14 @@ public class 预知技能 implements I技能 {
     }
 
     /**
-     * 复刻阶段tick：推进复刻引擎
+     * 复刻阶段tick
+     *
+     * 注意：帧驱动已由预知录制事件按录制组ID统一驱动
+     * 预知技能的tick不再负责推进帧，也不负责检测自然结束
+     * 自然结束由预知录制事件中复刻引擎.tick()返回false时处理
      */
     private void tick_复刻(ServerPlayer player) {
-        boolean still = 复刻引擎.tick(player.getUUID());
-
-        if (!still) {
-            // 复刻自然结束
-            PuellaMagi.LOGGER.info("玩家 {} 复刻自然结束",
-                    player.getName().getString());
-            处理_结束能力(player);
-        }
+        // 空操作：帧驱动和结束检测由预知录制事件统一处理
     }
 
     // ==================== 清理 ====================
@@ -318,8 +362,18 @@ public class 预知技能 implements I技能 {
 
     private static void UUID_CLEANUP(java.util.UUID uuid) {
         录制管理器.取消录制(uuid);
-        复刻引擎.结束复刻(uuid);
-        预知状态管理.取消(uuid);
+
+        // 通过玩家组映射找到录制组ID来结束复刻
+        复刻引擎.复刻会话 session = 复刻引擎.查找玩家所在会话(uuid);
+        if (session != null) {
+            复刻引擎.结束复刻(session.组ID);
+            // 清理所有该录制组内录制者的预知状态
+            for (java.util.UUID 录制者 : session.录制者集合) {
+                预知状态管理.取消(录制者);
+            }
+        } else {
+            预知状态管理.取消(uuid);
+        }
     }
 
     /**

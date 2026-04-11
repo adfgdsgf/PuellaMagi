@@ -10,13 +10,18 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 预知状态管理
  *
- * 管理预知/时间删除能力的4阶段状态机
+ * 管理预知/时间删除能力的5阶段状态机
  * 每个使用者独立维护一份状态
  *
  * Phase 0: 待机
  * Phase 1: 录制中（悄悄录制，无提示）
+ * Phase 1.5: 等待回放（自己录完了，等录制组中其他人也录完）
  * Phase 2: 回溯+复刻（命运锁定，使用者看影子）
  * Phase 3: 时间删除（使用者自由行动，不可见）
+ *
+ * 个人状态机 + 全局录制组协调 = 正确分层：
+ * - 本类管个人进度（这个玩家处于预知流程的哪个阶段）
+ * - 录制组管理器管全局协调（谁在录制、何时合并、何时开始回放）
  */
 public final class 预知状态管理 {
 
@@ -27,8 +32,9 @@ public final class 预知状态管理 {
     public enum 阶段 {
         待机(0),
         录制中(1),
-        复刻中(2),
-        时间删除(3);
+        等待回放(2),
+        复刻中(3),
+        时间删除(4);
 
         private final int 序号;
 
@@ -51,11 +57,14 @@ public final class 预知状态管理 {
         // Phase 1: 录制相关
         private int 已录制帧数 = 0;
 
-        // Phase 2: 复刻相关
+        // 录制组关联
+        private UUID 录制组ID = null;
+
+        // Phase 2/3: 复刻相关
         private int 当前复刻帧 = 0;
         private int 总复刻帧数 = 0;
 
-        // Phase 3: 时间删除相关
+        // Phase 4: 时间删除相关
         private int 时删激活帧 = 0;
 
         public 阶段 获取阶段() { return 当前阶段; }
@@ -65,6 +74,9 @@ public final class 预知状态管理 {
         public int 获取总复刻帧数() { return 总复刻帧数; }
 
         public int 获取时删激活帧() { return 时删激活帧; }
+
+        @javax.annotation.Nullable
+        public UUID 获取录制组ID() { return 录制组ID; }
 
         public void 增加录制帧() { 已录制帧数++; }
         public void 推进复刻帧() { 当前复刻帧++; }
@@ -99,14 +111,43 @@ public final class 预知状态管理 {
     }
 
     /**
-     * 结束录制，进入复刻阶段（Phase 1 → Phase 2）
+     * 进入等待回放阶段（Phase 1 → Phase 1.5）
      *
-     * @param totalFrames 录制的总帧数（复刻要播放多少帧）
+     * 自己录完了，但录制组中还有其他人在录制
+     * 等录制组关闭后由录制组管理器触发开始复刻
+     *
+     * @param groupID 所在录制组ID
      */
-    public static boolean 开始复刻(UUID playerUUID, long gameTime, int totalFrames) {
+    public static boolean 进入等待回放(UUID playerUUID, long gameTime, UUID groupID) {
         阶段 current = 获取阶段(playerUUID);
         if (current != 阶段.录制中) {
-            LOGGER.warn("玩家 {} 不在录制阶段，无法开始复刻（当前: {}）",
+            LOGGER.warn("玩家 {} 不在录制阶段，无法进入等待回放（当前: {}）",
+                    playerUUID, current);
+            return false;
+        }
+
+        玩家预知状态 state = 状态表.get(playerUUID);
+        state.当前阶段 = 阶段.等待回放;
+        state.阶段开始时间 = gameTime;
+        state.录制组ID = groupID;
+
+        LOGGER.debug("玩家 {} 进入等待回放（录制组: {}）", playerUUID, groupID);
+        return true;
+    }
+
+    /**
+     * 结束录制/等待，进入复刻阶段（Phase 1/1.5 → Phase 2）
+     *
+     * 可以从录制中直接进入（单人场景或最后一个录完的人）
+     * 也可以从等待回放进入（录制组关闭触发）
+     *
+     * @param totalFrames 合并后的总帧数（复刻要播放多少帧）
+     * @param groupID     录制组ID
+     */
+    public static boolean 开始复刻(UUID playerUUID, long gameTime, int totalFrames, UUID groupID) {
+        阶段 current = 获取阶段(playerUUID);
+        if (current != 阶段.录制中 && current != 阶段.等待回放) {
+            LOGGER.warn("玩家 {} 不在录制/等待阶段，无法开始复刻（当前: {}）",
                     playerUUID, current);
             return false;
         }
@@ -116,9 +157,17 @@ public final class 预知状态管理 {
         state.阶段开始时间 = gameTime;
         state.当前复刻帧 = 0;
         state.总复刻帧数 = totalFrames;
+        state.录制组ID = groupID;
 
-        LOGGER.debug("玩家 {} 开始复刻（总帧数: {}）", playerUUID, totalFrames);
+        LOGGER.debug("玩家 {} 开始复刻（总帧数: {}, 录制组: {}）", playerUUID, totalFrames, groupID);
         return true;
+    }
+
+    /**
+     * 兼容旧接口：无录制组ID的开始复刻（单人场景退化）
+     */
+    public static boolean 开始复刻(UUID playerUUID, long gameTime, int totalFrames) {
+        return 开始复刻(playerUUID, gameTime, totalFrames, null);
     }
 
     /**
@@ -139,6 +188,15 @@ public final class 预知状态管理 {
 
         LOGGER.debug("玩家 {} 进入时间删除（激活帧={}）", playerUUID, state.时删激活帧);
         return true;
+    }
+
+    // ==================== 查询辅助 ====================
+
+    /**
+     * 玩家是否处于等待回放中
+     */
+    public static boolean 是否等待回放中(UUID playerUUID) {
+        return 获取阶段(playerUUID) == 阶段.等待回放;
     }
 
     /**

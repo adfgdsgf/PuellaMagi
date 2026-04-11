@@ -20,32 +20,43 @@ import java.util.function.Supplier;
 public class 复刻帧同步包 {
 
     private final UUID 使用者UUID;
-    private final List<实体帧数据>帧列表;
+    private final List<实体帧数据> 帧列表;
     private final List<实体帧数据> 上一帧列表;
     private final Map<UUID, 玩家输入帧> 输入帧表;
     private final Map<UUID, List<float[]>> 鼠标样本表;
 
     /**
+     * 被锁定玩家UUID集合
+     *
+     * 客户端需要区分"被控制实体"（cancel tick + 帧驱动）和"被锁定玩家"（不cancel tick，只做位置插值）
+     * 被锁定玩家自己的tick正常运行（由输入回放驱动），第三方客户端只需要用帧数据做位置插值即可
+     * 如果cancel tick会导致动画停止（卡在一个动作不动）
+     */
+    private final Set<UUID> 被锁定玩家集合;
+
+    /**
      * 完整构造器
      */
-    public 复刻帧同步包(UUID userUUID,List<实体帧数据> frames,
+    public 复刻帧同步包(UUID userUUID, List<实体帧数据> frames,
                         List<实体帧数据> prevFrames,
                         Map<UUID, 玩家输入帧> inputFrames,
-                        Map<UUID, List<float[]>> mouseSamples) {
+                        Map<UUID, List<float[]>> mouseSamples,
+                        Set<UUID> lockedPlayers) {
         this.使用者UUID = userUUID;
         this.帧列表 = frames;
         this.上一帧列表 = prevFrames;
         this.输入帧表 = inputFrames;
         this.鼠标样本表 = mouseSamples;
+        this.被锁定玩家集合 = lockedPlayers;
     }
 
     /**
-     * 无鼠标数据构造器（复刻结束通知用）
+     * 兼容构造器（无鼠标数据和被锁定玩家，复刻结束通知用）
      */
     public 复刻帧同步包(UUID userUUID,
                         List<实体帧数据> frames,
                         List<实体帧数据> prevFrames) {
-        this(userUUID, frames, prevFrames, new HashMap<>(), new HashMap<>());
+        this(userUUID, frames, prevFrames, new HashMap<>(), new HashMap<>(), new HashSet<>());
     }
 
     // ==================== 编解码 ====================
@@ -82,6 +93,12 @@ public class 复刻帧同步包 {
                 buf.writeFloat(sample[0]);
                 buf.writeFloat(sample[1]);
             }
+        }
+
+        // 被锁定玩家集合
+        buf.writeVarInt(packet.被锁定玩家集合.size());
+        for (UUID uuid : packet.被锁定玩家集合) {
+            buf.writeUUID(uuid);
         }
     }
 
@@ -124,7 +141,14 @@ public class 复刻帧同步包 {
             mouseSamples.put(uuid, samples);
         }
 
-        return new 复刻帧同步包(userUUID, frames, prevFrames, inputFrames, mouseSamples);
+        // 被锁定玩家集合
+        int lockedCount = buf.readVarInt();
+        Set<UUID> lockedPlayers = new HashSet<>(lockedCount);
+        for (int i = 0; i < lockedCount; i++) {
+            lockedPlayers.add(buf.readUUID());
+        }
+
+        return new 复刻帧同步包(userUUID, frames, prevFrames, inputFrames, mouseSamples, lockedPlayers);
     }
 
     // ==================== 处理 ====================
@@ -134,6 +158,7 @@ public class 复刻帧同步包 {
             客户端复刻管理器.接收帧(packet.使用者UUID, packet.帧列表, packet.上一帧列表);
             客户端复刻管理器.接收输入帧(packet.输入帧表);
             客户端复刻管理器.接收鼠标样本(packet.鼠标样本表);
+            客户端复刻管理器.接收被锁定玩家集合(packet.被锁定玩家集合);
         });
         ctx.get().setPacketHandled(true);
     }

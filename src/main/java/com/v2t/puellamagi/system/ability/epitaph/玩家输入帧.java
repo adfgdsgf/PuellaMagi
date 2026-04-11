@@ -44,6 +44,19 @@ public class 玩家输入帧 {
 
     private final int 选中槽位;
 
+    // ==================== 合成帧标记 ====================
+
+    /**
+     * 标记此输入帧是否为合成帧（非玩家真实操作产生）
+     *
+     * 合成帧由录制组管理器在合并时生成，填充录制者帧偏移之前的空位。
+     * 合成帧只包含朝向数据，不应改变选中槽位等游戏状态。
+     *
+     * 调用方通过此标记统一判断是否应用选中槽位等字段，
+     * 而非使用魔法数字（如-1）做特判。
+     */
+    private final boolean 合成帧;
+
     // ==================== 键盘事件 ====================
 
     /**
@@ -117,7 +130,7 @@ public class 玩家输入帧 {
 
     // ==================== 构造 ====================
 
-    public 玩家输入帧(float forwardImpulse, float leftImpulse,boolean jumping, boolean sneaking, boolean sprinting,
+    public 玩家输入帧(float forwardImpulse, float leftImpulse, boolean jumping, boolean sneaking, boolean sprinting,
                       float yRot, float xRot,
                       int selectedSlot,
                       List<键盘事件> keyboardEvents,
@@ -129,6 +142,29 @@ public class 玩家输入帧 {
                       double hitX, double hitY, double hitZ,
                       boolean hitInside,
                       int hitEntityId) {
+        this(forwardImpulse, leftImpulse, jumping, sneaking, sprinting,
+                yRot, xRot, selectedSlot,
+                keyboardEvents, mouseEvents, cursorX, cursorY,
+                hitType, hitBlockPos, hitDirection, hitX, hitY, hitZ, hitInside, hitEntityId,
+                false);
+    }
+
+    /**
+     * 内部完整构造器（包含合成帧标记）
+     */
+    private 玩家输入帧(float forwardImpulse, float leftImpulse, boolean jumping, boolean sneaking, boolean sprinting,
+                       float yRot, float xRot,
+                       int selectedSlot,
+                       List<键盘事件> keyboardEvents,
+                       List<鼠标事件> mouseEvents,
+                       double cursorX, double cursorY,
+                       int hitType,
+                       BlockPos hitBlockPos,
+                       Direction hitDirection,
+                       double hitX, double hitY, double hitZ,
+                       boolean hitInside,
+                       int hitEntityId,
+                       boolean synthetic) {
         this.前后输入 = forwardImpulse;
         this.左右输入 = leftImpulse;
         this.跳跃 = jumping;
@@ -149,6 +185,7 @@ public class 玩家输入帧 {
         this.hitZ = hitZ;
         this.hitInside = hitInside;
         this.hitEntityId = hitEntityId;
+        this.合成帧 = synthetic;
     }
 
     /**
@@ -161,7 +198,27 @@ public class 玩家输入帧 {
         this(forwardImpulse, leftImpulse, jumping, sneaking, sprinting,
                 yRot, xRot, selectedSlot, new ArrayList<>(), new ArrayList<>(),
                 0, 0,
-                0, null, null, 0, 0, 0, false, -1);
+                0, null, null, 0, 0, 0, false, -1,
+                false);
+    }
+
+    /**
+     * 创建合成输入帧（只有朝向，不改变选中槽位等游戏状态）
+     *
+     * 由录制组管理器在合并时使用，填充录制者帧偏移之前的空位。
+     * 合成帧标记为true，调用方通过是否合成帧()统一判断是否跳过特定字段。
+     *
+     * @param yRot 水平视角（从帧数据采集）
+     * @param xRot 垂直视角（从帧数据采集）
+     */
+    public static 玩家输入帧 创建合成帧(float yRot, float xRot) {
+        return new 玩家输入帧(
+                0, 0, false, false, false,
+                yRot, xRot, 0,
+                new ArrayList<>(), new ArrayList<>(),
+                0, 0,
+                0, null, null, 0, 0, 0, false, -1,
+                true);
     }
 
     // ==================== 从服务端玩家采集 ====================
@@ -192,7 +249,10 @@ public class 玩家输入帧 {
         player.yRotO = yRot;
         player.xRotO = xRot;
         player.setYHeadRot(yRot);
-        player.getInventory().selected = 选中槽位;
+        // 合成帧不改变选中槽位（只有朝向数据有效）
+        if (!合成帧) {
+            player.getInventory().selected = 选中槽位;
+        }
     }
 
     // ==================== 网络序列化 ====================
@@ -206,6 +266,7 @@ public class 玩家输入帧 {
         buf.writeFloat(yRot);
         buf.writeFloat(xRot);
         buf.writeVarInt(选中槽位);
+        buf.writeBoolean(合成帧);
 
         // 键盘事件
         buf.writeVarInt(键盘事件列表.size());
@@ -249,6 +310,7 @@ public class 玩家输入帧 {
         float yRot = buf.readFloat();
         float xRot = buf.readFloat();
         int selectedSlot = buf.readVarInt();
+        boolean synthetic = buf.readBoolean();
 
         // 键盘事件
         int keyCount = buf.readVarInt();
@@ -293,7 +355,8 @@ public class 玩家输入帧 {
         return new 玩家输入帧(forward, left, jumping, sneaking, sprinting,
                 yRot, xRot, selectedSlot, keys, mouseEvents,
                 cursorX, cursorY,
-                hitType, hitBlockPos, hitDirection, hitX, hitY, hitZ, hitInside, hitEntityId);
+                hitType, hitBlockPos, hitDirection, hitX, hitY, hitZ, hitInside, hitEntityId,
+                synthetic);
     }
 
     // ==================== Getter ====================
@@ -306,6 +369,7 @@ public class 玩家输入帧 {
     public float 获取YRot() { return yRot; }
     public float 获取XRot() { return xRot; }
     public int 获取选中槽位() { return 选中槽位; }
+    public boolean 是否合成帧() { return 合成帧; }
     public List<键盘事件> 获取键盘事件列表() { return 键盘事件列表; }
     public List<鼠标事件> 获取鼠标事件列表() { return 鼠标事件列表; }
     public double 获取光标X() { return cursorX; }

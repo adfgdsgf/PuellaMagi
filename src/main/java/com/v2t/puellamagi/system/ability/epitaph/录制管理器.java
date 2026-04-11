@@ -203,12 +203,20 @@ public final class 录制管理器 {
 
         活跃会话.put(userUUID, session);
 
+        // 加入录制组（多人录制自动合并的关键对接点）
+        录制组管理器.加入或创建录制组(userUUID, session, gameTime, level);
+
         // 通知被录制的玩家客户端开始录制
+        // 区分录制者和被录制者：录制者收到"开始录制_录制者"，其他人收到"开始录制_被录制"
+        // 客户端用这个标记判断是否应该触发过渡保护
         for (UUID entityUUID : entities) {
             Entity entity = 实体工具.按UUID查找实体(level, entityUUID);
             if (entity instanceof ServerPlayer sp) {
+                boolean 是录制者 = entityUUID.equals(userUUID);
                 网络工具.发送给玩家(sp,
-                        com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.开始录制());
+                        是录制者
+                                ? com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.开始录制_录制者()
+                                : com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.开始录制_被录制());
             }
         }
 
@@ -418,7 +426,12 @@ public final class 录制管理器 {
                 if (entity instanceof ServerPlayer sp) {
                     session.结束快照表.put(entityUUID, 玩家快照.从玩家采集(sp));
                 }
-            }LOGGER.info("玩家 {} 停止录制（共{} 帧，{} 个方块变化）",
+            }
+
+            // 通知录制组管理器该录制段结束
+            录制组管理器.标记录制段结束(userUUID, session.维度.getGameTime());
+
+            LOGGER.info("玩家 {} 停止录制（共{} 帧，{} 个方块变化）",
                     userUUID, session.帧数据.获取总帧数(),
                     session.方块变化列表.size());
         }
@@ -438,6 +451,9 @@ public final class 录制管理器 {
                             com.v2t.puellamagi.core.network.packets.s2c.录制状态通知包.停止录制());
                 }
             }
+
+            // 通知录制组管理器取消
+            录制组管理器.取消录制段(userUUID);
         }
     }
 

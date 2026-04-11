@@ -90,6 +90,7 @@
     "epitaph.client.EpitaphTimeDeletionPacketMixin",
     "epitaph.client.EpitaphTimeDeletionBlockMixin",
     "epitaph.client.EpitaphTimeDeletionLevelEventMixin",
+    "epitaph.client.EpitaphTimeDeletionSoundMixin",
 
     "client.CreativeModeDeleteMixin"
   ]
